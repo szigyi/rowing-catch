@@ -3,8 +3,8 @@ import pandas as pd
 
 from rowing_catch.algo.analysis import process_rowing_data, get_traffic_light
 from rowing_catch.ui.components import (
-    plot_trunk_angle, 
-    plot_velocity_coordination, 
+    plot_trunk_angle_with_stage_stickfigures,
+    plot_velocity_coordination,
     plot_handle_trajectory, 
     plot_consistency_rhythm
 )
@@ -53,10 +53,10 @@ if uploaded_file is not None:
         
         with col1:
             st.subheader("1. Biomechanical & Technical Efficiency")
-            
+
             # Trunk Angle Plot
             st.write("#### ✅ Trunk Angle & Range Analysis")
-            plot_trunk_angle(avg_cycle, catch_idx, finish_idx)
+            plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx)
 
             # Coordination Plot
             st.write("#### ✅ Seat vs. Handle Velocity Coordination")

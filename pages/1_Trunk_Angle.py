@@ -1,9 +1,7 @@
 import streamlit as st
-import pandas as pd
-import os
 from rowing_catch.algo.analysis import process_rowing_data
 from rowing_catch.algo.scenarios import create_scenario_data, get_trunk_scenarios
-from rowing_catch.ui.components import plot_trunk_angle
+from rowing_catch.ui.components import plot_trunk_angle_with_stage_stickfigures
 
 st.set_page_config(page_title="Trunk Angle Analysis", layout="wide")
 
@@ -33,13 +31,13 @@ if selected_scenario:
     
     df = create_scenario_data("Trunk", selected_scenario)
     results = process_rowing_data(df)
-    
+
     if results:
         avg_cycle = results['avg_cycle']
         catch_idx = results['catch_idx']
         finish_idx = results['finish_idx']
         
-        plot_trunk_angle(avg_cycle, catch_idx, finish_idx)
+        plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx)
     else:
         st.error("Could not process the selected scenario.")
 

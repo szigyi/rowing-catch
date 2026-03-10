@@ -1,27 +1,5 @@
 import streamlit as st
 import matplotlib.pyplot as plt
-import numpy as np
-
-def plot_trunk_angle(avg_cycle, catch_idx, finish_idx):
-    fig, ax = plt.subplots()
-    ax.plot(avg_cycle.index, avg_cycle['Trunk_Angle'], color='purple', label='Trunk Angle')
-    ax.axvline(catch_idx, color='green', linestyle='--', label='Catch')
-    ax.axvline(finish_idx, color='red', linestyle='--', label='Finish')
-    
-    # Ideal Zones (approximate based on plan)
-    ax.axhspan(-30, -25, color='green', alpha=0.2, label='Ideal Catch Zone')
-    ax.axhspan(10, 15, color='blue', alpha=0.2, label='Ideal Finish Zone')
-    
-    ax.set_ylabel('Degrees from Vertical')
-    ax.set_xlabel('Stroke Progress')
-    ax.legend()
-    st.pyplot(fig)
-    
-    catch_lean = avg_cycle.loc[catch_idx, 'Trunk_Angle']
-    finish_lean = avg_cycle.loc[finish_idx, 'Trunk_Angle']
-    st.info(f"**Coach's Tip:** You are achieving {abs(finish_lean - catch_lean):.1f}° of range. "
-            f"Catch lean: {catch_lean:.1f}°, Finish lean: {finish_lean:.1f}°. "
-            "Aim for the shaded zones to optimize power.")
 
 def plot_velocity_coordination(avg_cycle, catch_idx, finish_idx):
     fig, ax = plt.subplots()
@@ -80,3 +58,197 @@ def plot_consistency_rhythm(cv, drive_p, rec_p):
     st.pyplot(fig)
     st.info(f"**Coach's Tip:** {'You are rushing the recovery.' if drive_p > 35 else 'Good rhythm.'} "
             "Slower movement on the slide (recovery) allows your muscles to recover.")
+
+def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, stage_points=None):
+    """Plot trunk angle (top) and stage stick figures (bottom) with a shared X axis.
+
+    The bottom pane uses small inset axes per stage so each stick figure has a
+    local, equal-aspect coordinate system (no squashed head, clear lean), while
+    still being anchored to the correct stroke-progress x-position.
+
+    Args:
+        avg_cycle: pandas DataFrame representing the averaged stroke.
+        catch_idx: index (int-like) of catch in avg_cycle.
+        finish_idx: index (int-like) of finish in avg_cycle.
+        stage_points: optional list of (label, x_index) pairs. If None, uses
+                      Catch, 3/4 slide, 1/2 slide, 1/4 slide, Finish interpolated
+                      between catch_idx and finish_idx.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    x = avg_cycle.index.to_numpy()
+
+    if stage_points is None:
+        drive_len = max(1, int(finish_idx) - int(catch_idx))
+        stage_points = [
+            ("Catch", int(catch_idx)),
+            ("3/4 Slide", int(catch_idx + 0.25 * drive_len)),
+            ("1/2 Slide", int(catch_idx + 0.50 * drive_len)),
+            ("1/4 Slide", int(catch_idx + 0.75 * drive_len)),
+            ("Finish", int(finish_idx)),
+        ]
+
+    x_min = int(x.min())
+    x_max = int(x.max())
+    stage_points = [(label, int(np.clip(ix, x_min, x_max))) for label, ix in stage_points]
+
+    fig, (ax_top, ax_bot) = plt.subplots(
+        2,
+        1,
+        figsize=(10, 7),
+        sharex=True,
+        gridspec_kw={"height_ratios": [3, 2]},
+        constrained_layout=True,
+    )
+
+    # Add a little extra padding around the whole figure to avoid Streamlit cropping at edges.
+    try:
+        fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
+    except Exception:
+        pass
+
+    # --- Top: trunk angle trace ---
+    ax_top.plot(avg_cycle.index, avg_cycle['Trunk_Angle'], color='purple', label='Trunk Angle')
+
+    # Upright reference (0° from vertical)
+    ax_top.axhline(0, color='gray', linestyle=':', linewidth=1.2, alpha=0.8)
+    ax_top.text(
+        avg_cycle.index.min(),
+        0,
+        ' Upright (0°)',
+        color='gray',
+        fontsize=9,
+        va='bottom',
+        ha='left',
+        bbox=dict(facecolor='white', edgecolor='none', alpha=0.6, pad=0.6),
+    )
+
+    ax_top.axvline(catch_idx, color='green', linestyle='--', linewidth=1)
+    ax_top.axvline(finish_idx, color='red', linestyle='--', linewidth=1)
+
+    catch_zone = (-30, -25)
+    finish_zone = (10, 15)
+    ax_top.axhspan(catch_zone[0], catch_zone[1], color='green', alpha=0.2)
+    ax_top.axhspan(finish_zone[0], finish_zone[1], color='blue', alpha=0.2)
+    ax_top.set_ylabel('Degrees from Vertical')
+
+    y_min, y_max = ax_top.get_ylim()
+    y_label = y_max - (y_max - y_min) * 0.03
+    ax_top.text(catch_idx, y_label, 'Catch', color='green', ha='center', va='top', fontsize=10,
+                bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=1.5))
+    ax_top.text(finish_idx, y_label, 'Finish', color='red', ha='center', va='top', fontsize=10,
+                bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=1.5))
+
+    x_mid = (avg_cycle.index.min() + avg_cycle.index.max()) / 2
+    ax_top.text(x_mid, sum(catch_zone) / 2, 'Ideal Catch Zone', color='green', ha='center', va='center', fontsize=10,
+                bbox=dict(facecolor='white', edgecolor='none', alpha=0.6, pad=1.5))
+    ax_top.text(x_mid, sum(finish_zone) / 2, 'Ideal Finish Zone', color='blue', ha='center', va='center', fontsize=10,
+                bbox=dict(facecolor='white', edgecolor='none', alpha=0.6, pad=1.5))
+
+    ax_top.legend(loc='upper left')
+
+    # --- Bottom: anchor axis for alignment only ---
+    ax_bot.axvline(catch_idx, color='green', linestyle='--', linewidth=1, alpha=0.35)
+    ax_bot.axvline(finish_idx, color='red', linestyle='--', linewidth=1, alpha=0.35)
+    ax_bot.axhline(0.0, color='black', linewidth=1, alpha=0.5)
+    ax_bot.set_ylim(-0.5, 1.5)
+    ax_bot.set_yticks([])
+    ax_bot.set_xlabel('Stroke Progress')
+    ax_bot.set_xlim(x_min - 5, x_max + 5)
+
+    # Hide spines for a clean look
+    for spine in ax_bot.spines.values():
+        spine.set_visible(False)
+
+    # NOTE: inset axes must be positioned using the *actual* data->axes transform,
+    # otherwise xlim padding will shift them and they won't align with catch/finish lines.
+    def _data_x_to_axes_frac(ix: int) -> float:
+        # Convert (ix, 0) from data coords to display, then to axes fraction.
+        disp = ax_bot.transData.transform((ix, 0.0))
+        axes_xy = ax_bot.transAxes.inverted().transform(disp)
+        return float(axes_xy[0])
+
+    # Local stick figure geometry (angle measured from vertical)
+    def _vector_from_vertical_angle(angle_deg: float, length: float):
+        a = np.radians(angle_deg)
+        return length * np.sin(a), length * np.cos(a)
+
+    trunk_length = 1.0
+    head_radius = 0.22
+
+    # Inset sizing in axis-fraction units (responsive)
+    inset_w_default = 0.16
+    inset_h = 0.80
+    inset_y0 = 0.08
+
+    # Reserve a "gutter" so inset boxes never sit flush against the axis boundaries.
+    # This avoids subtle clipping of the first/last insets.
+    edge_margin = 0.05
+
+    for label, ix in stage_points:
+        # Get the trunk angle at that x position from the same data used in the top plot
+        try:
+            angle = float(avg_cycle.loc[ix, 'Trunk_Angle'])
+        except Exception:
+            nearest = int(np.argmin(np.abs(x - ix)))
+            angle = float(avg_cycle['Trunk_Angle'].iloc[nearest])
+            ix = int(x[nearest])
+
+        frac = _data_x_to_axes_frac(ix)
+
+        # Clamp the stage anchor into a safe interior region so the inset box can fully fit.
+        frac_safe = float(np.clip(frac, edge_margin, 1.0 - edge_margin))
+
+        max_w_left = 2.0 * max(frac_safe - edge_margin, 0.0)
+        max_w_right = 2.0 * max((1.0 - edge_margin) - frac_safe, 0.0)
+        inset_w = float(min(inset_w_default, max_w_left, max_w_right))
+        inset_w = float(max(inset_w, 0.12))
+
+        x0 = float(np.clip(frac_safe - inset_w / 2, edge_margin, (1.0 - edge_margin) - inset_w))
+        stage_inside = float(np.clip(frac - x0, 0.0, inset_w))
+
+        inset = ax_bot.inset_axes([x0, inset_y0, inset_w, inset_h], transform=ax_bot.transAxes)
+        inset.set_aspect('equal', adjustable='box')
+        inset.axis('off')
+        inset.set_clip_on(False)
+
+        # --- Alignment fix (keep stage at x=0 inside inset coords) ---
+        x_span = 1.2
+        frac_in_inset = stage_inside / inset_w if inset_w > 0 else 0.5
+        x_left = -x_span * frac_in_inset
+        x_right = x_span * (1.0 - frac_in_inset)
+        inset.set_xlim(x_left, x_right)
+        inset.set_ylim(-0.35, 1.60)
+
+        # Draw true vertical reference at x=0
+        inset.plot([0, 0], [0, trunk_length], color='black', alpha=0.25, linestyle=':', linewidth=1, clip_on=False)
+
+        dx, dy = _vector_from_vertical_angle(angle, trunk_length)
+        inset.plot([0, dx], [0, dy], color='purple', linewidth=3, clip_on=False)
+        inset.add_patch(plt.Circle((dx, dy + head_radius), head_radius, color='gray', zorder=3, clip_on=False))
+
+        # Labels inside inset
+        inset.text(0, -0.27, label, ha='center', va='top', fontsize=7.5, clip_on=False)
+        inset.text(
+            0,
+            1.32,
+            f"{angle:.1f}°",
+            ha='center',
+            va='bottom',
+            fontsize=7.5,
+            color='blue',
+            zorder=5,
+            bbox=dict(facecolor='white', edgecolor='none', alpha=0.75, pad=0.8),
+            clip_on=False,
+        )
+
+    st.pyplot(fig)
+
+    catch_lean = float(avg_cycle.loc[catch_idx, 'Trunk_Angle'])
+    finish_lean = float(avg_cycle.loc[finish_idx, 'Trunk_Angle'])
+    st.info(
+        f"**Coach's Tip:** You are achieving {abs(finish_lean - catch_lean):.1f}° of range. "
+        f"Catch lean: {catch_lean:.1f}°, Finish lean: {finish_lean:.1f}°. "
+        "Aim for the shaded zones to optimize power."
+    )

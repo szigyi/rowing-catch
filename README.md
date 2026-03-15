@@ -22,6 +22,7 @@ The Rowing Catch is an application for biomechanical and technical analysis of r
 ## Usage
 1. Launch the app with Streamlit:
    ```bash
+   source .venv/bin/activate
    streamlit run app.py
    ```
 2. Upload a CSV file from the `resources/` folder (e.g., `2023.12.27.Szabi_20strokesPerMinute_trajectory.csv`).

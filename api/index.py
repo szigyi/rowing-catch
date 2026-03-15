@@ -15,7 +15,6 @@ import socket
 import subprocess
 import sys
 import time
-from typing import Iterable
 
 import requests
 
@@ -165,4 +164,3 @@ def app(environ, start_response):
     status_line = f"{status_code} {'OK' if status_code < 400 else 'ERROR'}"
     start_response(status_line, out_headers)
     return [content]
-

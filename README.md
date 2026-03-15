@@ -34,9 +34,14 @@ Example CSV files are available in the `resources/` folder:
 - `2023.12.27.Szabi_36strokesPerMinute_trajectory.csv`
 
 ## Installation
-Install dependencies:
+Install runtime dependencies:
    ```bash
    pip install -r requirements.txt
+   ```
+
+Optional (local/dev) extras:
+   ```bash
+   pip install -r requirements-dev.txt
    ```
 
 ## License

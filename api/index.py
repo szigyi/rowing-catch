@@ -41,6 +41,16 @@ def _ensure_streamlit_started() -> None:
     if _streamlit_proc is not None and _streamlit_proc.poll() is None:
         return
 
+    # Fail fast with a clear error if Vercel's vendoring missed transitive deps.
+    try:
+        from blinker import Signal  # noqa: F401
+    except Exception as e:  # pragma: no cover
+        raise RuntimeError(
+            "Missing runtime dependency needed by Streamlit. "
+            "Ensure `blinker` is in requirements.txt. "
+            f"Import error: {e!r}"
+        ) from e
+
     env = os.environ.copy()
     env.setdefault("STREAMLIT_SERVER_HEADLESS", "true")
     env.setdefault("STREAMLIT_BROWSER_GATHERUSAGESTATS", "false")

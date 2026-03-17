@@ -115,78 +115,41 @@ def _pick_finish_index(avg_cycle: pd.DataFrame,
 
     catch_idx = int(np.clip(int(catch_idx), 0, n - 1))
 
-    # Candidates: handle velocity reversal (drive -> recovery) after catch.
+    post = slice(catch_idx, n)
+
     hvel = np.gradient(handle)
+
+    handle_peak = catch_idx + int(np.nanargmax(handle[post]))
+
     rev = np.where((hvel[:-1] > 0) & (hvel[1:] <= 0))[0] + 1
     rev = rev[rev > catch_idx]
+    rev_after_peak = rev[rev >= handle_peak]
 
-    # Add a small window *before* each reversal (finish happens just before handle moves back).
-    # This helps when discrete sampling makes the sign change occur one or two samples late.
-    pre = max(1, window // 4)
-    if rev.size:
-        rev = np.unique(np.clip(np.r_[rev, rev - pre, rev - 2 * pre], catch_idx + 1, n - 1))
+    if rev_after_peak.size:
+        fin = int(rev_after_peak[0])
+        # Often the sign-change is detected one sample late; if previous sample is
+        # closer to the peak, use that.
+        if fin - 1 > catch_idx and handle[fin - 1] >= handle[fin]:
+            fin = fin - 1
+    else:
+        # If we don't have an explicit reversal (very smooth data), start from handle peak.
+        fin = int(np.clip(handle_peak, catch_idx + 1, n - 1))
 
-    # Fallback candidates: seat reversal maxima after catch.
-    seat_rev = _detect_finishes_by_seat_reversal(avg_cycle['Seat_X_Smooth'], min_separation=max(5, window))
-    seat_rev = seat_rev[seat_rev > catch_idx]
+    # Enforce "not still accelerating" expectation: hvel should be flat/decreasing.
+    # Step back a few samples if needed.
+    back_limit = max(catch_idx + 1, fin - max(3, window // 2))
+    i = fin
+    while i - 1 >= back_limit and hvel[i] > hvel[i - 1]:
+        i -= 1
 
-    candidates = rev if rev.size else seat_rev
-    if not candidates.size:
-        # Last resort: global maxima after catch
-        return int(catch_idx + np.argmax(seat[catch_idx:]))
+    fin = int(i)
 
-    # Normalize signals for scoring.
-    def _norm(x: np.ndarray) -> np.ndarray:
-        lo = float(np.nanmin(x))
-        hi = float(np.nanmax(x))
-        if not np.isfinite(lo) or not np.isfinite(hi) or hi - lo < 1e-9:
-            return np.zeros_like(x)
-        return (x - lo) / (hi - lo)
+    # Very small safeguard: keep finish near trunk peak after catch.
+    trunk_peak = catch_idx + int(np.nanargmax(trunk[post]))
+    if fin > trunk_peak + max(3, window // 2):
+        fin = int(np.clip(trunk_peak, catch_idx + 1, n - 1))
 
-    seat_n = _norm(seat)
-    handle_n = _norm(handle)
-    trunk_n = _norm(trunk)
-
-    # Index of trunk peak (used as a soft anchor, not hard override).
-    trunk_peak = int(np.nanargmax(trunk))
-
-    # Score each candidate.
-    best_i = int(candidates[0])
-    best_score = -1e18
-
-    # Tolerance scale in samples (handles smoothing drift).
-    tol = max(2, window // 2)
-
-    # Prefer candidates at or slightly before trunk peak (finish shouldn't be after max layback).
-    for i in map(int, candidates):
-        # Primary: being high on all three signals.
-        score = 3.0 * seat_n[i] + 3.0 * handle_n[i] + 2.0 * trunk_n[i]
-
-        # Prefer being close to trunk peak.
-        dist = abs(i - trunk_peak)
-        score += 2.0 * (1.0 - min(dist, 5 * tol) / float(5 * tol))
-
-        # Penalize candidates after trunk peak (finish should be at/just before maximal layback).
-        if i > trunk_peak:
-            score -= 1.5 * min((i - trunk_peak) / float(tol), 3.0)
-
-        # Prefer sharp handle reversal (strong negative acceleration right after).
-        if i + 1 < n:
-            score += 1.0 * max(0.0, -float(hvel[i + 1]))
-
-        # Prefer candidates where seat is also near a local maximum (even if not exact reversal).
-        if 1 <= i < n - 1:
-            if seat[i] >= seat[i - 1] and seat[i] >= seat[i + 1]:
-                score += 0.5
-
-        # Penalize very early finishes too close to catch.
-        score -= 0.5 * max(0, (catch_idx + tol) - i)
-
-        if score > best_score:
-            best_score = score
-            best_i = i
-
-    return int(best_i)
+    return int(fin)
 
 
 def process_rowing_data(df, pre_catch_window: int = 10):

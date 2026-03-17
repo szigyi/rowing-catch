@@ -59,7 +59,7 @@ def plot_consistency_rhythm(cv, drive_p, rec_p):
     st.info(f"**Coach's Tip:** {'You are rushing the recovery.' if drive_p > 35 else 'Good rhythm.'} "
             "Slower movement on the slide (recovery) allows your muscles to recover.")
 
-def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, stage_points=None):
+def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, stage_points=None, ghost_cycle=None):
     """Plot trunk angle (top) and stage stick figures (bottom) with a shared X axis.
 
     The bottom pane uses small inset axes per stage so each stick figure has a
@@ -73,6 +73,7 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
         stage_points: optional list of (label, x_index) pairs. If None, uses
                       Catch, 3/4 slide, 1/2 slide, 1/4 slide, Finish interpolated
                       between catch_idx and finish_idx.
+        ghost_cycle: optional pandas DataFrame of a comparison scenario to plot behind the main trunk angle.
     """
     import matplotlib.pyplot as plt
     import numpy as np
@@ -81,12 +82,18 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
 
     if stage_points is None:
         drive_len = max(1, int(finish_idx) - int(catch_idx))
+        rec_end = int(x.max())
+        rec_len = max(1, rec_end - int(finish_idx))
         stage_points = [
             ("Catch", int(catch_idx)),
             ("3/4 Slide", int(catch_idx + 0.25 * drive_len)),
             ("1/2 Slide", int(catch_idx + 0.50 * drive_len)),
             ("1/4 Slide", int(catch_idx + 0.75 * drive_len)),
             ("Finish", int(finish_idx)),
+            ("1/4 Slide", int(finish_idx + 0.25 * rec_len)),
+            ("1/2 Slide", int(finish_idx + 0.50 * rec_len)),
+            ("3/4 Slide", int(finish_idx + 0.75 * rec_len)),
+            ("Next Catch", rec_end),
         ]
 
     x_min = int(x.min())
@@ -101,6 +108,18 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
         gridspec_kw={"height_ratios": [3, 2]},
         constrained_layout=True,
     )
+    
+    # Modern Styling
+    fig.patch.set_facecolor('#F8F9FA')  # Light gray background for the whole figure
+    ax_top.set_facecolor('#FFFFFF')     # White for the data area
+    ax_bot.set_facecolor('#F8F9FA')
+    
+    # Clean up spines on top plot
+    ax_top.spines['top'].set_visible(False)
+    ax_top.spines['right'].set_visible(False)
+    ax_top.spines['left'].set_color('#DDDDDD')
+    ax_top.spines['bottom'].set_color('#DDDDDD')
+    ax_top.grid(axis='y', linestyle='-', linewidth=0.5, color='#F0F0F0', zorder=0)
 
     # Add a little extra padding around the whole figure to avoid Streamlit cropping at edges.
     try:
@@ -109,57 +128,77 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
         pass
 
     # --- Top: trunk angle trace ---
-    ax_top.plot(avg_cycle.index, avg_cycle['Trunk_Angle'], color='purple', label='Trunk Angle')
+    ax_top.plot(avg_cycle.index, avg_cycle['Trunk_Angle'], color='#636EFA', label='Trunk Angle', linewidth=2.5, zorder=5)
+    
+    # Fill under the curve slightly for dynamic effect
+    ax_top.fill_between(avg_cycle.index, avg_cycle['Trunk_Angle'], 0, where=(avg_cycle['Trunk_Angle'] > 0), color='#636EFA', alpha=0.1, zorder=4)
+    ax_top.fill_between(avg_cycle.index, avg_cycle['Trunk_Angle'], 0, where=(avg_cycle['Trunk_Angle'] <= 0), color='#636EFA', alpha=0.1, zorder=4)
+    
+    if ghost_cycle is not None:
+        ax_top.plot(ghost_cycle.index, ghost_cycle['Trunk_Angle'], color='#A8B2C1', linestyle=':', linewidth=2, alpha=0.8, label='Compare', zorder=4)
 
     # Upright reference (0° from vertical)
-    ax_top.axhline(0, color='gray', linestyle=':', linewidth=1.2, alpha=0.8)
+    ax_top.axhline(0, color='#888888', linestyle='dashed', linewidth=1, alpha=0.5, zorder=2)
     ax_top.text(
-        avg_cycle.index.min(),
+        avg_cycle.index.min() + 2,
         0,
-        ' Upright (0°)',
-        color='gray',
+        'Upright (0°)',
+        color='#666666',
         fontsize=9,
+        fontweight='medium',
         va='bottom',
         ha='left',
-        bbox=dict(facecolor='white', edgecolor='none', alpha=0.6, pad=0.6),
+        bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.8, pad=0.6),
+        zorder=6
     )
 
-    ax_top.axvline(catch_idx, color='green', linestyle='--', linewidth=1)
-    ax_top.axvline(finish_idx, color='red', linestyle='--', linewidth=1)
+    ax_top.axvline(catch_idx, color='#00CC96', linestyle='--', linewidth=1.5, zorder=2)
+    ax_top.axvline(finish_idx, color='#EF553B', linestyle='--', linewidth=1.5, zorder=2)
+    ax_top.axvline(x_max, color='#00CC96', linestyle='--', linewidth=1.5, zorder=2)
 
-    catch_zone = (-30, -25)
-    finish_zone = (10, 15)
-    ax_top.axhspan(catch_zone[0], catch_zone[1], color='green', alpha=0.2)
-    ax_top.axhspan(finish_zone[0], finish_zone[1], color='blue', alpha=0.2)
-    ax_top.set_ylabel('Degrees from Vertical')
+    catch_zone = (-33, -27)
+    finish_zone = (12, 18)
+    ax_top.axhspan(catch_zone[0], catch_zone[1], color='#00CC96', alpha=0.08, zorder=1)
+    ax_top.axhspan(finish_zone[0], finish_zone[1], color='#EF553B', alpha=0.08, zorder=1)
+    ax_top.set_ylabel('Degrees from Vertical', color='#444444', fontweight='bold', labelpad=10)
+    ax_top.tick_params(axis='y', colors='#666666')
 
     y_min, y_max = ax_top.get_ylim()
-    y_label = y_max - (y_max - y_min) * 0.03
-    ax_top.text(catch_idx, y_label, 'Catch', color='green', ha='center', va='top', fontsize=10,
-                bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=1.5))
-    ax_top.text(finish_idx, y_label, 'Finish', color='red', ha='center', va='top', fontsize=10,
-                bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=1.5))
+    y_label = y_max - (y_max - y_min) * 0.05
+    ax_top.text(catch_idx, y_label, 'Catch', color='#00CC96', ha='center', va='top', fontsize=10, fontweight='bold',
+                bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.9, pad=1.5), zorder=6)
+    ax_top.text(finish_idx, y_label, 'Finish', color='#EF553B', ha='center', va='top', fontsize=10, fontweight='bold',
+                bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.9, pad=1.5), zorder=6)
+    ax_top.text(x_max, y_label, 'Catch', color='#00CC96', ha='center', va='top', fontsize=10, fontweight='bold',
+                bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.9, pad=1.5), zorder=6)
 
-    x_mid = (avg_cycle.index.min() + avg_cycle.index.max()) / 2
-    ax_top.text(x_mid, sum(catch_zone) / 2, 'Ideal Catch Zone', color='green', ha='center', va='center', fontsize=10,
-                bbox=dict(facecolor='white', edgecolor='none', alpha=0.6, pad=1.5))
-    ax_top.text(x_mid, sum(finish_zone) / 2, 'Ideal Finish Zone', color='blue', ha='center', va='center', fontsize=10,
-                bbox=dict(facecolor='white', edgecolor='none', alpha=0.6, pad=1.5))
+    x_right = (avg_cycle.index.min() + avg_cycle.index.max()) * 0.85
+    ax_top.text(x_right, sum(catch_zone) / 2, 'Ideal Catch', color='#00CC96', ha='center', va='center', fontsize=9, fontweight='medium',
+                bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.7, pad=1.5), zorder=6)
+    ax_top.text(x_right, sum(finish_zone) / 2, 'Ideal Finish', color='#EF553B', ha='center', va='center', fontsize=9, fontweight='medium',
+                bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.7, pad=1.5), zorder=6)
 
-    ax_top.legend(loc='upper left')
+    legend_kwargs = dict(loc='center right', frameon=True, facecolor='#FFFFFF', edgecolor='#DDDDDD', fontsize=9, borderpad=0.8)
+    if not any(spine.get_visible() for spine in ax_top.spines.values()):
+        pass
+    ax_top.legend(**legend_kwargs)
 
     # --- Bottom: anchor axis for alignment only ---
-    ax_bot.axvline(catch_idx, color='green', linestyle='--', linewidth=1, alpha=0.35)
-    ax_bot.axvline(finish_idx, color='red', linestyle='--', linewidth=1, alpha=0.35)
-    ax_bot.axhline(0.0, color='black', linewidth=1, alpha=0.5)
+    ax_bot.axvline(catch_idx, color='#00CC96', linestyle='--', linewidth=1.5, alpha=0.2)
+    ax_bot.axvline(finish_idx, color='#EF553B', linestyle='--', linewidth=1.5, alpha=0.2)
+    ax_bot.axvline(x_max, color='#00CC96', linestyle='--', linewidth=1.5, alpha=0.2)
+    ax_bot.axhline(0.0, color='#888888', linewidth=1, alpha=0.2)
     ax_bot.set_ylim(-0.5, 1.5)
     ax_bot.set_yticks([])
-    ax_bot.set_xlabel('Stroke Progress')
+    ax_bot.set_xlabel('Stroke Timeline (Data Points)', color='#444444', fontweight='bold', labelpad=10)
+    ax_bot.tick_params(axis='x', colors='#666666')
     ax_bot.set_xlim(x_min - 5, x_max + 5)
 
     # Hide spines for a clean look
     for spine in ax_bot.spines.values():
         spine.set_visible(False)
+    ax_bot.spines['bottom'].set_visible(True)
+    ax_bot.spines['bottom'].set_color('#DDDDDD')
 
     # NOTE: inset axes must be positioned using the *actual* data->axes transform,
     # otherwise xlim padding will shift them and they won't align with catch/finish lines.
@@ -222,24 +261,27 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
         inset.set_ylim(-0.35, 1.60)
 
         # Draw true vertical reference at x=0
-        inset.plot([0, 0], [0, trunk_length], color='black', alpha=0.25, linestyle=':', linewidth=1, clip_on=False)
+        inset.plot([0, 0], [0, trunk_length], color='#888888', alpha=0.3, linestyle=':', linewidth=1.5, clip_on=False)
 
         dx, dy = _vector_from_vertical_angle(angle, trunk_length)
-        inset.plot([0, dx], [0, dy], color='purple', linewidth=3, clip_on=False)
-        inset.add_patch(plt.Circle((dx, dy + head_radius), head_radius, color='gray', zorder=3, clip_on=False))
+        inset.plot([0, dx], [0, dy], color='#636EFA', linewidth=3.5, solid_capstyle='round', clip_on=False)
+        inset.add_patch(plt.Circle((dx, dy + head_radius), head_radius, color='#B5B9D2', zorder=3, clip_on=False))
 
         # Labels inside inset
-        inset.text(0, -0.27, label, ha='center', va='top', fontsize=7.5, clip_on=False)
+        label_color = '#00CC96' if 'Catch' in label else '#EF553B' if 'Finish' in label else '#666666'
+        label_weight = 'bold' if 'Catch' in label or 'Finish' in label else 'medium'
+        inset.text(0, -0.27, label, ha='center', va='top', fontsize=8, color=label_color, fontweight=label_weight, clip_on=False)
         inset.text(
             0,
             1.32,
             f"{angle:.1f}°",
             ha='center',
             va='bottom',
-            fontsize=7.5,
-            color='blue',
+            fontsize=8,
+            color='#444444',
+            fontweight='bold',
             zorder=5,
-            bbox=dict(facecolor='white', edgecolor='none', alpha=0.75, pad=0.8),
+            bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.85, pad=1.5),
             clip_on=False,
         )
 

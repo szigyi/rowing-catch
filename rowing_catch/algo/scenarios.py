@@ -6,6 +6,7 @@ def _trunk_angle_legs_first_progression(phase: np.ndarray,
                                        catch_angle: float,
                                        finish_angle: float,
                                        drive_hold: float = 0.35,
+                                       finish_hold: float = 0.05,
                                        rec_return: float = 0.25,
                                        rec_hold: float = 0.50) -> np.ndarray:
     """Return a simple sequencing-aware trunk-angle trace.
@@ -13,60 +14,39 @@ def _trunk_angle_legs_first_progression(phase: np.ndarray,
     Model (very simplified, coaching-oriented):
     - Early drive: trunk remains "set" while legs push (angle ~ constant at catch)
     - Late drive: trunk opens smoothly toward finish angle
+    - Finish hold: brief hold at the finish to avoid peak dampening from smoothing
     - Recovery: *quick* return to the catch/trunk-forward angle ("body over"),
       then hold that angle for much of recovery.
 
     phase: 0..1 across the whole stroke (0..0.5 drive, 0.5..1 recovery)
-    drive_hold: fraction of the DRIVE (0..1) to hold trunk angle nearly constant
-    rec_return: fraction of the RECOVERY (0..1) spent moving from finish->catch quickly
-    rec_hold: fraction of the RECOVERY (0..1) then held at catch angle (after body-over)
-
-    The remaining recovery time (if any) blends into the catch to ensure continuity.
     """
     drive_phase = phase / 0.5
     rec_phase = (phase - 0.5) / 0.5
 
-    # Clamp to avoid division issues if parameters are misconfigured.
-    drive_hold = float(np.clip(drive_hold, 0.0, 0.95))
-    rec_return = float(np.clip(rec_return, 0.01, 0.95))
-    rec_hold = float(np.clip(rec_hold, 0.0, 0.95))
-
-    # Ensure return+hold doesn't exceed the full recovery.
-    if rec_return + rec_hold > 0.98:
-        rec_hold = max(0.0, 0.98 - rec_return)
-
-    # Drive opening fraction after the hold.
-    # Clamping prevents edge-case sampling from peaking slightly before/after the finish.
-    drive_open = (drive_phase - drive_hold) / (1.0 - drive_hold)
+    # Drive: Opens linearly from drive_hold to (1.0 - finish_hold)
+    drive_open_start = drive_hold
+    drive_open_end = max(drive_hold + 0.01, 1.0 - finish_hold)
+    
+    drive_open = (drive_phase - drive_open_start) / (drive_open_end - drive_open_start)
     drive_open = np.clip(drive_open, 0.0, 1.0)
     drive_angle = catch_angle + (finish_angle - catch_angle) * drive_open
 
-    # Recovery segmentation:
-    # 0 .. rec_return          : finish -> catch (quick)
-    # rec_return .. rec_return+rec_hold : hold catch
-    # rest                      : stay at catch (kept for continuity / future shaping)
-    rec_hold_end = rec_return + rec_hold
+    # Recovery: Holds at finish for finish_hold, then returns to catch
+    rec_drop = (rec_phase - finish_hold) / max(0.01, rec_return)
+    rec_drop = np.clip(rec_drop, 0.0, 1.0)
+    rec_angle = finish_angle + (catch_angle - finish_angle) * rec_drop
 
-    rec_angle = np.where(
-        rec_phase <= rec_return,
-        finish_angle + (catch_angle - finish_angle) * (rec_phase / rec_return),
-        np.where(
-            rec_phase <= rec_hold_end,
-            catch_angle,
-            catch_angle,
-        ),
-    )
+    return np.where(phase <= 0.5, drive_angle, rec_angle)
 
-    return np.where(
-        phase <= 0.5,
-        np.where(
-            drive_phase <= drive_hold,
-            catch_angle,
-            drive_angle,
-        ),
-        rec_angle,
-    )
 
+def get_stroke_phase(num_points: int, drive_ratio: float = 1/3) -> np.ndarray:
+    """Warps a linear time array so that phase=0.5 occurs at the specified drive_ratio."""
+    t = np.linspace(0, 1, num_points)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        result = np.where(t <= drive_ratio, 
+                        0.5 * (t / drive_ratio), 
+                        0.5 + 0.5 * ((t - drive_ratio) / (1.0 - drive_ratio)))
+    return result
 
 def generate_cycle_df(num_points=100,
                       handle_x_range=(0, 400), 
@@ -89,13 +69,10 @@ def generate_cycle_df(num_points=100,
         *after* the handle does. This helps align the detected finish (Seat_X max)
         with the trunk-angle peak at the end of the drive.
     """
-    # Simple sine-based movement for seat (0 to seat_x_max back to 0)
-    # 0 to 50: Drive, 50 to 100: Recovery
-    t = np.linspace(0, 2 * np.pi, num_points)
-    # Seat X: starts at min, goes to max (drive), then back to min (recovery)
-    # Using -cos(t/2) for 0 to pi gives 0 to 2
-    # Let's use a simpler mapping: 0 to 0.5 is drive, 0.5 to 1.0 is recovery
-    phase = np.linspace(0, 1, num_points)
+    # Phase mapping: 0 to 0.5 is drive, 0.5 to 1.0 is recovery.
+    # To get a 1:2 ratio, we use get_stroke_phase to map the physical array indices 
+    # so that the midpoint (0.5) occurs at 1/3 of the array points.
+    phase = get_stroke_phase(num_points)
 
     # Seat X: 0 (catch) -> max (finish) -> 0 (catch)
     # We allow a small lag so Seat_X reaches max slightly after Handle_X.
@@ -138,9 +115,16 @@ def generate_cycle_df(num_points=100,
         )
     elif isinstance(trunk_angles, (tuple, list)):
         catch_angle, finish_angle = trunk_angles
-        trunk_angle = np.where(phase <= 0.5,
-                               catch_angle + (finish_angle - catch_angle) * (phase / 0.5),
-                               finish_angle - (finish_angle - catch_angle) * ((phase - 0.5) / 0.5))
+        plateau = 0.05
+        trunk_angle = np.where(
+            phase <= 0.5 - plateau,
+            catch_angle + (finish_angle - catch_angle) * (phase / (0.5 - plateau)),
+            np.where(
+                phase <= 0.5 + plateau,
+                finish_angle,
+                finish_angle - (finish_angle - catch_angle) * ((phase - (0.5 + plateau)) / (0.5 - plateau))
+            )
+        )
     else:
         # trunk_angles is already an array
         trunk_angle = trunk_angles
@@ -178,26 +162,35 @@ def generate_cycle_df(num_points=100,
     return pd.DataFrame(data)
 
 def get_trunk_scenarios():
-    # Slow hand away: Slow body swing after finish (trunk angle arrives to the catch angle just at the end of recovery).
     return {
         "Ideal Technique": {
             "angles": (-30, 15),
+            "short": "Strong forward lean, stable finish.",
             "description": "The rower achieves a strong forward lean at the catch (-30°) and a stable lean back at the finish (15°)."
+        },
+        "Slow Hand Away": {
+            "angles": (-30, 15),
+            "short": "Trunk rocks over late at the end of recovery.",
+            "description": "Slow hand away: Slow body swing after finish (trunk rocks over just when arrives to the catch angle just at the end of recovery)."
         },
         "Short Catch (Limited Reach)": {
             "angles": (-15, 15),
+            "short": "Sitting too upright at the catch.",
             "description": "The rower is sitting too upright at the catch. This limits the stroke length and prevents full power from the legs."
         },
         "Over-lean at Finish": {
             "angles": (-30, 25),
+            "short": "Leaning back too far at the finish.",
             "description": "The rower leans back too far at the finish (25°). This is unstable and makes it difficult to recover quickly for the next stroke."
         },
         "No Separation": {
             "angles": (-30, 15),
+            "short": "Opening upper body immediately at catch.",
             "description": "The rower opens the upper body immediately at the catch before the legs have finished their drive phase."
         },
         "Rigid Trunk": {
             "angles": (0, 5),
+            "short": "Very little upper body motion.",
             "description": "The rower has very little upper body motion throughout the stroke, missing out on power and length."
         }
     }
@@ -239,20 +232,34 @@ def create_scenario_data(scenario_type, subtype):
             angles_with_noise = (angles[0] + np.random.normal(0, 0.5), angles[1] + np.random.normal(0, 0.5))
 
             if subtype == "No Separation":
-                # Trunk opens immediately (reaches max angle at 25% of the stroke)
-                phase = np.linspace(0, 1, cycle_points)
+                # Trunk opens immediately (reaches max angle at 25% of the stroke, holds it)
+                phase = get_stroke_phase(cycle_points)
+                # Hold peak to 0.55 so smoothing isn't blunted
                 trunk_angle = np.where(phase <= 0.25,
                                        angles_with_noise[0] + (angles_with_noise[1] - angles_with_noise[0]) * (phase / 0.25),
-                                       np.where(phase <= 0.5, 
+                                       np.where(phase <= 0.55, 
                                                 angles_with_noise[1], 
-                                                angles_with_noise[1] - (angles_with_noise[1] - angles_with_noise[0]) * ((phase - 0.5) / 0.5)))
+                                                angles_with_noise[1] - (angles_with_noise[1] - angles_with_noise[0]) * ((phase - 0.55) / 0.45)))
                 cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=trunk_angle))
             elif subtype == "Rigid Trunk":
                 # Minimal movement
                 cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=angles_with_noise))
+            elif subtype == "Slow Hand Away":
+                # Trunk opens like ideal, but returns extremely slowly across the whole recovery
+                phase = get_stroke_phase(cycle_points)
+                trunk_angle = _trunk_angle_legs_first_progression(
+                    phase,
+                    catch_angle=float(angles_with_noise[0]),
+                    finish_angle=float(angles_with_noise[1]),
+                    drive_hold=0.40,
+                    finish_hold=0.1,  # Holds finish angle for 10% of the stroke
+                    rec_return=0.8,   # Takes 80% of the recovery to get back to catch
+                    rec_hold=0.0      # No hold at the catch
+                )
+                cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=trunk_angle))
             else:
                 # By default, use a sequencing-aware progression (legs-first, body swing later).
-                phase = np.linspace(0, 1, cycle_points)
+                phase = get_stroke_phase(cycle_points)
                 trunk_angle = _trunk_angle_legs_first_progression(
                     phase,
                     catch_angle=float(angles_with_noise[0]),
@@ -266,14 +273,14 @@ def create_scenario_data(scenario_type, subtype):
             df = generate_cycle_df(num_points=cycle_points)
             if subtype == "Shooting the Slide":
                 # Seat X reaches 80% of max in first 30% of drive
-                drive_points = cycle_points // 2
+                drive_points = int(cycle_points / 3)
                 phase = np.linspace(0, 1, drive_points)
                 # Normal linear is phase. Accelerated is phase^0.5
                 seat_x_drive = 300 * (phase ** 0.4)
                 df.iloc[:drive_points, df.columns.get_loc('Seat/0/X')] = seat_x_drive
             elif subtype == "Arm-Only Drive":
                 # Seat stays at 0 for first 40% of drive
-                drive_points = cycle_points // 2
+                drive_points = int(cycle_points / 3)
                 wait_points = int(drive_points * 0.4)
                 seat_x_drive = np.zeros(drive_points)
                 seat_x_drive[wait_points:] = np.linspace(0, 300, drive_points - wait_points)
@@ -283,7 +290,7 @@ def create_scenario_data(scenario_type, subtype):
     elif scenario_type == "Trajectory":
         for _ in range(num_cycles):
             df = generate_cycle_df(num_points=cycle_points)
-            drive_points = cycle_points // 2
+            drive_points = int(cycle_points / 3)
             if subtype == "Digging Deep":
                 # Handle Y goes deeper in the middle of drive (more positive)
                 # Ideal Y drive is -10. Let's make it 20.
@@ -305,9 +312,11 @@ def create_scenario_data(scenario_type, subtype):
             
             p_count = 100
             if subtype == "Rushed Recovery":
-                # Drive 50 points, Recovery 30 points
+                # Standard is Drive=33, Rec=67. 
+                # Rushed Recovery simulates shortening the recovery section abruptly.
                 df_drive = generate_cycle_df(num_points=100, seat_x_range=(0, s_max))
-                df = pd.concat([df_drive.iloc[:50], df_drive.iloc[50:80]]).reset_index(drop=True)
+                # Take the drive (0 to 33) and half the recovery duration (67 to 100)
+                df = pd.concat([df_drive.iloc[:33], df_drive.iloc[67:100]]).reset_index(drop=True)
             else:
                 df = generate_cycle_df(num_points=p_count, seat_x_range=(0, s_max))
             
@@ -318,8 +327,14 @@ def create_scenario_data(scenario_type, subtype):
             cycles.append(generate_cycle_df())
 
     full_df = pd.concat(cycles).reset_index(drop=True)
-    # Add a buffer at the start to allow smoothing to work (process_rowing_data drops rows)
-    buffer = full_df.iloc[:20].copy()
-    full_df = pd.concat([buffer, full_df]).reset_index(drop=True)
+    
+    # process_rowing_data uses a rolling(10).mean() window which dampens peaks
+    # near the edges of cyclic data. We can pre-pad and post-pad the dataframe
+    # with cycle data to ensure that when it gets smoothed, the internal peaks
+    # are preserved properly, especially the catch/finish angles.
+    buffer_start = full_df.iloc[-20:].copy() # Use end of stroke to pad start
+    buffer_end = full_df.iloc[:20].copy()    # Use start of stroke to pad end
+    
+    full_df = pd.concat([buffer_start, full_df, buffer_end]).reset_index(drop=True)
 
     return full_df

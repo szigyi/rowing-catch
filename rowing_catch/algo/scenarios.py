@@ -31,9 +31,23 @@ def _trunk_angle_legs_first_progression(phase: np.ndarray,
     drive_open = np.clip(drive_open, 0.0, 1.0)
     drive_angle = catch_angle + (finish_angle - catch_angle) * drive_open
 
-    # Recovery: Holds at finish for finish_hold, then returns to catch
-    rec_drop = (rec_phase - finish_hold) / max(0.01, rec_return)
-    rec_drop = np.clip(rec_drop, 0.0, 1.0)
+    # Recovery: Holds at finish for finish_hold, then returns to catch over rec_return,
+    # then holds at catch for the rest.
+    rec_drop = np.zeros_like(rec_phase)
+
+    # Hold at finish angle initially.
+    finishing = rec_phase <= finish_hold
+    rec_drop[finishing] = 0.0
+
+    # Linear return from finish to catch over rec_return window.
+    returning = (rec_phase > finish_hold) & (rec_phase <= rec_return)
+    rec_drop[returning] = ((rec_phase[returning] - finish_hold)
+                            / max(1e-6, rec_return - finish_hold))
+
+    # Hold at catch once return window completes.
+    after_return = rec_phase > rec_return
+    rec_drop[after_return] = 1.0
+
     rec_angle = finish_angle + (catch_angle - finish_angle) * rec_drop
 
     return np.where(phase <= 0.5, drive_angle, rec_angle)

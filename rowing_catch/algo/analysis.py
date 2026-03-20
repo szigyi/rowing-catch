@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 
 
+# ---------------------------------------------------------------------------
+# Internal helpers (detection primitives, unchanged)
+# ---------------------------------------------------------------------------
+
 def _detect_catches_by_seat_reversal(seat_x: pd.Series,
                                     min_separation: int = 20,
                                     prominence: float | None = None) -> np.ndarray:
@@ -28,24 +32,121 @@ def _detect_catches_by_seat_reversal(seat_x: pd.Series,
     if candidates.size == 0:
         return np.array([], dtype=int)
 
-    # Enforce minimum separation by greedily taking earliest minima and skipping nearby ones.
+    # Enforce minimum separation by clustering near-siblings and keeping the deepest trough in each cluster.
     filtered: list[int] = []
-    last = -10**9
-    for idx in candidates:
-        if idx - last < min_separation:
-            continue
-        if prominence is not None:
-            # Simple prominence check: must be lower than neighbors by >= prominence.
-            left = max(0, idx - min_separation)
-            right = min(len(x) - 1, idx + min_separation)
-            neighborhood = np.r_[x[left:idx], x[idx + 1:right + 1]]
-            if neighborhood.size > 0:
-                if (neighborhood.min() - x[idx]) < prominence and (neighborhood.mean() - x[idx]) < prominence:
-                    continue
-        filtered.append(int(idx))
-        last = idx
+
+    cluster_start = 0
+    for i in range(1, len(candidates)):
+        if candidates[i] - candidates[i - 1] >= min_separation:
+            cluster = candidates[cluster_start:i]
+            best_idx = int(cluster[np.argmin(x[cluster])])
+            if _is_valid_catch(x, best_idx, min_separation, prominence):
+                filtered.append(best_idx)
+            cluster_start = i
+
+    # Last cluster
+    cluster = candidates[cluster_start:]
+    if cluster.size > 0:
+        best_idx = int(cluster[np.argmin(x[cluster])])
+        if _is_valid_catch(x, best_idx, min_separation, prominence):
+            filtered.append(best_idx)
 
     return np.array(filtered, dtype=int)
+
+
+def _is_valid_catch(x: np.ndarray,
+                   idx: int,
+                   min_separation: int,
+                   prominence: float | None,
+                   min_depth_ratio: float = 0.20):
+    """Auxiliary catch-filter heuristics (robustness guard)."""
+    if idx <= 0 or idx >= len(x) - 1:
+        return False
+
+    # Must be a true reversal point (strict local minimum condition).
+    if not (x[idx - 1] > x[idx] < x[idx + 1]):
+        return False
+
+    if prominence is not None:
+        left = max(0, idx - min_separation)
+        right = min(len(x) - 1, idx + min_separation)
+        neighborhood = np.r_[x[left:idx], x[idx + 1:right + 1]]
+        if neighborhood.size > 0 and (neighborhood.min() - x[idx]) < prominence and (neighborhood.mean() - x[idx]) < prominence:
+            return False
+
+    # Reject shallow dips that are not a major cycle catch.
+    global_amp = np.nanmax(x) - np.nanmin(x)
+    low, high = np.nanmin(x), np.nanmax(x)
+    mean_val = np.nanmean(x)
+
+    if global_amp > 1e-8:
+        left = max(0, idx - min_separation)
+        right = min(len(x) - 1, idx + min_separation)
+        neighborhood = np.r_[x[left:idx], x[idx + 1:right + 1]]
+        if neighborhood.size > 0:
+            local_max = np.nanmax(neighborhood)
+            local_depth = local_max - x[idx]
+            required_depth = min_depth_ratio * global_amp
+
+            if idx <= min_separation or idx >= len(x) - 1 - min_separation:
+                # Allow a bit more leeway near boundaries (avg-cycle pre-catch padding).
+                required_depth = min(required_depth, 0.1 * global_amp)
+
+            if local_depth < required_depth:
+                return False
+
+        # Reject extremes not consistent with catch location.
+        if x[idx] > mean_val or x[idx] > low + 0.33 * global_amp:
+            return False
+
+    return True
+
+
+def _is_valid_finish(x: np.ndarray,
+                     idx: int,
+                     min_separation: int,
+                     prominence: float | None,
+                     min_depth_ratio: float = 0.20):
+    """Auxiliary finish-filter heuristics (robustness guard)."""
+    if idx <= 0 or idx >= len(x) - 1:
+        return False
+
+    # Must be a true reversal point (strict local maximum condition).
+    if not (x[idx - 1] < x[idx] > x[idx + 1]):
+        return False
+
+    if prominence is not None:
+        left = max(0, idx - min_separation)
+        right = min(len(x) - 1, idx + min_separation)
+        neighborhood = np.r_[x[left:idx], x[idx + 1:right + 1]]
+        if neighborhood.size > 0 and (x[idx] - neighborhood.max()) < prominence and (x[idx] - neighborhood.mean()) < prominence:
+            return False
+
+    # Reject shallow lumps that are not a major finish.
+    global_amp = np.nanmax(x) - np.nanmin(x)
+    low, high = np.nanmin(x), np.nanmax(x)
+    mean_val = np.nanmean(x)
+
+    if global_amp > 1e-8:
+        left = max(0, idx - min_separation)
+        right = min(len(x) - 1, idx + min_separation)
+        neighborhood = np.r_[x[left:idx], x[idx + 1:right + 1]]
+        if neighborhood.size > 0:
+            local_min = np.nanmin(neighborhood)
+            local_depth = x[idx] - local_min
+            required_depth = min_depth_ratio * global_amp
+
+            if idx <= min_separation or idx >= len(x) - 1 - min_separation:
+                required_depth = min(required_depth, 0.1 * global_amp)
+
+            if local_depth < required_depth:
+                return False
+
+        # Reject extremes not consistent with a finish location.
+        if x[idx] < mean_val or x[idx] < high - 0.33 * global_amp:
+            return False
+
+    return True
 
 
 def _detect_finishes_by_seat_reversal(seat_x: pd.Series,
@@ -74,19 +175,20 @@ def _detect_finishes_by_seat_reversal(seat_x: pd.Series,
         return np.array([], dtype=int)
 
     filtered: list[int] = []
-    last = -10**9
-    for idx in candidates:
-        if idx - last < min_separation:
-            continue
-        if prominence is not None:
-            left = max(0, idx - min_separation)
-            right = min(len(x) - 1, idx + min_separation)
-            neighborhood = np.r_[x[left:idx], x[idx + 1:right + 1]]
-            if neighborhood.size > 0:
-                if (x[idx] - neighborhood.max()) < prominence and (x[idx] - neighborhood.mean()) < prominence:
-                    continue
-        filtered.append(int(idx))
-        last = idx
+    cluster_start = 0
+    for i in range(1, len(candidates)):
+        if candidates[i] - candidates[i - 1] >= min_separation:
+            cluster = candidates[cluster_start:i]
+            best_idx = int(cluster[np.argmax(x[cluster])])
+            if _is_valid_finish(x, best_idx, min_separation, prominence):
+                filtered.append(best_idx)
+            cluster_start = i
+
+    cluster = candidates[cluster_start:]
+    if cluster.size > 0:
+        best_idx = int(cluster[np.argmax(x[cluster])])
+        if _is_valid_finish(x, best_idx, min_separation, prominence):
+            filtered.append(best_idx)
 
     return np.array(filtered, dtype=int)
 
@@ -152,45 +254,138 @@ def _pick_finish_index(avg_cycle: pd.DataFrame,
     return int(fin)
 
 
-def process_rowing_data(df, pre_catch_window: int = 10):
-    # Column mapping
-    column_map = {
-        'Handle/0/X': 'Handle_X', 'Handle/0/Y': 'Handle_Y',
-        'Shoulder/0/X': 'Shoulder_X', 'Shoulder/0/Y': 'Shoulder_Y',
-        'Seat/0/X': 'Seat_X', 'Seat/0/Y': 'Seat_Y'
-    }
-    df = df.rename(columns=column_map)
+# ---------------------------------------------------------------------------
+# Pipeline step functions
+# ---------------------------------------------------------------------------
 
-    # Preprocessing & Smoothing
-    window = 10
-    cols_to_smooth = ['Handle_X', 'Handle_Y', 'Shoulder_X', 'Shoulder_Y', 'Seat_X', 'Seat_Y']
-    for col in cols_to_smooth:
+# Column mapping used by step 1.
+_COLUMN_MAP = {
+    'Handle/0/X': 'Handle_X', 'Handle/0/Y': 'Handle_Y',
+    'Shoulder/0/X': 'Shoulder_X', 'Shoulder/0/Y': 'Shoulder_Y',
+    'Seat/0/X': 'Seat_X', 'Seat/0/Y': 'Seat_Y',
+}
+
+_COLS_TO_SMOOTH = ['Handle_X', 'Handle_Y', 'Shoulder_X', 'Shoulder_Y', 'Seat_X', 'Seat_Y']
+
+
+def step1_rename_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Rename raw tracker column names to clean internal names.
+
+    Args:
+        df: Raw input DataFrame as loaded from CSV.
+
+    Returns:
+        A new DataFrame with columns renamed according to the standard mapping.
+        Columns not in the mapping are left unchanged.
+    """
+    return df.rename(columns=_COLUMN_MAP)
+
+
+def step2_smooth(df: pd.DataFrame, window: int = 10) -> pd.DataFrame:
+    """Apply a centred rolling-mean smoother to the six position columns.
+
+    A centred window (``center=True``) is used so that detected peaks align
+    with the actual event rather than being delayed by a half-window lag.
+    Rows at the leading/trailing edges that contain NaN smoothed values are
+    dropped.
+
+    Args:
+        df: DataFrame with renamed columns (output of :func:`step1_rename_columns`).
+        window: Rolling window width in samples.
+
+    Returns:
+        DataFrame with ``*_Smooth`` columns added and NaN edge rows removed.
+        Returns ``None`` if the result is empty after dropping NaN rows.
+    """
+    df = df.copy()
+    for col in _COLS_TO_SMOOTH:
         if col in df.columns:
-            df[f'{col}_Smooth'] = df[col].rolling(window).mean()
+            df[f'{col}_Smooth'] = df[col].rolling(window, center=True).mean()
 
-    # Drop rows with NaN from smoothing
-    df = df.dropna(subset=[f'{col}_Smooth' for col in cols_to_smooth])
+    smooth_cols = [f'{col}_Smooth' for col in _COLS_TO_SMOOTH if col in df.columns]
+    df = df.dropna(subset=smooth_cols)
+    return df if not df.empty else None
 
-    # --- Stroke Detection (Seat reversal / catch detection) ---
-    # Catch is approximated by the seat reaching a local minimum.
-    # We pick minima that are sufficiently separated to represent consecutive strokes.
-    seat = df['Seat_X_Smooth']
-    # Min separation: based on smoothing window and typical sampling. Keep it permissive.
-    catch_candidates = _detect_catches_by_seat_reversal(seat, min_separation=max(10, window * 2))
 
-    if len(catch_candidates) < 2:
-        return None  # Not enough data for cycles
+def step3_detect_catches(df: pd.DataFrame,
+                         min_separation: int | None = None,
+                         window: int = 10) -> tuple[pd.DataFrame, np.ndarray]:
+    """Detect catch indices as local minima of Seat_X_Smooth.
 
-    # Split into individual cycles between consecutive catches.
-    # Optionally include a small lookback window before each catch to avoid plotting
-    # strokes that start exactly at the catch (which visually pushes the catch line to
-    # the left edge). This doesn't change catch/finish detection logic; it only affects
-    # what segment is averaged/plotted.
+    The catch is the point where the seat reaches its most forward position
+    (minimum X) and reverses direction — the standard rowing catch definition.
+    ``Seat_X_Smooth`` has exactly **one** local minimum per stroke, so this
+    produces one catch detection per stroke cycle.
+
+    ``Stroke_Compression`` (|Seat_X − Handle_X|) is also computed and stored
+    on the DataFrame for diagnostic / visualisation purposes, but is **not**
+    used for detection.  It was previously used for detection, which caused
+    spurious double-detections because the compression is near-zero at both
+    the catch *and* the finish (handle drawn back to seat level), yielding
+    two minima per stroke.
+
+    Args:
+        df: Smoothed DataFrame (output of :func:`step2_smooth`).
+        min_separation: Minimum number of samples between consecutive catches.
+            Defaults to ``max(40, window * 4)``.
+        window: Smoothing window used previously (needed to compute the default
+            ``min_separation``).
+
+    Returns:
+        A tuple ``(df, catch_indices)`` where *df* has a new
+        ``'Stroke_Compression'`` column (diagnostic only) and *catch_indices*
+        is an integer ndarray of row positions within *df*.
+    """
+    if min_separation is None:
+        min_separation = max(40, window * 4)
+
+    df = df.copy()
+    # Keep Stroke_Compression for diagnostic visualisation only.
+    df['Stroke_Compression'] = np.abs(df['Seat_X_Smooth'] - df['Handle_X_Smooth'])
+
+    # Use Seat_X_Smooth for detection: one minimum per stroke, exactly at the catch.
+    catch_indices = _detect_catches_by_seat_reversal(
+        df['Seat_X_Smooth'],
+        min_separation=min_separation,
+    )
+    return df, catch_indices
+
+
+def step4_segment_and_average(
+    df: pd.DataFrame,
+    catch_indices: np.ndarray,
+    pre_catch_window: int = 10,
+    window: int = 10,
+) -> tuple[list[pd.DataFrame], pd.DataFrame, int] | None:
+    """Split the data into per-stroke cycles and compute the average cycle.
+
+    Each cycle runs from one catch to the next.  An optional
+    ``pre_catch_window`` samples of data *before* the catch are prepended so
+    that the catch event does not appear flush against the left edge of the
+    chart.
+
+    Args:
+        df: Smoothed DataFrame with ``'Stroke_Compression'`` column (output of
+            :func:`step3_detect_catches`).
+        catch_indices: Integer ndarray of catch positions (output of
+            :func:`step3_detect_catches`).
+        pre_catch_window: Number of samples to include before each catch.
+        window: Smoothing window (used to enforce a minimum cycle length).
+
+    Returns:
+        A tuple ``(cycles, avg_cycle, min_length)`` or ``None`` if fewer than
+        one valid cycle could be extracted.
+
+        * *cycles* – list of per-stroke DataFrames.
+        * *avg_cycle* – element-wise mean DataFrame, indexed 0..min_length-1.
+        * *min_length* – length of the shortest cycle (= length of avg_cycle).
+    """
     pre_catch_window = int(max(0, pre_catch_window))
-    cycles = []
-    for i in range(len(catch_candidates) - 1):
-        catch_i = int(catch_candidates[i])
-        catch_next = int(catch_candidates[i + 1])
+    cycles: list[pd.DataFrame] = []
+
+    for i in range(len(catch_indices) - 1):
+        catch_i = int(catch_indices[i])
+        catch_next = int(catch_indices[i + 1])
 
         start = max(0, catch_i - pre_catch_window)
         end = catch_next
@@ -205,59 +400,201 @@ def process_rowing_data(df, pre_catch_window: int = 10):
     if len(cycles) < 1:
         return None
 
-    # Standardize length for average cycle
     min_length = min(c.shape[0] for c in cycles)
-    avg_cycle = pd.concat([c.iloc[:min_length] for c in cycles]).groupby('Cycle_Index').mean()
+    avg_cycle = (
+        pd.concat([c.iloc[:min_length] for c in cycles])
+        .groupby('Cycle_Index')
+        .mean()
+    )
 
-    # Metrics
-    # Trunk Angle
-    def calc_trunk_angle(row):
+    return cycles, avg_cycle, min_length
+
+
+def step5_compute_metrics(
+    avg_cycle: pd.DataFrame,
+    window: int = 10,
+) -> tuple[pd.DataFrame, int, int]:
+    """Compute per-sample metrics on the averaged cycle.
+
+    Adds the following columns to *avg_cycle* (in-place copy):
+
+    * ``'Trunk_Angle'`` – signed degrees from vertical, accounting for rower
+      orientation.
+    * ``'Handle_X_Vel'`` – numerical gradient of ``Handle_X_Smooth``.
+    * ``'Seat_X_Vel'`` – numerical gradient of ``Seat_X_Smooth``.
+    * ``'Stroke_Compression'`` – recomputed on the averaged cycle for precise
+      catch/finish alignment.
+
+    Args:
+        avg_cycle: Averaged cycle DataFrame (output of
+            :func:`step4_segment_and_average`).
+        window: Smoothing window (used for catch detection on the avg cycle).
+
+    Returns:
+        A tuple ``(avg_cycle, catch_idx, finish_idx)`` where *avg_cycle* has
+        the new metric columns and the two indices locate the catch and finish
+        events within the averaged stroke.
+    """
+    avg_cycle = avg_cycle.copy()
+
+    # Orientation: is handle left of seat at the catch?
+    ref_catch = avg_cycle.iloc[0]
+    is_facing_left = ref_catch['Handle_X_Smooth'] < ref_catch['Seat_X_Smooth']
+
+    def _calc_trunk_angle(row):
         dx = row['Shoulder_X_Smooth'] - row['Seat_X_Smooth']
         dy = row['Shoulder_Y_Smooth'] - row['Seat_Y_Smooth']
-        return np.degrees(np.arctan2(dx, dy))
+        dy_abs = abs(dy)
 
-    avg_cycle['Trunk_Angle'] = avg_cycle.apply(calc_trunk_angle, axis=1)
+        if is_facing_left:
+            return np.degrees(np.arctan2(dx, dy_abs))
+        else:
+            return np.degrees(np.arctan2(-dx, dy_abs))
 
-    # Velocities
+    avg_cycle['Trunk_Angle'] = avg_cycle.apply(_calc_trunk_angle, axis=1)
+
     avg_cycle['Handle_X_Vel'] = np.gradient(avg_cycle['Handle_X_Smooth'])
     avg_cycle['Seat_X_Vel'] = np.gradient(avg_cycle['Seat_X_Smooth'])
 
-    # Catch and Finish (within the normalized/averaged stroke)
+    # Re-detect catch on averaged cycle for precise alignment.
+    avg_cycle['Stroke_Compression'] = np.abs(
+        avg_cycle['Seat_X_Smooth'] - avg_cycle['Handle_X_Smooth']
+    )
     catch_candidates_avg = _detect_catches_by_seat_reversal(
         avg_cycle['Seat_X_Smooth'],
         min_separation=max(5, window),
     )
     if catch_candidates_avg.size:
-        catch_idx = int(catch_candidates_avg[0])
+        # The avg cycle includes pre_catch_window data before the main stroke.
+        # Choose the last detected catch to align on the true stroke event.
+        catch_idx = int(catch_candidates_avg[-1])
     else:
         catch_idx = int(avg_cycle['Seat_X_Smooth'].idxmin())
 
     finish_idx = _pick_finish_index(avg_cycle, catch_idx=catch_idx, window=window)
 
-    # Consistency
+    return avg_cycle, catch_idx, finish_idx
+
+
+def step6_statistics(
+    cycles: list[pd.DataFrame],
+    min_length: int,
+    catch_idx: int,
+    finish_idx: int,
+) -> dict:
+    """Compute stroke-level statistics from the individual cycles.
+
+    Args:
+        cycles: List of per-stroke DataFrames (output of
+            :func:`step4_segment_and_average`).
+        min_length: Shortest cycle length, used as the total stroke length for
+            ratio calculations.
+        catch_idx: Catch position within the averaged stroke.
+        finish_idx: Finish position within the averaged stroke.
+
+    Returns:
+        A dict with keys:
+
+        * ``'cv_length'`` – coefficient of variation of stroke lengths (%).
+        * ``'drive_len'`` – samples from catch to finish.
+        * ``'recovery_len'`` – samples from finish to next catch.
+        * ``'mean_duration'`` – average cycle length in samples.
+    """
     stroke_lengths = [c['Seat_X_Smooth'].max() - c['Seat_X_Smooth'].min() for c in cycles]
     stroke_durations = [len(c) for c in cycles]
     cv_length = (np.std(stroke_lengths) / np.mean(stroke_lengths)) * 100
 
-    # Drive/Recovery
     drive_len = finish_idx - catch_idx
     recovery_len = min_length - drive_len
 
-    results = {
+    return {
+        'cv_length': cv_length,
+        'drive_len': drive_len,
+        'recovery_len': recovery_len,
+        'mean_duration': np.mean(stroke_durations),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Public entry point (thin wrapper — interface unchanged)
+# ---------------------------------------------------------------------------
+
+def process_rowing_data(df: pd.DataFrame, pre_catch_window: int = 10) -> dict | None:
+    """Run the full rowing-data processing pipeline and return analysis results.
+
+    This is a convenience wrapper that chains the six pipeline step functions:
+
+    1. :func:`step1_rename_columns`
+    2. :func:`step2_smooth`
+    3. :func:`step3_detect_catches`
+    4. :func:`step4_segment_and_average`
+    5. :func:`step5_compute_metrics`
+    6. :func:`step6_statistics`
+
+    Args:
+        df: Raw input DataFrame loaded from the tracker CSV.
+        pre_catch_window: Number of samples to include before each detected
+            catch when forming individual stroke cycles.
+
+    Returns:
+        A results dict with keys ``'avg_cycle'``, ``'cycles'``, ``'catch_idx'``,
+        ``'finish_idx'``, ``'cv_length'``, ``'drive_len'``, ``'recovery_len'``,
+        ``'min_length'``, and ``'mean_duration'``.  Returns ``None`` if the data
+        does not contain enough stroke cycles to analyse.
+    """
+    window = 10
+
+    # Step 1
+    df = step1_rename_columns(df)
+
+    # Step 2
+    df = step2_smooth(df, window=window)
+    if df is None:
+        return None
+
+    # Step 3
+    df, catch_indices = step3_detect_catches(df, window=window)
+    if len(catch_indices) < 2:
+        return None
+
+    # Step 4
+    result = step4_segment_and_average(df, catch_indices, pre_catch_window=pre_catch_window, window=window)
+    if result is None:
+        return None
+    cycles, avg_cycle, min_length = result
+
+    # Step 5
+    avg_cycle, catch_idx, finish_idx = step5_compute_metrics(avg_cycle, window=window)
+
+    # Step 6
+    stats = step6_statistics(cycles, min_length, catch_idx, finish_idx)
+
+    return {
         'avg_cycle': avg_cycle,
         'cycles': cycles,
         'catch_idx': catch_idx,
         'finish_idx': finish_idx,
-        'cv_length': cv_length,
-        'drive_len': drive_len,
-        'recovery_len': recovery_len,
         'min_length': min_length,
-        'mean_duration': np.mean(stroke_durations)
+        **stats,
     }
-    return results
 
+
+# ---------------------------------------------------------------------------
+# Utility
+# ---------------------------------------------------------------------------
 
 def get_traffic_light(value, ideal, yellow_threshold=15, green_threshold=5):
+    """Return a (status, icon) tuple based on deviation from the ideal value.
+
+    Args:
+        value: Observed value.
+        ideal: Target / ideal value.
+        yellow_threshold: Max % deviation still considered Yellow.
+        green_threshold: Max % deviation considered Green.
+
+    Returns:
+        Tuple of (status_string, emoji_icon).
+    """
     deviation = abs(value - ideal) / ideal * 100
     if deviation <= green_threshold:
         return "Green", "✅"

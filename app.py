@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import os
 
 from rowing_catch.algo.analysis import process_rowing_data, get_traffic_light
 from rowing_catch.ui.components import (
@@ -17,10 +18,39 @@ Upload your raw trajectory data (CSV) to generate a comprehensive technical repo
 You can also explore detailed explanations of each metric using the sidebar navigation.
 """)
 
-uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+# --- File Selection Section ---
+col_u1, col_u2 = st.columns([2, 1])
+
+with col_u1:
+    uploaded_file = st.file_uploader("Upload your trajectory CSV", type="csv")
+
+with col_u2:
+    # Quick select from resources
+    resource_dir = "resources"
+    example_files = []
+    if os.path.exists(resource_dir):
+        example_files = [f for f in os.listdir(resource_dir) if f.endswith(".csv") and "trajectory" in f.lower()]
+    
+    selected_example = st.selectbox(
+        "Or choose an example file",
+        options=["None"] + sorted(example_files),
+        help="Quickly test the analysis with provided example data."
+    )
+
+# --- Data Loading Logic ---
+df = None
+data_source_name = None
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
+    data_source_name = uploaded_file.name
+elif selected_example != "None":
+    file_path = os.path.join(resource_dir, selected_example)
+    df = pd.read_csv(file_path)
+    data_source_name = selected_example
+
+if df is not None:
+    st.info(f"Analyzing: **{data_source_name}**")
     results = process_rowing_data(df)
     
     if results is None:

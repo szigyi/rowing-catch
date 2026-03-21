@@ -13,7 +13,7 @@ from rowing_catch.algo.steps.step5_metrics import step5_compute_metrics
 from rowing_catch.algo.steps.step6_statistics import step6_statistics
 from rowing_catch.algo.steps.step7_diagnostics import step7_diagnostics
 from rowing_catch.algo.constants import REQUIRED_COLUMN_NAMES, PROCESSED_COLUMN_NAMES
-from rowing_catch.algo.scenarios import create_scenario_data, get_trunk_scenarios
+from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scenarios
 
 st.set_page_config(page_title="Debug: Data Pipeline", layout="wide")
 

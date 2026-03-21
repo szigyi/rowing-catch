@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from rowing_catch.algo.analysis import process_rowing_data, _detect_catches_by_seat_reversal, _detect_finishes_by_seat_reversal
+from rowing_catch.algo.analysis import process_rowing_data
+from rowing_catch.algo.helpers import _detect_catches_by_seat_reversal, _detect_finishes_by_seat_reversal
 from rowing_catch.algo.scenarios import create_scenario_data
 
 

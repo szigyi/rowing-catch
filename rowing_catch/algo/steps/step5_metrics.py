@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from rowing_catch.algo.helpers import _detect_catches_by_seat_reversal
+from rowing_catch.algo.helpers import _detect_catches_by_seat_reversal, _detect_finishes_by_seat_reversal
 
 
 def step5_compute_metrics(
@@ -98,6 +98,21 @@ def _pick_finish_index(avg_cycle: pd.DataFrame,
     handle = avg_cycle['Handle_X_Smooth'].to_numpy(dtype=float)
     trunk = avg_cycle['Trunk_Angle'].to_numpy(dtype=float)
 
+    # --- Refined detection using Seat_X reversal ---
+    # Look for the finish on the avg_cycle (one major peak expected).
+    fin_candidates = _detect_finishes_by_seat_reversal(
+        avg_cycle['Seat_X_Smooth'],
+        min_separation=max(10, window),
+        seat_y=avg_cycle.get('Seat_Y_Smooth', None)
+    )
+
+    if fin_candidates.size:
+        # If we have reversals, pick the one furthest after catch_idx.
+        after_catch = fin_candidates[fin_candidates > catch_idx]
+        if after_catch.size:
+            return int(after_catch[0])
+
+    # --- Fallback to Gradient-based approach ---
     n = len(avg_cycle)
     if n == 0:
         return int(catch_idx)

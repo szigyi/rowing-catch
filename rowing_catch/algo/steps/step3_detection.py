@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from rowing_catch.algo.helpers import _detect_catches_by_seat_reversal
+from rowing_catch.algo.helpers import _detect_catches_by_seat_reversal, _interpolate_small_gaps
 
 
 def step3_detect_catches(df: pd.DataFrame,
@@ -37,6 +37,11 @@ def step3_detect_catches(df: pd.DataFrame,
         min_separation = max(40, window * 4)
 
     df = df.copy()
+    # Interpolate small gaps to avoid derivative spikes/missed reversals.
+    df['Seat_X_Smooth'] = _interpolate_small_gaps(df['Seat_X_Smooth'].to_numpy())
+    if 'Seat_Y_Smooth' in df.columns:
+        df['Seat_Y_Smooth'] = _interpolate_small_gaps(df['Seat_Y_Smooth'].to_numpy())
+
     # Keep Stroke_Compression for diagnostic visualisation only.
     df['Stroke_Compression'] = np.abs(df['Seat_X_Smooth'] - df['Handle_X_Smooth'])
 

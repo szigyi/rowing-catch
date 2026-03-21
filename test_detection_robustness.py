@@ -3,7 +3,7 @@
 
 import pandas as pd
 import numpy as np
-from rowing_catch.algo.analysis import (
+from rowing_catch.algo.helpers import (
     _compute_signal_noise_ratio,
     _validate_with_secondary_signal,
     _is_valid_catch,

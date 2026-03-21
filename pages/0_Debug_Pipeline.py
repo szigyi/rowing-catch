@@ -11,8 +11,7 @@ from rowing_catch.algo.steps.step3_detection import step3_detect_catches
 from rowing_catch.algo.steps.step4_segmentation import step4_segment_and_average
 from rowing_catch.algo.steps.step5_metrics import step5_compute_metrics
 from rowing_catch.algo.steps.step6_statistics import step6_statistics
-from rowing_catch.algo.steps.step7_temporal import step7_temporal_metrics
-from rowing_catch.algo.steps.step8_diagnostics import step8_metadata_diagnostics
+from rowing_catch.algo.steps.step7_diagnostics import step7_diagnostics
 from rowing_catch.algo.constants import REQUIRED_COLUMN_NAMES, PROCESSED_COLUMN_NAMES
 from rowing_catch.algo.scenarios import create_scenario_data, get_trunk_scenarios
 
@@ -346,7 +345,7 @@ with st.expander("Step 5 details", expanded=True):
 _step_header(6, "Statistics", "Summarise stroke consistency, drive/recovery ratio.")
 
 with st.expander("Step 6 details", expanded=True):
-    stats = step6_statistics(cycles, min_length, catch_idx, finish_idx)
+    stats = step6_statistics(cycles, min_length, catch_idx, finish_idx, avg_cycle_m)
 
     cv = stats['cv_length']
     drive_len = stats['drive_len']
@@ -378,8 +377,7 @@ with st.expander("Metadata details", expanded=True):
     # Note: In the debug page context, we're stepping through manually,
     # so we simulate the full pipeline context for metadata calculation
     if 'cycles' in locals() and cycles is not None:
-        time_metrics = step7_temporal_metrics(avg_cycle_m, catch_idx, finish_idx)
-        metadata = step8_metadata_diagnostics(df_raw, df_step2, cycles, time_metrics, stats)
+        metadata = step7_diagnostics(df_raw, df_step2, cycles, avg_cycle_m, stats)
         
         # Display metadata metrics
         col_m1, col_m2, col_m3 = st.columns(3)

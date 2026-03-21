@@ -1,8 +1,7 @@
 import logging
-import numpy as np
+
 import pandas as pd
 
-from rowing_catch.algo.helpers import _compute_signal_noise_ratio, _validate_with_secondary_signal
 from rowing_catch.algo.steps.step0_validation import validate_input_df
 from rowing_catch.algo.steps.step1_rename import step1_rename_columns
 from rowing_catch.algo.steps.step2_smoothing import step2_smooth
@@ -10,8 +9,7 @@ from rowing_catch.algo.steps.step3_detection import step3_detect_catches
 from rowing_catch.algo.steps.step4_segmentation import step4_segment_and_average
 from rowing_catch.algo.steps.step5_metrics import step5_compute_metrics
 from rowing_catch.algo.steps.step6_statistics import step6_statistics
-from rowing_catch.algo.steps.step7_temporal import step7_temporal_metrics
-from rowing_catch.algo.steps.step8_diagnostics import step8_metadata_diagnostics
+from rowing_catch.algo.steps.step7_diagnostics import step7_diagnostics
 
 logger = logging.getLogger(__name__)
 
@@ -72,14 +70,11 @@ def process_rowing_data(df: pd.DataFrame, pre_catch_window: int = 10) -> dict | 
     # Step 5
     avg_cycle, catch_idx, finish_idx = step5_compute_metrics(avg_cycle, window=window)
 
-    # Step 6
-    stats = step6_statistics(cycles, min_length, catch_idx, finish_idx)
+    # Step 6: Performance statistics (both sample and time-based)
+    stats = step6_statistics(cycles, min_length, catch_idx, finish_idx, avg_cycle)
 
-    # Temporal and unit-standarized metrics (using Time column if present)
-    time_metrics = step7_temporal_metrics(avg_cycle, catch_idx, finish_idx)
-
-    # Metadata diagnostics (capture length, sampling stability, warnings)
-    metadata = step8_metadata_diagnostics(df_raw, df, cycles, time_metrics, stats)
+    # Step 7: Metadata diagnostics (capture length, sampling stability, warnings, data quality)
+    metadata = step7_diagnostics(df_raw, df, cycles, avg_cycle, stats)
 
     return {
         'avg_cycle': avg_cycle,
@@ -88,6 +83,5 @@ def process_rowing_data(df: pd.DataFrame, pre_catch_window: int = 10) -> dict | 
         'finish_idx': finish_idx,
         'min_length': min_length,
         **stats,
-        **time_metrics,
         'metadata': metadata,
     }

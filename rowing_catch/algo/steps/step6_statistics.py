@@ -10,8 +10,12 @@ def step6_statistics(
     min_length: int,
     catch_idx: int,
     finish_idx: int,
+    avg_cycle: pd.DataFrame,
 ) -> dict:
-    """Compute stroke-level statistics from the individual cycles.
+    """Compute stroke-level statistics from the individual cycles and the average.
+
+    This step consolidates all scalar performance metrics, including both sample-based
+    and time-based (temporal) metrics.
 
     Args:
         cycles: List of per-stroke DataFrames (output of
@@ -20,9 +24,10 @@ def step6_statistics(
             ratio calculations.
         catch_idx: Catch position within the averaged stroke.
         finish_idx: Finish position within the averaged stroke.
+        avg_cycle: Averaged cycle DataFrame (output of :func:`step5_compute_metrics`).
 
     Returns:
-        A dict with keys:
+        A dict with scalar performance metrics:
 
         * ``'cv_length'`` – coefficient of variation of stroke lengths (%).
         * ``'drive_len'`` – samples from catch to finish.
@@ -30,10 +35,13 @@ def step6_statistics(
         * ``'mean_duration'`` – average cycle length in samples.
         * ``'drive_volume_mm_sec'`` – integrated drive phase displacement (mm*sec).
         * ``'recovery_volume_mm_sec'`` – integrated recovery phase displacement (mm*sec).
-        * ``'outlier_count'`` – number of outlier samples detected in average cycle.
-        * ``'nan_rate'`` – rate of NaN values in position columns (0-1).
-        * ``'data_quality_flag'`` – 'OK', 'warning', or 'fail' based on diagnostics.
+        * ``'sample_rate_hz'`` – data collection frequency.
+        * ``'cycle_duration_s'`` – duration of the average cycle in seconds.
+        * ``'drive_duration_s'`` – duration of the drive phase in seconds.
+        * ``'recovery_duration_s'`` – duration of the recovery phase in seconds.
+        * ``'stroke_rate_spm'`` – strokes per minute.
     """
+    # 1. Sample-based statistics from individual cycles
     stroke_lengths = [c['Seat_X_Smooth'].max() - c['Seat_X_Smooth'].min() for c in cycles]
     stroke_durations = [len(c) for c in cycles]
     mean_len = np.mean(stroke_lengths)
@@ -45,61 +53,15 @@ def step6_statistics(
     drive_len = finish_idx - catch_idx
     recovery_len = min_length - drive_len
 
-    # Compute drive/recovery volume from the average cycle (cycles[0] is the average)
-    drive_volume_mm_sec = 0.0
-    recovery_volume_mm_sec = 0.0
-    outlier_count = 0
-    nan_rate = 0.0
-    data_quality_flag = 'OK'
+    # 2. Performance volumes from the averaged cycle
+    seat_x = avg_cycle['Seat_X_Smooth'].to_numpy(dtype=float)
+    times = avg_cycle['Time'].to_numpy(dtype=float) if 'Time' in avg_cycle.columns else None
 
-    if len(cycles) > 0:
-        avg_cycle = cycles[0]
+    drive_volume_mm_sec = _compute_phase_volume(seat_x, times, catch_idx, finish_idx)
+    recovery_volume_mm_sec = _compute_phase_volume(seat_x, times, finish_idx, min_length)
 
-        # Drive/recovery volumes
-        if 'Seat_X_Smooth' in avg_cycle.columns:
-            seat_x = avg_cycle['Seat_X_Smooth'].to_numpy(dtype=float)
-            times = None
-            if 'Time' in avg_cycle.columns:
-                times = avg_cycle['Time'].to_numpy(dtype=float)
-
-            drive_volume_mm_sec = _compute_phase_volume(seat_x, times, catch_idx, finish_idx)
-            recovery_volume_mm_sec = _compute_phase_volume(seat_x, times, finish_idx, min_length)
-
-            # Outlier detection
-            outliers = _detect_outliers_zscore(seat_x, threshold=3.0)
-            outlier_count = int(np.sum(outliers))
-
-        # NaN rate in position columns
-        position_cols = ['Handle_X_Smooth', 'Handle_Y_Smooth', 'Seat_X_Smooth', 'Seat_Y_Smooth',
-                         'Shoulder_X_Smooth', 'Shoulder_Y_Smooth']
-        total_cells = 0
-        nan_cells = 0
-        for col in position_cols:
-            if col in avg_cycle.columns:
-                col_data = avg_cycle[col]
-                total_cells += len(col_data)
-                nan_cells += col_data.isna().sum()
-
-        if total_cells > 0:
-            nan_rate = float(nan_cells / total_cells)
-        else:
-            nan_rate = 0.0
-
-        # Data quality flag
-        if len(cycles) < 3:
-            data_quality_flag = 'fail'
-            logger.warning(f"Very few cycles detected ({len(cycles)} < 3): data quality may be poor")
-        elif nan_rate > 0.1:
-            data_quality_flag = 'fail'
-            logger.warning(f"High NaN rate: {nan_rate:.1%} > 10%")
-        elif nan_rate > 0.05 or outlier_count > len(cycles[0]) * 0.05:
-            data_quality_flag = 'warning'
-            logger.warning(f"Moderate data quality issues: NaN_rate={nan_rate:.1%}, outliers={outlier_count}")
-        elif cv_length > 10:
-            data_quality_flag = 'warning'
-            logger.warning(f"High stroke length variability: CV={cv_length:.1f}% > 10%")
-        else:
-            data_quality_flag = 'OK'
+    # 3. Temporal metrics from the averaged cycle (merged from former Step 7)
+    temporal = _compute_temporal_metrics(avg_cycle, catch_idx, finish_idx)
 
     return {
         'cv_length': cv_length,
@@ -108,9 +70,7 @@ def step6_statistics(
         'mean_duration': np.mean(stroke_durations),
         'drive_volume_mm_sec': drive_volume_mm_sec,
         'recovery_volume_mm_sec': recovery_volume_mm_sec,
-        'outlier_count': outlier_count,
-        'nan_rate': nan_rate,
-        'data_quality_flag': data_quality_flag,
+        **temporal,
     }
 
 
@@ -118,19 +78,7 @@ def _compute_phase_volume(positions: np.ndarray,
                           times: np.ndarray | None,
                           phase_start_idx: int,
                           phase_end_idx: int) -> float:
-    """Compute integrated distance * time for a phase (drive or recovery).
-
-    Approximates the "volume" of movement during a phase using trapezoidal integration.
-
-    Args:
-        positions: Array of position samples (e.g., Seat_X_Smooth)
-        times: Array of timestamps (optional; uses sample indices if None)
-        phase_start_idx: Start index of phase
-        phase_end_idx: End index of phase
-
-    Returns:
-        Phase volume in mm*seconds (or mm*samples if times not provided)
-    """
+    """Compute integrated distance * time for a phase (drive or recovery)."""
     if phase_end_idx <= phase_start_idx or phase_end_idx > len(positions):
         return 0.0
 
@@ -142,46 +90,61 @@ def _compute_phase_volume(positions: np.ndarray,
         times = np.asarray(times, dtype=float)
         time_segment = times[phase_start_idx:phase_end_idx]
         dt = np.diff(time_segment)
-        # Skip if times are invalid
         if np.any(dt <= 0) or np.any(np.isnan(dt)):
             dt = np.ones(len(time_segment) - 1)
     else:
         dt = np.ones(len(pos_segment) - 1)
 
-    # Integrate absolute displacement over time
     disp = np.abs(np.diff(pos_segment))
     volume = float(np.sum(disp * dt))
 
     return volume
 
 
-def _detect_outliers_zscore(series: np.ndarray, threshold: float = 3.0) -> np.ndarray:
-    """Detect outliers using z-score method.
+def _compute_temporal_metrics(
+    avg_cycle: pd.DataFrame,
+    catch_idx: int,
+    finish_idx: int,
+) -> dict:
+    """Calculate temporal metrics and standard units for the averaged cycle."""
+    metrics = {
+        'sample_rate_hz': None,
+        'cycle_duration_s': None,
+        'drive_duration_s': None,
+        'recovery_duration_s': None,
+        'stroke_rate_spm': None,
+    }
 
-    Args:
-        series: 1D array of values
-        threshold: Z-score threshold (default: 3.0 = ~0.3% outliers in normal dist)
+    if 'Time' not in avg_cycle.columns or len(avg_cycle) < 2:
+        return metrics
 
-    Returns:
-        Boolean array where True indicates outlier
-    """
-    series = np.asarray(series, dtype=float)
-    valid_mask = ~np.isnan(series)
+    t = avg_cycle['Time'].to_numpy(dtype=float)
+    if np.any(np.isnan(t)) or not np.all(np.diff(t) > 0):
+        return metrics
 
-    if valid_mask.sum() < 2:
-        return np.zeros_like(series, dtype=bool)
+    dt = np.diff(t)
+    sample_rate_hz = float(1.0 / np.median(dt)) if np.median(dt) > 0 else None
+    cycle_duration_s = float(t[-1] - t[0])
 
-    valid_data = series[valid_mask]
-    mean = np.mean(valid_data)
-    std = np.std(valid_data)
-
-    outliers = np.zeros_like(series, dtype=bool)
-    if std > 1e-10:
-        z_scores = np.abs((series - mean) / std)
-        outliers = z_scores > threshold
+    if 0 <= int(catch_idx) < len(t) and 0 <= int(finish_idx) < len(t):
+        drive_duration_s = float(max(0.0, t[int(finish_idx)] - t[int(catch_idx)]))
     else:
-        # No variation; mark extreme deviations from mean
-        outliers = np.abs(series - mean) > 1e-6
+        drive_duration_s = None
 
-    return outliers
+    if drive_duration_s is not None:
+        recovery_duration_s = float(max(0.0, cycle_duration_s - drive_duration_s))
+    else:
+        recovery_duration_s = None
+
+    stroke_rate_spm = float(60.0 / cycle_duration_s) if cycle_duration_s > 0 else None
+
+    metrics.update({
+        'sample_rate_hz': sample_rate_hz,
+        'cycle_duration_s': cycle_duration_s,
+        'drive_duration_s': drive_duration_s,
+        'recovery_duration_s': recovery_duration_s,
+        'stroke_rate_spm': stroke_rate_spm,
+    })
+
+    return metrics
 

@@ -57,3 +57,17 @@ def test_detect_finishes_by_seat_reversal_with_secondary():
     seat_y_bad = pd.Series(np.linspace(10, 0, 101))
     finishes_bad = _detect_finishes_by_seat_reversal(seat_x, seat_y=seat_y_bad)
     assert len(finishes_bad) == 0
+
+def test_detect_finishes_chooses_highest_peak_in_close_cluster():
+    """Regression test for noisy local maxima near a finish."""
+    seat = pd.Series([
+        -0.2, 0.0, 0.3, 1.0, 0.7, 0.35, 0.2, 0.4, 1.8, 1.1, 0.7, 0.4,
+        0.1, 0.5, 2.0, 1.0, 0.0
+    ])
+
+    # Here we have two close candidate maxima at 3 and 8 (cluster) then one at 14.
+    finishes = _detect_finishes_by_seat_reversal(seat, min_separation=6)
+
+    assert len(finishes) == 2
+    assert finishes[0] == 8  # highest peak should be selected in first cluster
+    assert finishes[1] == 14  # second stroke peak remains

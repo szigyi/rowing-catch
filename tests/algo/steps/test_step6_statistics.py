@@ -77,6 +77,15 @@ def test_compute_phase_volume():
     vol = _compute_phase_volume(pos, times, 0, 4)
     assert vol == 30.0
     
+    # Sinusoidal data
+    t = np.linspace(0, 2, 101)
+    seat_x = 50 + 50 * np.sin(2 * np.pi * t)
+    # 0 to 1 second is drive (idx 0-50), 1 to 2 is recovery (50-100)
+    # Total points 101.
+    # We expect positive volume for both.
+    vol_sin = _compute_phase_volume(seat_x, t, 0, 51)
+    assert vol_sin > 0
+    
     # Without times (defaults to dt=1)
     vol_no_times = _compute_phase_volume(pos, None, 0, 4)
     assert vol_no_times == 30.0
@@ -88,6 +97,14 @@ def test_detect_outliers_zscore():
     outliers = _detect_outliers_zscore(data, threshold=2.0)
     assert outliers[5] == True
     assert sum(outliers) == 1
+    
+    # Realistic test with normal distribution + extreme outlier
+    np.random.seed(42)
+    normal_data = np.random.normal(loc=5.0, scale=1.0, size=100)
+    data_with_outlier = np.concatenate([normal_data, [50.0]])
+    outliers_robust = _detect_outliers_zscore(data_with_outlier, threshold=3.0)
+    assert outliers_robust[-1] == True, "Extreme outlier should be detected"
+    assert np.sum(outliers_robust[:-1]) < 5, "Few normal samples should be flagged as outliers"
     
     # No variation
     data_flat = np.array([10, 10, 10])

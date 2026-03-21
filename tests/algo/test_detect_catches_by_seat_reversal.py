@@ -51,3 +51,17 @@ def test_detect_catches_by_seat_reversal_with_secondary():
     seat_y_bad = pd.Series(np.linspace(0, 10, 101))
     catches_bad = _detect_catches_by_seat_reversal(seat_x, seat_y=seat_y_bad)
     assert len(catches_bad) == 0
+
+def test_detect_catches_chooses_deepest_minimum_in_close_cluster():
+    """Regression test for noisy local minima near a catch."""
+    seat = pd.Series([
+        0.0, 0.5, 1.0, 0.2, 0.0, 0.3, 0.8, 1.2, 0.1, -0.5, -0.4, 0.0,
+        0.6, 1.0, 0.7, 0.1, -0.3, -0.2, 0.0
+    ])
+
+    # Here we have two candidate minima near indexes 4 and 9 for first stroke.
+    catches = _detect_catches_by_seat_reversal(seat, min_separation=6)
+
+    assert len(catches) == 2
+    assert catches[0] == 9  # deepest trough should be selected in first cluster
+    assert catches[1] == 16  # second stroke trough remains

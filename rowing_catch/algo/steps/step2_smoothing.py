@@ -1,6 +1,6 @@
 import pandas as pd
 
-from rowing_catch.algo.constants import COLS_TO_SMOOTH
+from rowing_catch.algo.constants import PROCESSED_COLUMN_NAMES
 
 
 def step2_smooth(df: pd.DataFrame, window: int = 10) -> pd.DataFrame:
@@ -19,7 +19,7 @@ def step2_smooth(df: pd.DataFrame, window: int = 10) -> pd.DataFrame:
         DataFrame with ``*_Smooth`` columns added. Row count is preserved.
     """
     df = df.copy()
-    for col in COLS_TO_SMOOTH:
+    for col in PROCESSED_COLUMN_NAMES:
         if col in df.columns:
             df[f'{col}_Smooth'] = df[col].rolling(window, center=True, min_periods=1).mean()
 

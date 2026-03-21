@@ -13,7 +13,7 @@ from rowing_catch.algo.steps.step5_metrics import step5_compute_metrics
 from rowing_catch.algo.steps.step6_statistics import step6_statistics
 from rowing_catch.algo.steps.step7_temporal import step7_temporal_metrics
 from rowing_catch.algo.steps.step8_diagnostics import step8_metadata_diagnostics
-from rowing_catch.algo.constants import COLUMN_MAP, COLS_TO_SMOOTH
+from rowing_catch.algo.constants import REQUIRED_COLUMN_NAMES, PROCESSED_COLUMN_NAMES
 from rowing_catch.algo.scenarios import create_scenario_data, get_trunk_scenarios
 
 st.set_page_config(page_title="Debug: Data Pipeline", layout="wide")
@@ -117,7 +117,7 @@ with st.expander("Step 1 details", expanded=True):
     with col_a:
         st.markdown("**Column mapping:**")
         rename_rows = []
-        for raw, clean in COLUMN_MAP.items():
+        for raw, clean in REQUIRED_COLUMN_NAMES.items():
             found = raw in df_raw.columns
             rename_rows.append({"Raw column": raw, "Clean column": clean, "Found": "✅" if found else "⚠️ missing"})
         st.dataframe(pd.DataFrame(rename_rows), width='stretch', hide_index=True)
@@ -131,7 +131,7 @@ with st.expander("Step 1 details", expanded=True):
         })
         st.dataframe(col_df, width='stretch', hide_index=True)
 
-    missing = [c for c in COLUMN_MAP.values() if c not in df_step1.columns]
+    missing = [c for c in REQUIRED_COLUMN_NAMES.values() if c not in df_step1.columns]
     if missing:
         _fail(f"Missing required columns after rename: {missing}")
     else:
@@ -173,7 +173,7 @@ with st.expander("Step 2 details", expanded=True):
         plt.close(fig)
 
     st.markdown("**Smoothed column stats:**")
-    smooth_cols = [f'{c}_Smooth' for c in COLS_TO_SMOOTH if f'{c}_Smooth' in df_step2.columns]
+    smooth_cols = [f'{c}_Smooth' for c in PROCESSED_COLUMN_NAMES if f'{c}_Smooth' in df_step2.columns]
     st.dataframe(df_step2[smooth_cols].describe().T.round(2), width='stretch')
 
 # ===========================================================================

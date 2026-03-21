@@ -1,6 +1,6 @@
 import pandas as pd
 
-from rowing_catch.algo.constants import COLUMN_MAP
+from rowing_catch.algo.constants import REQUIRED_COLUMN_NAMES
 
 
 def validate_input_df(df: pd.DataFrame) -> None:
@@ -15,7 +15,7 @@ def validate_input_df(df: pd.DataFrame) -> None:
     if df.empty:
         raise ValueError("Input DataFrame is empty")
 
-    required_cols = set(COLUMN_MAP.keys())
+    required_cols = set(REQUIRED_COLUMN_NAMES.keys())
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
         raise ValueError(

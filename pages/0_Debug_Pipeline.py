@@ -133,11 +133,7 @@ _step_header(2, "Smooth", f"Apply centred rolling mean (window={WINDOW}) to posi
 with st.expander("Step 2 details", expanded=True):
     df_step2 = step2_smooth(df_step1, window=WINDOW)
 
-    if df_step2 is None:
-        _fail("Smoothing produced an empty DataFrame — data is too short.")
-
-    rows_dropped = len(df_step1) - len(df_step2)
-    _ok(f"Rows after smoothing: {len(df_step2):,} ({rows_dropped} edge rows dropped).")
+    _ok(f"Rows after smoothing: {len(df_step2):,} (all rows preserved, including edges with min_periods=1).")
 
     col_left, col_right = st.columns(2)
     with col_left:
@@ -360,6 +356,39 @@ with st.expander("Step 6 details", expanded=True):
     ax.spines[['top', 'right', 'left']].set_visible(False)
     st.pyplot(fig, use_container_width=False)
     plt.close(fig)
+
+# ===========================================================================
+# METADATA & DIAGNOSTICS
+# ===========================================================================
+st.markdown("### 📊 Data Quality & Metadata Diagnostics")
+
+with st.expander("Metadata details", expanded=True):
+    # Compute metadata diagnostics
+    from rowing_catch.algo.analysis import _compute_metadata_diagnostics, _compute_temporal_metrics
+    
+    # Note: In the debug page context, we're stepping through manually,
+    # so we simulate the full pipeline context for metadata calculation
+    if 'cycles' in locals() and cycles is not None:
+        time_metrics = _compute_temporal_metrics(avg_cycle_m, catch_idx, finish_idx)
+        metadata = _compute_metadata_diagnostics(df_raw, df_step2, cycles, time_metrics, stats)
+        
+        # Display metadata metrics
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Cycles Detected", metadata['capture_length'], help="Number of complete strokes")
+        col_m2.metric("Sampling Stable?", "✅ Yes" if metadata['sampling_is_stable'] else "⚠️ No")
+        if metadata['sampling_cv'] is not None:
+            col_m3.metric("Sampling CV", f"{metadata['sampling_cv']:.2f}%", help="Coefficient of variation")
+        
+        # Row drops
+        if metadata['rows_dropped'] > 0:
+            st.info(f"📉 {metadata['rows_dropped']} rows dropped during processing")
+        
+        # Warnings
+        if metadata['warnings']:
+            for warning in metadata['warnings']:
+                st.warning(f"⚠️ {warning}")
+        else:
+            st.success("✅ No data quality warnings detected")
 
     _ok("Pipeline completed successfully — all six steps produced valid output.")
 

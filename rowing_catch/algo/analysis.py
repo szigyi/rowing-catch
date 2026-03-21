@@ -1,28 +1,239 @@
+import logging
 import numpy as np
 import pandas as pd
 
+logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
-# Internal helpers (detection primitives, unchanged)
+# Signal Quality & Robustness Helpers
+# ---------------------------------------------------------------------------
+
+def _compute_signal_noise_ratio(signal: np.ndarray, window: int = 10) -> float:
+    """Estimate signal-to-noise ratio using local variance.
+
+    Assumes noise is primarily high-frequency. Uses rolling variance to estimate
+    high-frequency components and compare to overall signal amplitude.
+
+    Args:
+        signal: 1D array of sample values
+        window: Rolling window for local variance estimation
+
+    Returns:
+        Signal-to-noise ratio (SNR). Higher is better (cleaner signal).
+        Returns 0 if signal is constant.
+    """
+    signal = np.asarray(signal, dtype=float)
+    if signal.size < window + 1:
+        return 0.0
+
+    # Cap NaN handling but proceed if mostly valid
+    valid_mask = ~np.isnan(signal)
+    if valid_mask.sum() < window:
+        return 0.0
+
+    signal_clean = signal.copy()
+    signal_clean[~valid_mask] = np.nanmean(signal)
+
+    # Overall amplitude
+    amp = np.nanmax(signal_clean) - np.nanmin(signal_clean)
+    if amp < 1e-10:
+        return 0.0
+
+    # High-frequency energy (rolling std of differences)
+    diff = np.diff(signal_clean)
+    rolling_var = pd.Series(diff).rolling(window=window // 2, center=True).var().values
+    high_freq_energy = np.nanmean(rolling_var)
+
+    # SNR = signal_amplitude / sqrt(noise_variance)
+    if high_freq_energy > 0:
+        snr = amp / np.sqrt(high_freq_energy)
+    else:
+        snr = amp / 1e-10
+
+    return float(np.clip(snr, 0, 1000))
+
+
+def _validate_with_secondary_signal(primary_idx: int,
+                                   primary_signal: np.ndarray,
+                                   secondary_signal: np.ndarray,
+                                   min_separation: int,
+                                   is_minima: bool = True) -> bool:
+    """Cross-validate detection using a secondary signal.
+
+    For a catch (primary = Seat_X minimum, secondary = Seat_Y minimum),
+    both should show reversal at approximately the same location.
+
+    Args:
+        primary_idx: Detection index in primary signal
+        primary_signal: Primary signal array (e.g., Seat_X_Smooth)
+        secondary_signal: Secondary signal array (e.g., Seat_Y_Smooth)
+        min_separation: Min separation between detections
+        is_minima: True if detecting minima, False for maxima
+
+    Returns:
+        True if secondary signal confirms the detection (nearby reversal),
+        False otherwise.
+    """
+    if len(secondary_signal) <= 1:
+        return True  # Can't validate; assume OK
+
+    secondary = np.asarray(secondary_signal, dtype=float)
+    search_window = max(min_separation // 2, 5)
+    left = max(0, primary_idx - search_window)
+    right = min(len(secondary), primary_idx + search_window + 1)
+
+    if right - left < 3:
+        return True  # Window too small; can't validate
+
+    segment = secondary[left:right]
+
+    # Find reversal points in segment
+    dx = np.diff(segment)
+    if is_minima:
+        reversals = np.where((dx[:-1] < 0) & (dx[1:] >= 0))[0] + 1
+    else:
+        reversals = np.where((dx[:-1] > 0) & (dx[1:] <= 0))[0] + 1
+
+    # Any reversal in the segment validates the primary signal
+    return len(reversals) > 0
+
+
+# ---------------------------------------------------------------------------
+# Signal Quality & Robustness Helpers (continued)
+# ---------------------------------------------------------------------------
+
+def _interpolate_small_gaps(series: np.ndarray, max_gap_size: int = 3) -> np.ndarray:
+    """Fill small NaN gaps using linear interpolation.
+
+    Args:
+        series: 1D array with potential NaN values
+        max_gap_size: Maximum consecutive NaN gap to interpolate
+
+    Returns:
+        Array with small gaps interpolated, larger gaps left as NaN
+    """
+    result = np.copy(series)
+    mask = np.isnan(result)
+
+    if not np.any(mask):
+        return result
+
+    # Find contiguous NaN regions
+    gap_mask = np.concatenate(([0], np.diff(mask.astype(int)), [0]))
+    gap_starts = np.where(gap_mask == 1)[0]
+    gap_ends = np.where(gap_mask == -1)[0]
+
+    for start, end in zip(gap_starts, gap_ends):
+        gap_size = end - start
+        if gap_size <= max_gap_size:
+            # Interpolate this small gap
+            if start > 0 and end < len(result):
+                result[start:end] = np.linspace(result[start - 1], result[end], gap_size + 2)[1:-1]
+            elif start == 0 and end < len(result):
+                result[start:end] = result[end]
+            elif start > 0 and end == len(result):
+                result[start:end] = result[start - 1]
+
+    return result
+
+
+def _detect_outliers_zscore(series: np.ndarray, threshold: float = 3.0) -> np.ndarray:
+    """Detect outliers using z-score method.
+
+    Args:
+        series: 1D array of values
+        threshold: Z-score threshold (default: 3.0 = ~0.3% outliers in normal dist)
+
+    Returns:
+        Boolean array where True indicates outlier
+    """
+    series = np.asarray(series, dtype=float)
+    valid_mask = ~np.isnan(series)
+
+    if valid_mask.sum() < 2:
+        return np.zeros_like(series, dtype=bool)
+
+    valid_data = series[valid_mask]
+    mean = np.mean(valid_data)
+    std = np.std(valid_data)
+
+    outliers = np.zeros_like(series, dtype=bool)
+    if std > 1e-10:
+        z_scores = np.abs((series - mean) / std)
+        outliers = z_scores > threshold
+    else:
+        # No variation; mark extreme deviations from mean
+        outliers = np.abs(series - mean) > 1e-6
+
+    return outliers
+
+
+def _compute_phase_volume(positions: np.ndarray,
+                          times: np.ndarray | None,
+                          phase_start_idx: int,
+                          phase_end_idx: int) -> float:
+    """Compute integrated distance * time for a phase (drive or recovery).
+
+    Approximates the "volume" of movement during a phase using trapezoidal integration.
+
+    Args:
+        positions: Array of position samples (e.g., Seat_X_Smooth)
+        times: Array of timestamps (optional; uses sample indices if None)
+        phase_start_idx: Start index of phase
+        phase_end_idx: End index of phase
+
+    Returns:
+        Phase volume in mm*seconds (or mm*samples if times not provided)
+    """
+    if phase_end_idx <= phase_start_idx or phase_end_idx > len(positions):
+        return 0.0
+
+    pos_segment = np.asarray(positions[phase_start_idx:phase_end_idx], dtype=float)
+    if len(pos_segment) < 2 or np.all(np.isnan(pos_segment)):
+        return 0.0
+
+    if times is not None:
+        times = np.asarray(times, dtype=float)
+        time_segment = times[phase_start_idx:phase_end_idx]
+        dt = np.diff(time_segment)
+        # Skip if times are invalid
+        if np.any(dt <= 0) or np.any(np.isnan(dt)):
+            dt = np.ones(len(time_segment) - 1)
+    else:
+        dt = np.ones(len(pos_segment) - 1)
+
+    # Integrate absolute displacement over time
+    disp = np.abs(np.diff(pos_segment))
+    volume = float(np.sum(disp * dt))
+
+    return volume
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers (detection primitives)
 # ---------------------------------------------------------------------------
 
 def _detect_catches_by_seat_reversal(seat_x: pd.Series,
                                     min_separation: int = 20,
-                                    prominence: float | None = None) -> np.ndarray:
+                                    prominence: float | None = None,
+                                    seat_y: pd.Series | None = None) -> np.ndarray:
     """Detect catch indices as local minima of Seat_X.
 
     We model the catch as the point where the seat reaches its most forward position
     and reverses direction (end of recovery -> start of drive).
 
     Args:
-        seat_x: smoothed Seat_X series.
+        seat_x: smoothed Seat_X series (primary signal).
         min_separation: minimum samples between consecutive catches.
         prominence: optional minimum depth vs. local neighborhood to filter noise.
+        seat_y: optional smoothed Seat_Y series for secondary validation.
 
     Returns:
         ndarray of integer indices into the *dataframe* (same index as seat_x).
     """
     x = seat_x.to_numpy(dtype=float)
+    y = seat_y.to_numpy(dtype=float) if seat_y is not None else None
 
     # Local minima where derivative changes from negative to positive.
     dx = np.diff(x)
@@ -40,7 +251,7 @@ def _detect_catches_by_seat_reversal(seat_x: pd.Series,
         if candidates[i] - candidates[i - 1] >= min_separation:
             cluster = candidates[cluster_start:i]
             best_idx = int(cluster[np.argmin(x[cluster])])
-            if _is_valid_catch(x, best_idx, min_separation, prominence):
+            if _is_valid_catch(x, best_idx, min_separation, prominence, secondary_signal=y):
                 filtered.append(best_idx)
             cluster_start = i
 
@@ -48,7 +259,7 @@ def _detect_catches_by_seat_reversal(seat_x: pd.Series,
     cluster = candidates[cluster_start:]
     if cluster.size > 0:
         best_idx = int(cluster[np.argmin(x[cluster])])
-        if _is_valid_catch(x, best_idx, min_separation, prominence):
+        if _is_valid_catch(x, best_idx, min_separation, prominence, secondary_signal=y):
             filtered.append(best_idx)
 
     return np.array(filtered, dtype=int)
@@ -58,9 +269,30 @@ def _is_valid_catch(x: np.ndarray,
                    idx: int,
                    min_separation: int,
                    prominence: float | None,
-                   min_depth_ratio: float = 0.20):
-    """Auxiliary catch-filter heuristics (robustness guard)."""
+                   min_depth_ratio: float = 0.20,
+                   secondary_signal: np.ndarray | None = None,
+                   snr_threshold: float = 3.0):
+    """Auxiliary catch-filter heuristics (robustness guard).
+
+    Args:
+        x: Primary signal (Seat_X_Smooth)
+        idx: Candidate catch index
+        min_separation: Minimum separation between detections
+        prominence: Optional prominence threshold
+        min_depth_ratio: Minimum depth as ratio of signal amplitude
+        secondary_signal: Optional secondary signal (e.g., Seat_Y) for cross-validation
+        snr_threshold: Minimum SNR to accept detection (reject if SNR too low)
+
+    Returns:
+        True if candidate passes all robustness checks
+    """
     if idx <= 0 or idx >= len(x) - 1:
+        return False
+
+    # Check signal quality: reject if signal is too noisy
+    snr = _compute_signal_noise_ratio(x, window=max(3, len(x) // 10))
+    if snr < snr_threshold:
+        logger.warning(f"Low SNR in primary signal for catch detection: SNR={snr:.2f} < {snr_threshold}")
         return False
 
     # Must be a true reversal point (strict local minimum condition).
@@ -99,16 +331,44 @@ def _is_valid_catch(x: np.ndarray,
         if x[idx] > mean_val or x[idx] > low + 0.33 * global_amp:
             return False
 
+    # Cross-validate with secondary signal if provided
+    if secondary_signal is not None:
+        if not _validate_with_secondary_signal(idx, x, secondary_signal, min_separation, is_minima=True):
+            logger.warning(f"Secondary signal validation failed for catch at idx={idx}")
+            return False
+
     return True
+
 
 
 def _is_valid_finish(x: np.ndarray,
                      idx: int,
                      min_separation: int,
                      prominence: float | None,
-                     min_depth_ratio: float = 0.20):
-    """Auxiliary finish-filter heuristics (robustness guard)."""
+                     min_depth_ratio: float = 0.20,
+                     secondary_signal: np.ndarray | None = None,
+                     snr_threshold: float = 3.0):
+    """Auxiliary finish-filter heuristics (robustness guard).
+
+    Args:
+        x: Primary signal (Seat_X_Smooth)
+        idx: Candidate finish index
+        min_separation: Minimum separation between detections
+        prominence: Optional prominence threshold
+        min_depth_ratio: Minimum depth as ratio of signal amplitude
+        secondary_signal: Optional secondary signal (e.g., Seat_Y) for cross-validation
+        snr_threshold: Minimum SNR to accept detection (reject if SNR too low)
+
+    Returns:
+        True if candidate passes all robustness checks
+    """
     if idx <= 0 or idx >= len(x) - 1:
+        return False
+
+    # Check signal quality: reject if signal is too noisy
+    snr = _compute_signal_noise_ratio(x, window=max(3, len(x) // 10))
+    if snr < snr_threshold:
+        logger.warning(f"Low SNR in primary signal for finish detection: SNR={snr:.2f} < {snr_threshold}")
         return False
 
     # Must be a true reversal point (strict local maximum condition).
@@ -146,26 +406,36 @@ def _is_valid_finish(x: np.ndarray,
         if x[idx] < mean_val or x[idx] < high - 0.33 * global_amp:
             return False
 
+    # Cross-validate with secondary signal if provided
+    if secondary_signal is not None:
+        if not _validate_with_secondary_signal(idx, x, secondary_signal, min_separation, is_minima=False):
+            logger.warning(f"Secondary signal validation failed for finish at idx={idx}")
+            return False
+
     return True
+
 
 
 def _detect_finishes_by_seat_reversal(seat_x: pd.Series,
                                      min_separation: int = 20,
-                                     prominence: float | None = None) -> np.ndarray:
+                                     prominence: float | None = None,
+                                     seat_y: pd.Series | None = None) -> np.ndarray:
     """Detect finish indices as local maxima of Seat_X.
 
     We model the finish as the point where the seat reaches its most rearward position
     and reverses direction (end of drive -> start of recovery).
 
     Args:
-        seat_x: smoothed Seat_X series.
+        seat_x: smoothed Seat_X series (primary signal).
         min_separation: minimum samples between consecutive finishes.
         prominence: optional minimum height vs. neighborhood to filter noise.
+        seat_y: optional smoothed Seat_Y series for secondary validation.
 
     Returns:
         ndarray of integer indices into the dataframe (same index as seat_x).
     """
     x = seat_x.to_numpy(dtype=float)
+    y = seat_y.to_numpy(dtype=float) if seat_y is not None else None
 
     dx = np.diff(x)
     # Indices i where dx[i-1] > 0 and dx[i] <= 0. This corresponds to a maximum at i.
@@ -180,14 +450,14 @@ def _detect_finishes_by_seat_reversal(seat_x: pd.Series,
         if candidates[i] - candidates[i - 1] >= min_separation:
             cluster = candidates[cluster_start:i]
             best_idx = int(cluster[np.argmax(x[cluster])])
-            if _is_valid_finish(x, best_idx, min_separation, prominence):
+            if _is_valid_finish(x, best_idx, min_separation, prominence, secondary_signal=y):
                 filtered.append(best_idx)
             cluster_start = i
 
     cluster = candidates[cluster_start:]
     if cluster.size > 0:
         best_idx = int(cluster[np.argmax(x[cluster])])
-        if _is_valid_finish(x, best_idx, min_separation, prominence):
+        if _is_valid_finish(x, best_idx, min_separation, prominence, secondary_signal=y):
             filtered.append(best_idx)
 
     return np.array(filtered, dtype=int)
@@ -268,6 +538,38 @@ _COLUMN_MAP = {
 _COLS_TO_SMOOTH = ['Handle_X', 'Handle_Y', 'Shoulder_X', 'Shoulder_Y', 'Seat_X', 'Seat_Y']
 
 
+def validate_input_df(df: pd.DataFrame) -> None:
+    """Validate raw input before processing.
+
+    Raises:
+        TypeError: if df is not a pandas DataFrame.
+        ValueError: if required columns are missing or non-numeric.
+    """
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("Input data must be a pandas DataFrame")
+    if df.empty:
+        raise ValueError("Input DataFrame is empty")
+
+    required_cols = set(_COLUMN_MAP.keys())
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        raise ValueError(
+            "Missing required raw input columns: {}".format(
+                ", ".join(missing)
+            )
+        )
+
+    # Ensure required columns can be parsed to numeric
+    for col in required_cols:
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            try:
+                df[col] = pd.to_numeric(df[col], errors='raise')
+            except Exception as exc:
+                raise ValueError(
+                    f"Column '{col}' must be numeric or coercible to numeric"
+                ) from exc
+
+
 def step1_rename_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Rename raw tracker column names to clean internal names.
 
@@ -286,25 +588,22 @@ def step2_smooth(df: pd.DataFrame, window: int = 10) -> pd.DataFrame:
 
     A centred window (``center=True``) is used so that detected peaks align
     with the actual event rather than being delayed by a half-window lag.
-    Rows at the leading/trailing edges that contain NaN smoothed values are
-    dropped.
+    Uses ``min_periods=1`` to preserve all rows, including boundaries, by
+    computing partial means at edges where fewer than ``window`` samples are available.
 
     Args:
         df: DataFrame with renamed columns (output of :func:`step1_rename_columns`).
         window: Rolling window width in samples.
 
     Returns:
-        DataFrame with ``*_Smooth`` columns added and NaN edge rows removed.
-        Returns ``None`` if the result is empty after dropping NaN rows.
+        DataFrame with ``*_Smooth`` columns added. Row count is preserved.
     """
     df = df.copy()
     for col in _COLS_TO_SMOOTH:
         if col in df.columns:
-            df[f'{col}_Smooth'] = df[col].rolling(window, center=True).mean()
+            df[f'{col}_Smooth'] = df[col].rolling(window, center=True, min_periods=1).mean()
 
-    smooth_cols = [f'{col}_Smooth' for col in _COLS_TO_SMOOTH if col in df.columns]
-    df = df.dropna(subset=smooth_cols)
-    return df if not df.empty else None
+    return df
 
 
 def step3_detect_catches(df: pd.DataFrame,
@@ -344,9 +643,11 @@ def step3_detect_catches(df: pd.DataFrame,
     df['Stroke_Compression'] = np.abs(df['Seat_X_Smooth'] - df['Handle_X_Smooth'])
 
     # Use Seat_X_Smooth for detection: one minimum per stroke, exactly at the catch.
+    # Pass Seat_Y_Smooth as secondary signal for robust validation.
     catch_indices = _detect_catches_by_seat_reversal(
         df['Seat_X_Smooth'],
         min_separation=min_separation,
+        seat_y=df.get('Seat_Y_Smooth', None),
     )
     return df, catch_indices
 
@@ -410,6 +711,136 @@ def step4_segment_and_average(
     return cycles, avg_cycle, min_length
 
 
+def _compute_temporal_metrics(
+    avg_cycle: pd.DataFrame,
+    catch_idx: int,
+    finish_idx: int,
+) -> dict:
+    """Calculate temporal metrics and standard units for the averaged cycle."""
+    metrics = {
+        'sample_rate_hz': None,
+        'cycle_duration_s': None,
+        'drive_duration_s': None,
+        'recovery_duration_s': None,
+        'stroke_rate_spm': None,
+    }
+
+    if 'Time' not in avg_cycle.columns or len(avg_cycle) < 2:
+        return metrics
+
+    t = avg_cycle['Time'].to_numpy(dtype=float)
+    if np.any(np.isnan(t)) or not np.all(np.diff(t) > 0):
+        # Time column is not strictly increasing; skip temporal-derived metrics.
+        return metrics
+
+    dt = np.diff(t)
+    if np.any(dt <= 0):
+        return metrics
+
+    sample_rate_hz = float(1.0 / np.median(dt))
+    cycle_duration_s = float(t[-1] - t[0])
+
+    if 0 <= int(catch_idx) < len(t) and 0 <= int(finish_idx) < len(t):
+        drive_duration_s = float(max(0.0, t[int(finish_idx)] - t[int(catch_idx)]))
+    else:
+        drive_duration_s = None
+
+    if drive_duration_s is not None:
+        recovery_duration_s = float(max(0.0, cycle_duration_s - drive_duration_s))
+    else:
+        recovery_duration_s = None
+
+    stroke_rate_spm = float(60.0 / cycle_duration_s) if cycle_duration_s > 0 else None
+
+    metrics.update({
+        'sample_rate_hz': sample_rate_hz,
+        'cycle_duration_s': cycle_duration_s,
+        'drive_duration_s': drive_duration_s,
+        'recovery_duration_s': recovery_duration_s,
+        'stroke_rate_spm': stroke_rate_spm,
+    })
+
+    return metrics
+
+
+def _compute_metadata_diagnostics(
+    df_raw: pd.DataFrame,
+    df_processed: pd.DataFrame,
+    cycles: list[pd.DataFrame],
+    time_metrics: dict,
+    stats: dict,
+) -> dict:
+    """Compute comprehensive metadata diagnostics for data quality and audit trails.
+
+    Tracks sampling stability, capture length, row drops, and generates
+    actionable warnings for coaches/analysts.
+
+    Args:
+        df_raw: Original raw input DataFrame (before processing).
+        df_processed: Processed DataFrame (after smoothing, detection).
+        cycles: List of detected cycles.
+        time_metrics: Output from _compute_temporal_metrics().
+        stats: Output from step6_statistics().
+
+    Returns:
+        A dict with metadata including:
+
+        * ``'capture_length'`` – number of stroker cycles detected.
+        * ``'sampling_is_stable'`` – boolean (CV of time deltas < 5%).
+        * ``'sampling_cv'`` – coefficient of variation of sample rate (%).
+        * ``'rows_dropped'`` – count of rows lost during processing.
+        * ``'warnings'`` – list of actionable warning messages.
+    """
+    capture_length = len(cycles)
+    sampling_is_stable = True
+    sampling_cv = None
+    rows_dropped = len(df_raw) - len(df_processed) if df_raw is not None else 0
+    warnings = []
+
+    # Sampling stability check
+    if 'Time' in df_processed.columns and len(df_processed) > 2:
+        t = df_processed['Time'].to_numpy(dtype=float)
+        if np.all(np.diff(t) > 0):  # Strictly monotonic
+            dt = np.diff(t)
+            sampling_cv = (np.std(dt) / np.mean(dt)) * 100 if np.mean(dt) > 0 else None
+            if sampling_cv is not None and sampling_cv > 5.0:
+                sampling_is_stable = False
+                warnings.append(f"Sampling frequency unstable: CV={sampling_cv:.1f}% (expected ~0-2%)")
+                logger.warning(f"Sampling frequency unstable: {sampling_cv:.1f}%")
+
+    # Capture length check
+    if capture_length < 3:
+        warnings.append(f"Capture length too short: {capture_length} cycles detected (expected ≥ 3)")
+        logger.warning(f"Capture too short: {capture_length} cycles < 3 minimum")
+
+    # Data quality warnings from stats
+    if stats.get('data_quality_flag') == 'fail':
+        warnings.append("Data quality is POOR: analysis results may be unreliable")
+    elif stats.get('data_quality_flag') == 'warning':
+        details = []
+        if stats.get('nan_rate', 0) > 0.05:
+            details.append(f"NaN rate {stats.get('nan_rate', 0):.1%}")
+        if stats.get('outlier_count', 0) > 0:
+            details.append(f"{stats.get('outlier_count')} outliers detected")
+        if details:
+            warnings.append(f"Data quality warning: {', '.join(details)}")
+
+    # Row drops during processing
+    if rows_dropped > 0:
+        drop_pct = (rows_dropped / len(df_raw)) * 100 if len(df_raw) > 0 else 0
+        if drop_pct > 10:
+            warnings.append(f"Significant data loss during processing: {rows_dropped} rows dropped ({drop_pct:.1f}%)")
+            logger.warning(f"High row drop rate: {drop_pct:.1f}%")
+
+    return {
+        'capture_length': capture_length,
+        'sampling_is_stable': sampling_is_stable,
+        'sampling_cv': sampling_cv,
+        'rows_dropped': rows_dropped,
+        'warnings': warnings,
+    }
+
+
 def step5_compute_metrics(
     avg_cycle: pd.DataFrame,
     window: int = 10,
@@ -420,8 +851,8 @@ def step5_compute_metrics(
 
     * ``'Trunk_Angle'`` – signed degrees from vertical, accounting for rower
       orientation.
-    * ``'Handle_X_Vel'`` – numerical gradient of ``Handle_X_Smooth``.
-    * ``'Seat_X_Vel'`` – numerical gradient of ``Seat_X_Smooth``.
+    * ``'Handle_X_Vel'`` – numerical gradient of ``Handle_X_Smooth`` (mm/s).
+    * ``'Seat_X_Vel'`` – numerical gradient of ``Seat_X_Smooth`` (mm/s).
     * ``'Stroke_Compression'`` – recomputed on the averaged cycle for precise
       catch/finish alignment.
 
@@ -453,8 +884,17 @@ def step5_compute_metrics(
 
     avg_cycle['Trunk_Angle'] = avg_cycle.apply(_calc_trunk_angle, axis=1)
 
-    avg_cycle['Handle_X_Vel'] = np.gradient(avg_cycle['Handle_X_Smooth'])
-    avg_cycle['Seat_X_Vel'] = np.gradient(avg_cycle['Seat_X_Smooth'])
+    if 'Time' in avg_cycle.columns:
+        t = avg_cycle['Time'].to_numpy(dtype=float)
+        if len(t) > 1 and np.all(np.diff(t) > 0):
+            avg_cycle['Handle_X_Vel'] = np.gradient(avg_cycle['Handle_X_Smooth'], t)
+            avg_cycle['Seat_X_Vel'] = np.gradient(avg_cycle['Seat_X_Smooth'], t)
+        else:
+            avg_cycle['Handle_X_Vel'] = np.gradient(avg_cycle['Handle_X_Smooth'])
+            avg_cycle['Seat_X_Vel'] = np.gradient(avg_cycle['Seat_X_Smooth'])
+    else:
+        avg_cycle['Handle_X_Vel'] = np.gradient(avg_cycle['Handle_X_Smooth'])
+        avg_cycle['Seat_X_Vel'] = np.gradient(avg_cycle['Seat_X_Smooth'])
 
     # Re-detect catch on averaged cycle for precise alignment.
     avg_cycle['Stroke_Compression'] = np.abs(
@@ -463,6 +903,7 @@ def step5_compute_metrics(
     catch_candidates_avg = _detect_catches_by_seat_reversal(
         avg_cycle['Seat_X_Smooth'],
         min_separation=max(5, window),
+        seat_y=avg_cycle.get('Seat_Y_Smooth', None),
     )
     if catch_candidates_avg.size:
         # The avg cycle includes pre_catch_window data before the main stroke.
@@ -499,6 +940,11 @@ def step6_statistics(
         * ``'drive_len'`` – samples from catch to finish.
         * ``'recovery_len'`` – samples from finish to next catch.
         * ``'mean_duration'`` – average cycle length in samples.
+        * ``'drive_volume_mm_sec'`` – integrated drive phase displacement (mm*sec).
+        * ``'recovery_volume_mm_sec'`` – integrated recovery phase displacement (mm*sec).
+        * ``'outlier_count'`` – number of outlier samples detected in average cycle.
+        * ``'nan_rate'`` – rate of NaN values in position columns (0-1).
+        * ``'data_quality_flag'`` – 'OK', 'warning', or 'fail' based on diagnostics.
     """
     stroke_lengths = [c['Seat_X_Smooth'].max() - c['Seat_X_Smooth'].min() for c in cycles]
     stroke_durations = [len(c) for c in cycles]
@@ -507,11 +953,72 @@ def step6_statistics(
     drive_len = finish_idx - catch_idx
     recovery_len = min_length - drive_len
 
+    # Compute drive/recovery volume from the average cycle (cycles[0] is the average)
+    drive_volume_mm_sec = 0.0
+    recovery_volume_mm_sec = 0.0
+    outlier_count = 0
+    nan_rate = 0.0
+    data_quality_flag = 'OK'
+
+    if len(cycles) > 0:
+        avg_cycle = cycles[0]
+
+        # Drive/recovery volumes
+        if 'Seat_X_Smooth' in avg_cycle.columns:
+            seat_x = avg_cycle['Seat_X_Smooth'].to_numpy(dtype=float)
+            times = None
+            if 'Time' in avg_cycle.columns:
+                times = avg_cycle['Time'].to_numpy(dtype=float)
+
+            drive_volume_mm_sec = _compute_phase_volume(seat_x, times, catch_idx, finish_idx)
+            recovery_volume_mm_sec = _compute_phase_volume(seat_x, times, finish_idx, min_length)
+
+            # Outlier detection
+            outliers = _detect_outliers_zscore(seat_x, threshold=3.0)
+            outlier_count = int(np.sum(outliers))
+
+        # NaN rate in position columns
+        position_cols = ['Handle_X_Smooth', 'Handle_Y_Smooth', 'Seat_X_Smooth', 'Seat_Y_Smooth',
+                         'Shoulder_X_Smooth', 'Shoulder_Y_Smooth']
+        total_cells = 0
+        nan_cells = 0
+        for col in position_cols:
+            if col in avg_cycle.columns:
+                col_data = avg_cycle[col]
+                total_cells += len(col_data)
+                nan_cells += col_data.isna().sum()
+
+        if total_cells > 0:
+            nan_rate = float(nan_cells / total_cells)
+        else:
+            nan_rate = 0.0
+
+        # Data quality flag
+        if len(cycles) < 3:
+            data_quality_flag = 'fail'
+            logger.warning(f"Very few cycles detected ({len(cycles)} < 3): data quality may be poor")
+        elif nan_rate > 0.1:
+            data_quality_flag = 'fail'
+            logger.warning(f"High NaN rate: {nan_rate:.1%} > 10%")
+        elif nan_rate > 0.05 or outlier_count > len(cycles[0]) * 0.05:
+            data_quality_flag = 'warning'
+            logger.warning(f"Moderate data quality issues: NaN_rate={nan_rate:.1%}, outliers={outlier_count}")
+        elif cv_length > 10:
+            data_quality_flag = 'warning'
+            logger.warning(f"High stroke length variability: CV={cv_length:.1f}% > 10%")
+        else:
+            data_quality_flag = 'OK'
+
     return {
         'cv_length': cv_length,
         'drive_len': drive_len,
         'recovery_len': recovery_len,
         'mean_duration': np.mean(stroke_durations),
+        'drive_volume_mm_sec': drive_volume_mm_sec,
+        'recovery_volume_mm_sec': recovery_volume_mm_sec,
+        'outlier_count': outlier_count,
+        'nan_rate': nan_rate,
+        'data_quality_flag': data_quality_flag,
     }
 
 
@@ -539,18 +1046,24 @@ def process_rowing_data(df: pd.DataFrame, pre_catch_window: int = 10) -> dict | 
     Returns:
         A results dict with keys ``'avg_cycle'``, ``'cycles'``, ``'catch_idx'``,
         ``'finish_idx'``, ``'cv_length'``, ``'drive_len'``, ``'recovery_len'``,
-        ``'min_length'``, and ``'mean_duration'``.  Returns ``None`` if the data
-        does not contain enough stroke cycles to analyse.
+        ``'min_length'``, ``'mean_duration'``, ``'metadata'``, and temporal metrics.
+        The ``'metadata'`` key contains diagnostics: ``'capture_length'``,
+        ``'sampling_is_stable'``, ``'sampling_cv'``, ``'rows_dropped'``, ``'warnings'``.
+        Returns ``None`` if the data does not contain enough stroke cycles to analyse.
     """
     window = 10
+
+    # Save raw DataFrame for metadata tracking
+    df_raw = df.copy()
+
+    # Validate input data
+    validate_input_df(df)
 
     # Step 1
     df = step1_rename_columns(df)
 
     # Step 2
     df = step2_smooth(df, window=window)
-    if df is None:
-        return None
 
     # Step 3
     df, catch_indices = step3_detect_catches(df, window=window)
@@ -569,6 +1082,12 @@ def process_rowing_data(df: pd.DataFrame, pre_catch_window: int = 10) -> dict | 
     # Step 6
     stats = step6_statistics(cycles, min_length, catch_idx, finish_idx)
 
+    # Temporal and unit-standarized metrics (using Time column if present)
+    time_metrics = _compute_temporal_metrics(avg_cycle, catch_idx, finish_idx)
+
+    # Metadata diagnostics (capture length, sampling stability, warnings)
+    metadata = _compute_metadata_diagnostics(df_raw, df, cycles, time_metrics, stats)
+
     return {
         'avg_cycle': avg_cycle,
         'cycles': cycles,
@@ -576,6 +1095,8 @@ def process_rowing_data(df: pd.DataFrame, pre_catch_window: int = 10) -> dict | 
         'finish_idx': finish_idx,
         'min_length': min_length,
         **stats,
+        **time_metrics,
+        'metadata': metadata,
     }
 
 
@@ -598,6 +1119,10 @@ def get_traffic_light(value, ideal, yellow_threshold=15, green_threshold=5):
     deviation = abs(value - ideal) / ideal * 100
     if deviation <= green_threshold:
         return "Green", "✅"
+    elif deviation <= yellow_threshold:
+        return "Yellow", "⚠️"
+    else:
+        return "Red", "🚨"
     elif deviation <= yellow_threshold:
         return "Yellow", "⚠️"
     else:

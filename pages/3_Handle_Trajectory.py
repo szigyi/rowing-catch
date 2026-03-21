@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from rowing_catch.algo.analysis import process_rowing_data
-from rowing_catch.algo.scenarios import create_scenario_data, get_trajectory_scenarios
+from rowing_catch.scenario.scenarios import create_scenario_data, get_trajectory_scenarios
 from rowing_catch.ui.components import plot_handle_trajectory
 
 st.set_page_config(page_title="Handle Trajectory Analysis", layout="wide")

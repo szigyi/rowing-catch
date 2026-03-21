@@ -1,6 +1,6 @@
 import numpy as np
 
-from rowing_catch.algo.scenarios import _trunk_angle_legs_first_progression
+from rowing_catch.scenario.scenarios import _trunk_angle_legs_first_progression
 
 
 def test_recovery_body_over_then_hold():

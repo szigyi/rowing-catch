@@ -7,8 +7,7 @@ def _trunk_angle_legs_first_progression(phase: np.ndarray,
                                        finish_angle: float,
                                        drive_hold: float = 0.35,
                                        finish_hold: float = 0.05,
-                                       rec_return: float = 0.25,
-                                       rec_hold: float = 0.50) -> np.ndarray:
+                                       rec_return: float = 0.25) -> np.ndarray:
     """Return a simple sequencing-aware trunk-angle trace.
 
     Model (very simplified, coaching-oriented):
@@ -66,8 +65,6 @@ def generate_cycle_df(num_points=100,
                       handle_x_range=(0, 400), 
                       handle_y_range=(-50, -10),
                       seat_x_range=(0, 300),
-                      shoulder_x_offset=20,
-                      shoulder_y_offset=-100,
                       trunk_angles=None,
                       handle_y_noise=0,
                       seat_finish_lag: float = 0.03):
@@ -159,8 +156,8 @@ def generate_cycle_df(num_points=100,
     # Handle Y (depth)
     # Ideal: flat drive (Y_drive), flat recovery (Y_recovery)
     # Drive phase: constant Y_drive. Recovery phase: constant Y_recovery.
-    y_drive = handle_y_range[1] # "Deeper"
-    y_recovery = handle_y_range[0] # "Higher"
+    y_drive = float(handle_y_range[1]) # "Deeper"
+    y_recovery = float(handle_y_range[0]) # "Higher"
     handle_y = np.where(phase <= 0.5, y_drive, y_recovery)
     if handle_y_noise != 0:
         handle_y += np.random.normal(0, handle_y_noise, num_points)

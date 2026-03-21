@@ -366,7 +366,7 @@ with st.expander("Step 6 details", expanded=True):
     ax.bar_label(bars, fmt='%.1f%%', padding=4, fontsize=9)
     ax.set_xlim(0, 100); ax.set_xlabel('%')
     ax.spines[['top', 'right', 'left']].set_visible(False)
-    st.pyplot(fig, use_container_width=False)
+    st.pyplot(fig, width='content')
     plt.close(fig)
 
 # ===========================================================================

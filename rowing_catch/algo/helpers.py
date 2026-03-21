@@ -8,7 +8,8 @@ logger = logging.getLogger(__name__)
 def _detect_catches_by_seat_reversal(seat_x: pd.Series,
                                     min_separation: int = 20,
                                     prominence: float | None = None,
-                                    seat_y: pd.Series | None = None) -> np.ndarray:
+                                    seat_y: pd.Series | None = None,
+                                    min_depth_ratio: float = 0.05) -> np.ndarray:
     """Detect catch indices as local minima of Seat_X.
 
     We model the catch as the point where the seat reaches its most forward position
@@ -19,6 +20,7 @@ def _detect_catches_by_seat_reversal(seat_x: pd.Series,
         min_separation: minimum samples between consecutive catches.
         prominence: optional minimum depth vs. local neighborhood to filter noise.
         seat_y: optional smoothed Seat_Y series for secondary validation.
+        min_depth_ratio: minimum depth as ratio of signal amplitude (default 0.05).
 
     Returns:
         ndarray of integer indices into the *dataframe* (same index as seat_x).
@@ -42,7 +44,8 @@ def _detect_catches_by_seat_reversal(seat_x: pd.Series,
         if candidates[i] - candidates[i - 1] >= min_separation:
             cluster = candidates[cluster_start:i]
             best_idx = int(cluster[np.argmin(x[cluster])])
-            if _is_valid_catch(x, best_idx, min_separation, prominence, secondary_signal=y):
+            if _is_valid_catch(x, best_idx, min_separation, prominence, 
+                              min_depth_ratio=min_depth_ratio, secondary_signal=y):
                 filtered.append(best_idx)
             cluster_start = i
 
@@ -50,7 +53,8 @@ def _detect_catches_by_seat_reversal(seat_x: pd.Series,
     cluster = candidates[cluster_start:]
     if cluster.size > 0:
         best_idx = int(cluster[np.argmin(x[cluster])])
-        if _is_valid_catch(x, best_idx, min_separation, prominence, secondary_signal=y):
+        if _is_valid_catch(x, best_idx, min_separation, prominence, 
+                          min_depth_ratio=min_depth_ratio, secondary_signal=y):
             filtered.append(best_idx)
 
     return np.array(filtered, dtype=int)
@@ -363,7 +367,8 @@ def _is_valid_finish(x: np.ndarray,
 def _detect_finishes_by_seat_reversal(seat_x: pd.Series,
                                       min_separation: int = 20,
                                       prominence: float | None = None,
-                                      seat_y: pd.Series | None = None) -> np.ndarray:
+                                      seat_y: pd.Series | None = None,
+                                      min_depth_ratio: float = 0.05) -> np.ndarray:
     """Detect finish indices as local maxima of Seat_X.
 
     We model the finish as the point where the seat reaches its most rearward position
@@ -374,6 +379,7 @@ def _detect_finishes_by_seat_reversal(seat_x: pd.Series,
         min_separation: minimum samples between consecutive finishes.
         prominence: optional minimum height vs. neighborhood to filter noise.
         seat_y: optional smoothed Seat_Y series for secondary validation.
+        min_depth_ratio: minimum depth as ratio of signal amplitude (default 0.05).
 
     Returns:
         ndarray of integer indices into the dataframe (same index as seat_x).
@@ -394,14 +400,16 @@ def _detect_finishes_by_seat_reversal(seat_x: pd.Series,
         if candidates[i] - candidates[i - 1] >= min_separation:
             cluster = candidates[cluster_start:i]
             best_idx = int(cluster[np.argmax(x[cluster])])
-            if _is_valid_finish(x, best_idx, min_separation, prominence, secondary_signal=y):
+            if _is_valid_finish(x, best_idx, min_separation, prominence, 
+                               min_depth_ratio=min_depth_ratio, secondary_signal=y):
                 filtered.append(best_idx)
             cluster_start = i
 
     cluster = candidates[cluster_start:]
     if cluster.size > 0:
         best_idx = int(cluster[np.argmax(x[cluster])])
-        if _is_valid_finish(x, best_idx, min_separation, prominence, secondary_signal=y):
+        if _is_valid_finish(x, best_idx, min_separation, prominence, 
+                           min_depth_ratio=min_depth_ratio, secondary_signal=y):
             filtered.append(best_idx)
 
     return np.array(filtered, dtype=int)

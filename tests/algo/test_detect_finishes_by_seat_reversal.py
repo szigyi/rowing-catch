@@ -72,3 +72,35 @@ def test_detect_finishes_chooses_highest_peak_in_close_cluster():
     assert len(finishes) == 2
     assert finishes[0] == 8  # highest peak should be selected in first cluster
     assert finishes[1] == 14  # second stroke peak remains
+
+def test_detect_finishes_by_seat_reversal_min_depth_ratio():
+    """Verify that min_depth_ratio correctly filters shallow peaks."""
+    # Signal with global amp 100.
+    # Baseline 75. 
+    # Peak at 50 (val 80) with local_min 78 (depth 2).
+    # Peak at 80 (val 95) with local_min 80 (depth 15).
+    x = np.full(101, 79.0)
+    x[0] = 100 # global max at start (not a candidate since it's a boundary)
+    x[1] = 0 # global min
+    x[50] = 80 # local peak
+    x[49] = 78
+    x[51] = 78 # depth 2
+    
+    x[80] = 95 # local peak
+    x[79] = 80
+    x[81] = 80 # depth 15
+    
+    seat_x = pd.Series(x)
+    
+    # Default min_depth_ratio is 0.05. Required depth = 0.05 * 100 = 5.
+    # idx 50 should be rejected (2 < 5). idx 80 should be accepted (15 > 5).
+    finishes = _detect_finishes_by_seat_reversal(seat_x, min_separation=10)
+    assert len(finishes) == 1
+    assert finishes[0] == 80
+    
+    # If we lower min_depth_ratio to 0.01. Required depth = 1.
+    # Both should be accepted.
+    finishes_low = _detect_finishes_by_seat_reversal(seat_x, min_separation=10, min_depth_ratio=0.01)
+    assert len(finishes_low) == 2
+    assert 50 in finishes_low
+    assert 80 in finishes_low

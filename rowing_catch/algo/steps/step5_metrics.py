@@ -67,6 +67,7 @@ def step5_compute_metrics(
         avg_cycle['Seat_X_Smooth'],
         min_separation=max(5, window),
         seat_y=avg_cycle.get('Seat_Y_Smooth', None),
+        min_depth_ratio=0.01,
     )
     if catch_candidates_avg.size:
         # The avg cycle includes pre_catch_window data before the main stroke.
@@ -100,20 +101,33 @@ def _pick_finish_index(avg_cycle: pd.DataFrame,
 
     # --- Refined detection using Seat_X reversal ---
     # Look for the finish on the avg_cycle (one major peak expected).
+    # Use a lower depth ratio (0.01) for the averaged cycle since it is cleaner.
     fin_candidates = _detect_finishes_by_seat_reversal(
         avg_cycle['Seat_X_Smooth'],
         min_separation=max(10, window),
-        seat_y=avg_cycle.get('Seat_Y_Smooth', None)
+        seat_y=avg_cycle.get('Seat_Y_Smooth', None),
+        min_depth_ratio=0.01
     )
 
+    n = len(avg_cycle)
+    catch_idx = int(np.clip(int(catch_idx), 0, n - 1))
+    post = slice(catch_idx, n)
+
     if fin_candidates.size:
-        # If we have reversals, pick the one furthest after catch_idx.
         after_catch = fin_candidates[fin_candidates > catch_idx]
         if after_catch.size:
-            return int(after_catch[0])
+            # If we have multiple candidates, pick the one that best matches
+            # the handle and trunk peaks. Technical artifacts (humps) often
+            # occur early in the drive.
+            handle_peak = catch_idx + int(np.nanargmax(handle[post]))
+            trunk_peak = catch_idx + int(np.nanargmax(trunk[post]))
+            expected_finish = (handle_peak + trunk_peak) // 2
+
+            # Pick the candidate closest to our expected finish zone.
+            best_idx = after_catch[np.argmin(np.abs(after_catch - expected_finish))]
+            return int(best_idx)
 
     # --- Fallback to Gradient-based approach ---
-    n = len(avg_cycle)
     if n == 0:
         return int(catch_idx)
 

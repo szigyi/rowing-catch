@@ -142,3 +142,50 @@ def test_step5_catch_recalculation():
     # instead of the global minimum (idx 5).
     assert catch_idx == 20
     assert catch_idx != df['Seat_X_Smooth'].idxmin()
+
+def test_step5_finish_selection_with_multiple_candidates():
+    """Test that _pick_finish_index selects the candidate closest to handle/trunk peaks."""
+    # Create 101 samples. Catch at 10.
+    # Seat peaks at 40 (artifact) and 70 (real).
+    # Handle peaks at 80.
+    # Trunk peaks at 90.
+    # expected_finish = (80 + 90) // 2 = 85.
+    # 70 is closer to 85 than 40 is.
+    t = np.linspace(0, 100, 101)
+    seat_x = np.full(101, 300.0)
+    # Peak at 40 (val 400)
+    seat_x[30:51] = 300 + 100 * np.sin(np.linspace(0, np.pi, 21))
+    # Peak at 70 (val 390 - slightly lower but closer to handle)
+    seat_x[60:81] = 300 + 90 * np.sin(np.linspace(0, np.pi, 21))
+    
+    handle_x = np.full(101, 100.0)
+    # Handle peak at 80
+    handle_x[70:91] = 100 + 100 * np.sin(np.linspace(0, np.pi, 21))
+    
+    trunk_angle = np.full(101, 0.0)
+    # Trunk peak at 90
+    trunk_angle[80:101] = 20 * np.sin(np.linspace(0, np.pi, 21))
+    
+    df = pd.DataFrame({
+        'Seat_X_Smooth': seat_x,
+        'Handle_X_Smooth': handle_x,
+        'Trunk_Angle': trunk_angle,
+        'Seat_Y_Smooth': np.zeros(101),
+        'Shoulder_X_Smooth': np.zeros(101) + 300, # Start at 300
+        'Shoulder_Y_Smooth': np.zeros(101) + 400
+    })
+    
+    # Make Shoulder_X peak at 90 to get Trunk_Angle peak there
+    df.loc[80:101, 'Shoulder_X_Smooth'] = 300 + 100 * np.sin(np.linspace(0, np.pi, 21))
+    
+    # Catch at index 10 (manually specify to avoid detection logic interference)
+    # Actually step5 recalculates catch. Let's make index 10 a catch.
+    df.loc[10, 'Seat_X_Smooth'] = 250.0 # Catch at 10
+    
+    # Run metrics computation
+    # window=5 -> min_separation=10. 40 and 70 are 30 apart, so both are candidates.
+    df_out, catch_idx, finish_idx = step5_compute_metrics(df, window=5)
+    
+    # It should have picked the candidate at 70 because it's closer to handle/trunk peaks
+    assert finish_idx == 70
+    # Before the fix, it would have picked the FIRST one (40).

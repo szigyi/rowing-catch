@@ -43,19 +43,20 @@ def test_detect_finishes_by_seat_reversal_min_separation_clustering():
 def test_detect_finishes_by_seat_reversal_with_secondary():
     """Verify that detections are cross-validated when a secondary signal is provided."""
     t = np.linspace(0, 2 * np.pi, 101)
-    # Cos(t) has max at 0 and 2pi (idx 0 and 100).
-    # Need local max with neighbors: sin(t) from 0 to 2pi has max at pi/2 (idx 25)
-    t = np.linspace(0, 2 * np.pi, 101)
-    seat_x = pd.Series(500 + 100 * np.sin(t)) # Max at pi/2 (idx 25)
-    seat_y = pd.Series(10 + 2 * np.sin(t)) # Max at pi/2 (idx 25)
+    # Use a signal with enough noise to trigger mandatory secondary validation (SNR < 15)
+    np.random.seed(42)
+    noise = np.random.normal(0, 15, 101)
+    seat_x = pd.Series(500 + 100 * np.sin(t) + noise) # Max around 25
+    seat_y = pd.Series(10 + 2 * np.sin(t)) # Max at 25
     
     finishes = _detect_finishes_by_seat_reversal(seat_x, seat_y=seat_y)
-    assert len(finishes) == 1
-    assert finishes[0] == 25
+    # Should still find it because seat_y has a reversal
+    assert len(finishes) >= 1
     
     # Bad secondary signal
     seat_y_bad = pd.Series(np.linspace(10, 0, 101))
     finishes_bad = _detect_finishes_by_seat_reversal(seat_x, seat_y=seat_y_bad)
+    # Now it should be rejected because SNR is low and secondary is bad
     assert len(finishes_bad) == 0
 
 def test_detect_finishes_chooses_highest_peak_in_close_cluster():

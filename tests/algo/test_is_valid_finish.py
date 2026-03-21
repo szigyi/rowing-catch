@@ -13,13 +13,13 @@ def test_is_valid_finish_basic():
     x = np.array([0, 10, 20, 30, 40, 50, 40, 30, 20, 10, 0])
     # global amp = 50. local_depth = 10. required = 0.2 * 50 = 10.
     # mean = 22.7. x[5] = 50. 50 > 22.7 and 50 > 50 - 0.33 * 50 = 33.5. Passes.
-    assert _is_valid_finish(x, 5, min_separation=2, prominence=None)
+    assert _is_valid_finish(x, 5, min_separation=2, prominence=None, snr_threshold=0)
 
 def test_is_valid_finish_not_maximum():
     """Verify that points that are not local maxima are rejected."""
     x = np.array([0, 5, 10, 5, 0])
     # x[1]=5 is not a local maximum
-    assert not _is_valid_finish(x, 1, min_separation=2, prominence=None)
+    assert not _is_valid_finish(x, 1, min_separation=2, prominence=None, snr_threshold=0)
 
 def test_is_valid_finish_shallow_lump():
     """Verify that shallow lumps relative to global amplitude are rejected."""
@@ -30,14 +30,14 @@ def test_is_valid_finish_shallow_lump():
     x[49] = -1
     x[51] = -1
     # Global amp = 1000. local depth = 1. required = 0.2 * 1000 = 200.
-    assert not _is_valid_finish(x, 50, min_separation=10, prominence=None)
+    assert not _is_valid_finish(x, 50, min_separation=10, prominence=None, snr_threshold=0)
 
 def test_is_valid_finish_too_low():
     """Verify that finishes located too low in the signal's range are rejected."""
     # Finish must be in the upper third of the signal
     # x = [10, 0, 1, 0, 10]. Mean = 4.2. x[2]=1. 1 < 4.2 -> FAIL.
     x = np.array([10, 0, 1, 0, 10])
-    assert not _is_valid_finish(x, 2, min_separation=1, prominence=None)
+    assert not _is_valid_finish(x, 2, min_separation=1, prominence=None, snr_threshold=0)
 
 def test_is_valid_finish_prominence():
     """Verify that finishes with insufficient prominence are rejected."""
@@ -46,21 +46,22 @@ def test_is_valid_finish_prominence():
     # neighborhood for idx 1: [0, 4, 5, 0]. max=5. x[1]=5. x[1]-max=0.
     # mean=2.25. x[1]=5. x[1]-mean=2.75.
     # If prominence is 3.0: 0 < 3.0 (T) and 2.75 < 3.0 (T) -> return False.
-    assert not _is_valid_finish(x, 1, min_separation=5, prominence=3.0)
+    assert not _is_valid_finish(x, 1, min_separation=5, prominence=3.0, snr_threshold=0)
 
 def test_is_valid_finish_secondary_signal():
     """Verify that a finish is accepted when confirmed by the secondary signal."""
     x = np.array([0, 5, 10, 5, 0])
     # Secondary signal also has a maximum nearby
     y = np.array([0, 5, 10, 5, 0])
-    assert _is_valid_finish(x, 2, min_separation=2, prominence=None, secondary_signal=y)
+    assert _is_valid_finish(x, 2, min_separation=2, prominence=None, secondary_signal=y, snr_threshold=0)
 
 def test_is_valid_finish_rejected_by_secondary_signal():
     """Verify that a finish is rejected when not confirmed by the secondary signal."""
     x = np.array([0, 5, 10, 5, 0])
     # Secondary signal does NOT have a maximum nearby
     y_bad = np.array([10, 9, 8, 7, 6])
-    assert not _is_valid_finish(x, 2, min_separation=2, prominence=None, secondary_signal=y_bad)
+    # Use high snr_threshold to force mandatory secondary validation
+    assert not _is_valid_finish(x, 2, min_separation=2, prominence=None, secondary_signal=y_bad, snr_threshold=1000)
 
 def test_is_valid_finish_boundary_leeway():
     """Verify that finishes near the start/end of a signal have relaxed depth requirements."""
@@ -75,7 +76,7 @@ def test_is_valid_finish_boundary_leeway():
     # Normal required = 20. 10 < 20.
     # idx=2 <= min_separation=10 -> required = 10. 10 >= 10 -> Pass.
     # Also need to pass x[idx] > mean_val. Mean is approx 3.7. 95 > 3.7.
-    assert _is_valid_finish(x, 2, min_separation=10, prominence=None)
+    assert _is_valid_finish(x, 2, min_separation=10, prominence=None, snr_threshold=0)
 
 def test_is_valid_finish_high_snr_threshold():
     """Verify that a finish is rejected if the required SNR threshold is set higher than the signal's SNR."""

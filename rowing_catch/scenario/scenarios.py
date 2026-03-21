@@ -3,11 +3,11 @@ import pandas as pd
 
 
 def _trunk_angle_legs_first_progression(phase: np.ndarray,
-                                       catch_angle: float,
-                                       finish_angle: float,
-                                       drive_hold: float = 0.35,
-                                       finish_hold: float = 0.05,
-                                       rec_return: float = 0.25) -> np.ndarray:
+                                        catch_angle: float,
+                                        finish_angle: float,
+                                        drive_hold: float = 0.35,
+                                        finish_hold: float = 0.05,
+                                        rec_return: float = 0.25) -> np.ndarray:
     """Return a simple sequencing-aware trunk-angle trace.
 
     Model (very simplified, coaching-oriented):
@@ -118,12 +118,7 @@ def generate_cycle_df(num_points=100,
             0.5 + 0.5 * ((phase - seat_drive_end) / max(1.0 - seat_drive_end, 1e-6)),
         )
 
-        trunk_angle = _trunk_angle_legs_first_progression(
-            seat_timed_phase,
-            catch_angle,
-            finish_angle,
-            drive_hold=0.35,
-        )
+        trunk_angle = _trunk_angle_legs_first_progression(seat_timed_phase, catch_angle, finish_angle, drive_hold=0.35)
     elif isinstance(trunk_angles, (tuple, list)):
         catch_angle, finish_angle = trunk_angles
         plateau = 0.05
@@ -258,25 +253,16 @@ def create_scenario_data(scenario_type, subtype):
             elif subtype == "Slow Hand Away":
                 # Trunk opens like ideal, but returns extremely slowly across the whole recovery
                 phase = get_stroke_phase(cycle_points)
-                trunk_angle = _trunk_angle_legs_first_progression(
-                    phase,
-                    catch_angle=float(angles_with_noise[0]),
-                    finish_angle=float(angles_with_noise[1]),
-                    drive_hold=0.40,
-                    finish_hold=0.1,  # Holds finish angle for 10% of the stroke
-                    rec_return=0.8,   # Takes 80% of the recovery to get back to catch
-                    rec_hold=0.0      # No hold at the catch
-                )
+                trunk_angle = _trunk_angle_legs_first_progression(phase, catch_angle=float(angles_with_noise[0]),
+                                                                  finish_angle=float(angles_with_noise[1]),
+                                                                  drive_hold=0.40, finish_hold=0.1, rec_return=0.8)
                 cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=trunk_angle))
             else:
                 # By default, use a sequencing-aware progression (legs-first, body swing later).
                 phase = get_stroke_phase(cycle_points)
-                trunk_angle = _trunk_angle_legs_first_progression(
-                    phase,
-                    catch_angle=float(angles_with_noise[0]),
-                    finish_angle=float(angles_with_noise[1]),
-                    drive_hold=0.35,
-                )
+                trunk_angle = _trunk_angle_legs_first_progression(phase, catch_angle=float(angles_with_noise[0]),
+                                                                  finish_angle=float(angles_with_noise[1]),
+                                                                  drive_hold=0.35)
                 cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=trunk_angle))
     elif scenario_type == "Coordination":
         # Handle X and Seat X velocities

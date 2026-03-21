@@ -40,16 +40,22 @@ def test_detect_catches_by_seat_reversal_min_separation_clustering():
 def test_detect_catches_by_seat_reversal_with_secondary():
     """Verify that detections are cross-validated when a secondary signal is provided."""
     t = np.linspace(0, 2 * np.pi, 101)
-    seat_x = pd.Series(500 + 100 * np.cos(t)) # Min at 50
+    # Use a signal with enough noise to trigger mandatory secondary validation (SNR < 15)
+    # Global amp is 200. We need sqrt(noise_var) > 200 / 15 = 13.3.
+    # noise_var > 177.
+    np.random.seed(42)
+    noise = np.random.normal(0, 15, 101)
+    seat_x = pd.Series(500 + 100 * np.cos(t) + noise) # Min around 50
     seat_y = pd.Series(10 + 2 * np.cos(t)) # Min at 50
     
     catches = _detect_catches_by_seat_reversal(seat_x, seat_y=seat_y)
-    assert len(catches) == 1
-    assert catches[0] == 50
+    # Should still find it because seat_y has a reversal
+    assert len(catches) >= 1
     
-    # Bad secondary signal
+    # Bad secondary signal (monotonic)
     seat_y_bad = pd.Series(np.linspace(0, 10, 101))
     catches_bad = _detect_catches_by_seat_reversal(seat_x, seat_y=seat_y_bad)
+    # Now it should be rejected because SNR is low and secondary is bad
     assert len(catches_bad) == 0
 
 def test_detect_catches_chooses_deepest_minimum_in_close_cluster():

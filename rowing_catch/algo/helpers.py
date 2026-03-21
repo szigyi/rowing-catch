@@ -78,6 +78,7 @@ def _is_valid_catch(x: np.ndarray,
         True if candidate passes all robustness checks
     """
     if idx <= 0 or idx >= len(x) - 1:
+        logger.debug(f"Candidate catch at idx={idx} rejected: out of bounds.")
         return False
 
     # Check signal quality: reject if signal is too noisy
@@ -88,6 +89,7 @@ def _is_valid_catch(x: np.ndarray,
 
     # Must be a true reversal point (strict local minimum condition).
     if not (x[idx - 1] > x[idx] < x[idx + 1]):
+        logger.debug(f"Candidate catch at idx={idx} rejected: not a strict local minimum (x[idx-1]={x[idx-1]:.2f}, x[idx]={x[idx]:.2f}, x[idx+1]={x[idx+1]:.2f}).")
         return False
 
     if prominence is not None:
@@ -95,6 +97,7 @@ def _is_valid_catch(x: np.ndarray,
         right = min(len(x) - 1, idx + min_separation)
         neighborhood = np.r_[x[left:idx], x[idx + 1:right + 1]]
         if neighborhood.size > 0 and (neighborhood.min() - x[idx]) < prominence and (neighborhood.mean() - x[idx]) < prominence:
+            logger.debug(f"Candidate catch at idx={idx} rejected: insufficient prominence (neighborhood min diff={neighborhood.min() - x[idx]:.2f}, mean diff={neighborhood.mean() - x[idx]:.2f}, required={prominence}).")
             return False
 
     # Reject shallow dips that are not a major cycle catch.
@@ -116,17 +119,22 @@ def _is_valid_catch(x: np.ndarray,
                 required_depth = min(required_depth, 0.1 * global_amp)
 
             if local_depth < required_depth:
+                logger.debug(f"Candidate catch at idx={idx} rejected: shallow dip (depth={local_depth:.2f} < required={required_depth:.2f}).")
                 return False
 
         # Reject extremes not consistent with catch location.
         if x[idx] > mean_val or x[idx] > low + 0.33 * global_amp:
+            logger.debug(f"Candidate catch at idx={idx} rejected: too high in signal range (val={x[idx]:.2f}, mean={mean_val:.2f}, limit={low + 0.33 * global_amp:.2f}).")
             return False
 
     # Cross-validate with secondary signal if provided
     if secondary_signal is not None:
-        if not _validate_with_secondary_signal(idx, x, secondary_signal, min_separation, is_minima=True):
-            logger.warning(f"Secondary signal validation failed for catch at idx={idx}")
-            return False
+        if not _validate_with_secondary_signal(idx, secondary_signal, min_separation, is_minima=True):
+            if snr < 15.0:
+                logger.warning(f"Secondary signal validation failed for catch at idx={idx} (SNR={snr:.2f})")
+                return False
+            else:
+                logger.debug(f"Secondary signal validation failed for catch at idx={idx}, but primary SNR is high ({snr:.2f}). Proceeding.")
 
     return True
 
@@ -164,11 +172,15 @@ def _compute_signal_noise_ratio(signal: np.ndarray, window: int = 10) -> float:
 
     # High-frequency energy (rolling std of differences)
     diff = np.diff(signal_clean)
-    rolling_var = pd.Series(diff).rolling(window=window // 2, center=True).var().values
+    if len(diff) < 2:
+        return 1000.0 # Effectively infinite for very short signals
+        
+    rolling_var = pd.Series(diff).rolling(window=max(2, window // 2), center=True).var().values
     if len(rolling_var) > 0 and not np.all(np.isnan(rolling_var)):
         high_freq_energy = np.nanmean(rolling_var)
     else:
-        high_freq_energy = 0.0
+        # Fallback for very short signals: just use global variance of differences
+        high_freq_energy = np.var(diff)
 
     # SNR = signal_amplitude / sqrt(noise_variance)
     if high_freq_energy > 0:
@@ -180,10 +192,9 @@ def _compute_signal_noise_ratio(signal: np.ndarray, window: int = 10) -> float:
 
 
 def _validate_with_secondary_signal(primary_idx: int,
-                                   primary_signal: np.ndarray,
-                                   secondary_signal: np.ndarray,
-                                   min_separation: int,
-                                   is_minima: bool = True) -> bool:
+                                    secondary_signal: np.ndarray,
+                                    min_separation: int,
+                                    is_minima: bool = True) -> bool:
     """Cross-validate detection using a secondary signal.
 
     For a catch (primary = Seat_X minimum, secondary = Seat_Y minimum),
@@ -191,7 +202,6 @@ def _validate_with_secondary_signal(primary_idx: int,
 
     Args:
         primary_idx: Detection index in primary signal
-        primary_signal: Primary signal array (e.g., Seat_X_Smooth)
         secondary_signal: Secondary signal array (e.g., Seat_Y_Smooth)
         min_separation: Min separation between detections
         is_minima: True if detecting minima, False for maxima
@@ -201,6 +211,7 @@ def _validate_with_secondary_signal(primary_idx: int,
         False otherwise.
     """
     if len(secondary_signal) <= 1:
+        logger.debug("Secondary signal too short for validation; assuming OK.")
         return True  # Can't validate; assume OK
 
     secondary = np.asarray(secondary_signal, dtype=float)
@@ -209,10 +220,12 @@ def _validate_with_secondary_signal(primary_idx: int,
     right = min(len(secondary), primary_idx + search_window + 1)
 
     if right - left < 3:
+        logger.debug(f"Search window too small ({right-left} samples) for validation at idx={primary_idx}; assuming OK.")
         return True  # Window too small; can't validate
 
     segment = secondary[left:right]
     if np.nanmax(segment) - np.nanmin(segment) < 1e-8:
+        logger.debug(f"Secondary signal is constant in search window at idx={primary_idx}; assuming OK.")
         return True  # Constant signal cannot validate; assume OK
 
     # Find reversal points in segment
@@ -223,7 +236,11 @@ def _validate_with_secondary_signal(primary_idx: int,
         reversals = np.where((dx[:-1] > 0) & (dx[1:] <= 0))[0] + 1
 
     # Any reversal in the segment validates the primary signal
-    return len(reversals) > 0
+    if len(reversals) > 0:
+        logger.debug(f"Secondary signal confirms detection at idx={primary_idx} with reversals at local indices {reversals}.")
+        return True
+
+    return False
 
 
 def _interpolate_small_gaps(series: np.ndarray, max_gap_size: int = 3) -> np.ndarray:
@@ -283,6 +300,7 @@ def _is_valid_finish(x: np.ndarray,
         True if candidate passes all robustness checks
     """
     if idx <= 0 or idx >= len(x) - 1:
+        logger.debug(f"Candidate finish at idx={idx} rejected: out of bounds.")
         return False
 
     # Check signal quality: reject if signal is too noisy
@@ -293,6 +311,7 @@ def _is_valid_finish(x: np.ndarray,
 
     # Must be a true reversal point (strict local maximum condition).
     if not (x[idx - 1] < x[idx] > x[idx + 1]):
+        logger.debug(f"Candidate finish at idx={idx} rejected: not a strict local maximum (x[idx-1]={x[idx-1]:.2f}, x[idx]={x[idx]:.2f}, x[idx+1]={x[idx+1]:.2f}).")
         return False
 
     if prominence is not None:
@@ -300,6 +319,7 @@ def _is_valid_finish(x: np.ndarray,
         right = min(len(x) - 1, idx + min_separation)
         neighborhood = np.r_[x[left:idx], x[idx + 1:right + 1]]
         if neighborhood.size > 0 and (x[idx] - neighborhood.max()) < prominence and (x[idx] - neighborhood.mean()) < prominence:
+            logger.debug(f"Candidate finish at idx={idx} rejected: insufficient prominence (neighborhood max diff={x[idx] - neighborhood.max():.2f}, mean diff={x[idx] - neighborhood.mean():.2f}, required={prominence}).")
             return False
 
     # Reject shallow lumps that are not a major finish.
@@ -320,17 +340,22 @@ def _is_valid_finish(x: np.ndarray,
                 required_depth = min(required_depth, 0.1 * global_amp)
 
             if local_depth < required_depth:
+                logger.debug(f"Candidate finish at idx={idx} rejected: shallow lump (depth={local_depth:.2f} < required={required_depth:.2f}).")
                 return False
 
         # Reject extremes not consistent with a finish location.
         if x[idx] < mean_val or x[idx] < high - 0.33 * global_amp:
+            logger.debug(f"Candidate finish at idx={idx} rejected: too low in signal range (val={x[idx]:.2f}, mean={mean_val:.2f}, limit={high - 0.33 * global_amp:.2f}).")
             return False
 
     # Cross-validate with secondary signal if provided
     if secondary_signal is not None:
-        if not _validate_with_secondary_signal(idx, x, secondary_signal, min_separation, is_minima=False):
-            logger.warning(f"Secondary signal validation failed for finish at idx={idx}")
-            return False
+        if not _validate_with_secondary_signal(idx, secondary_signal, min_separation, is_minima=False):
+            if snr < 15.0:
+                logger.warning(f"Secondary signal validation failed for finish at idx={idx} (SNR={snr:.2f})")
+                return False
+            else:
+                logger.debug(f"Secondary signal validation failed for finish at idx={idx}, but primary SNR is high ({snr:.2f}). Proceeding.")
 
     return True
 

@@ -32,9 +32,8 @@ def test_trunk_angle_legs_first_progression():
     catch_angle = -30.0
     finish_angle = 15.0
     
-    angles = _trunk_angle_legs_first_progression(
-        phase, catch_angle, finish_angle, drive_hold=0.35, finish_hold=0.05, rec_return=0.25
-    )
+    angles = _trunk_angle_legs_first_progression(phase, catch_angle, finish_angle, drive_hold=0.35, finish_hold=0.05,
+                                                 rec_return=0.25)
     
     assert len(angles) == 100
     assert np.isclose(angles[0], catch_angle)

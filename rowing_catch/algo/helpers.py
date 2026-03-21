@@ -60,7 +60,7 @@ def _is_valid_catch(x: np.ndarray,
                    idx: int,
                    min_separation: int,
                    prominence: float | None,
-                   min_depth_ratio: float = 0.20,
+                   min_depth_ratio: float = 0.05,
                    secondary_signal: np.ndarray | None = None,
                    snr_threshold: float = 3.0):
     """Auxiliary catch-filter heuristics (robustness guard).
@@ -209,6 +209,8 @@ def _validate_with_secondary_signal(primary_idx: int,
         return True  # Window too small; can't validate
 
     segment = secondary[left:right]
+    if np.nanmax(segment) - np.nanmin(segment) < 1e-8:
+        return True  # Constant signal cannot validate; assume OK
 
     # Find reversal points in segment
     dx = np.diff(segment)
@@ -238,9 +240,9 @@ def _interpolate_small_gaps(series: np.ndarray, max_gap_size: int = 3) -> np.nda
         return result
 
     # Find contiguous NaN regions
-    gap_mask = np.concatenate(([0], np.diff(mask.astype(int)), [0]))
-    gap_starts = np.where(gap_mask == 1)[0]
-    gap_ends = np.where(gap_mask == -1)[0]
+    diff = np.diff(np.concatenate(([False], mask, [False])).astype(int))
+    gap_starts = np.where(diff == 1)[0]
+    gap_ends = np.where(diff == -1)[0]
 
     for start, end in zip(gap_starts, gap_ends):
         gap_size = end - start
@@ -260,7 +262,7 @@ def _is_valid_finish(x: np.ndarray,
                      idx: int,
                      min_separation: int,
                      prominence: float | None,
-                     min_depth_ratio: float = 0.20,
+                     min_depth_ratio: float = 0.05,
                      secondary_signal: np.ndarray | None = None,
                      snr_threshold: float = 3.0):
     """Auxiliary finish-filter heuristics (robustness guard).

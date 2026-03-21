@@ -165,7 +165,10 @@ def _compute_signal_noise_ratio(signal: np.ndarray, window: int = 10) -> float:
     # High-frequency energy (rolling std of differences)
     diff = np.diff(signal_clean)
     rolling_var = pd.Series(diff).rolling(window=window // 2, center=True).var().values
-    high_freq_energy = np.nanmean(rolling_var)
+    if len(rolling_var) > 0 and not np.all(np.isnan(rolling_var)):
+        high_freq_energy = np.nanmean(rolling_var)
+    else:
+        high_freq_energy = 0.0
 
     # SNR = signal_amplitude / sqrt(noise_variance)
     if high_freq_energy > 0:

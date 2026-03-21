@@ -36,7 +36,11 @@ def step6_statistics(
     """
     stroke_lengths = [c['Seat_X_Smooth'].max() - c['Seat_X_Smooth'].min() for c in cycles]
     stroke_durations = [len(c) for c in cycles]
-    cv_length = (np.std(stroke_lengths) / np.mean(stroke_lengths)) * 100
+    mean_len = np.mean(stroke_lengths)
+    if mean_len > 0:
+        cv_length = (np.std(stroke_lengths) / mean_len) * 100
+    else:
+        cv_length = 0.0
 
     drive_len = finish_idx - catch_idx
     recovery_len = min_length - drive_len

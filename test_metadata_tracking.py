@@ -12,8 +12,8 @@ Validates:
 import numpy as np
 import pandas as pd
 from rowing_catch.algo.analysis import (
-    _compute_metadata_diagnostics,
-    _compute_temporal_metrics,
+    step8_metadata_diagnostics,
+    step7_temporal_metrics,
     process_rowing_data,
 )
 from rowing_catch.algo.scenarios import create_scenario_data
@@ -189,7 +189,7 @@ def test_metadata_diagnostics_function():
         'outlier_count': 0,
     }
     
-    metadata = _compute_metadata_diagnostics(df_raw, df_processed, cycles, time_metrics, stats)
+    metadata = step8_metadata_diagnostics(df_raw, df_processed, cycles, time_metrics, stats)
     
     assert isinstance(metadata, dict), "Should return dict"
     assert metadata['capture_length'] == 2, "Should have 2 cycles"

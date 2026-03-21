@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import os
 
-from rowing_catch.algo.analysis import process_rowing_data, get_traffic_light
+from rowing_catch.algo.analysis import process_rowing_data
+from rowing_catch.ui.utils import get_traffic_light
 from rowing_catch.ui.components import (
     plot_trunk_angle_with_stage_stickfigures,
     plot_velocity_coordination,

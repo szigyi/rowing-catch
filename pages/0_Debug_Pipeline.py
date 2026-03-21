@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
-import matplotlib
 import matplotlib.pyplot as plt
 import os
 
@@ -11,10 +10,9 @@ from rowing_catch.algo.analysis import (
     step3_detect_catches,
     step4_segment_and_average,
     step5_compute_metrics,
-    step6_statistics,
-    _COLUMN_MAP,
-    _COLS_TO_SMOOTH,
+    step6_statistics
 )
+from rowing_catch.algo.constants import COLUMN_MAP, COLS_TO_SMOOTH
 from rowing_catch.algo.scenarios import create_scenario_data, get_trunk_scenarios
 
 st.set_page_config(page_title="Debug: Data Pipeline", layout="wide")
@@ -105,10 +103,10 @@ with st.expander("Step 1 details", expanded=True):
     with col_a:
         st.markdown("**Column mapping:**")
         rename_rows = []
-        for raw, clean in _COLUMN_MAP.items():
+        for raw, clean in COLUMN_MAP.items():
             found = raw in df_raw.columns
             rename_rows.append({"Raw column": raw, "Clean column": clean, "Found": "✅" if found else "⚠️ missing"})
-        st.dataframe(pd.DataFrame(rename_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rename_rows), width='stretch', hide_index=True)
 
     with col_b:
         st.markdown("**Output columns:**")
@@ -117,9 +115,9 @@ with st.expander("Step 1 details", expanded=True):
             "dtype": [str(dt) for dt in df_step1.dtypes],
             "non-null": df_step1.count().values,
         })
-        st.dataframe(col_df, use_container_width=True, hide_index=True)
+        st.dataframe(col_df, width='stretch', hide_index=True)
 
-    missing = [c for c in _COLUMN_MAP.values() if c not in df_step1.columns]
+    missing = [c for c in COLUMN_MAP.values() if c not in df_step1.columns]
     if missing:
         _fail(f"Missing required columns after rename: {missing}")
     else:
@@ -145,7 +143,7 @@ with st.expander("Step 2 details", expanded=True):
                 color='#6366f1', linewidth=1.5, label='Smoothed')
         ax.set_xlabel('Sample index'); ax.set_ylabel('Seat_X')
         ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     with col_right:
@@ -157,12 +155,12 @@ with st.expander("Step 2 details", expanded=True):
                 color='#f59e0b', linewidth=1.5, label='Smoothed')
         ax.set_xlabel('Sample index'); ax.set_ylabel('Handle_X')
         ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     st.markdown("**Smoothed column stats:**")
-    smooth_cols = [f'{c}_Smooth' for c in _COLS_TO_SMOOTH if f'{c}_Smooth' in df_step2.columns]
-    st.dataframe(df_step2[smooth_cols].describe().T.round(2), use_container_width=True)
+    smooth_cols = [f'{c}_Smooth' for c in COLS_TO_SMOOTH if f'{c}_Smooth' in df_step2.columns]
+    st.dataframe(df_step2[smooth_cols].describe().T.round(2), width='stretch')
 
 # ===========================================================================
 # STEP 3 — Detect catches
@@ -202,7 +200,7 @@ with st.expander("Step 3 details", expanded=True):
     ax2.legend(fontsize=8); ax2.spines[['top', 'right']].set_visible(False)
 
     plt.tight_layout()
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     st.markdown("**Catch-to-catch intervals (samples):**")
@@ -212,7 +210,7 @@ with st.expander("Step 3 details", expanded=True):
                       "Start index": catch_indices[:-1].tolist(),
                       "End index": catch_indices[1:].tolist(),
                       "Interval (samples)": intervals}),
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
     )
 
@@ -239,7 +237,7 @@ with st.expander("Step 4 details", expanded=True):
             "Seat_X range": [f"{c['Seat_X_Smooth'].min():.1f} – {c['Seat_X_Smooth'].max():.1f}"
                              for c in cycles],
         })
-        st.dataframe(cycle_df, use_container_width=True, hide_index=True)
+        st.dataframe(cycle_df, width='stretch', hide_index=True)
 
     with col_r:
         st.markdown("**Averaged Seat_X (all cycles overlaid):**")
@@ -250,7 +248,7 @@ with st.expander("Step 4 details", expanded=True):
         ax.plot(avg_cycle['Seat_X_Smooth'], color='#6366f1', linewidth=2, label='Average')
         ax.set_xlabel('Cycle index'); ax.set_ylabel('Seat_X_Smooth')
         ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
 # ===========================================================================
@@ -294,7 +292,7 @@ with st.expander("Step 5 details", expanded=True):
     ax.set_title('Averaged stroke: catch & finish markers')
     ax.legend(fontsize=8)
     ax.spines[['top', 'right']].set_visible(False)
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     # Trunk angle plot
@@ -307,7 +305,7 @@ with st.expander("Step 5 details", expanded=True):
     ax.axvline(finish_idx, color='#ef4444', linestyle='--', linewidth=1.5, label=f'Finish ({finish_angle:.1f}°)')
     ax.set_xlabel('Cycle index'); ax.set_ylabel('Degrees from vertical')
     ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     # Velocity plot
@@ -322,11 +320,11 @@ with st.expander("Step 5 details", expanded=True):
     ax.axvline(finish_idx, color='#ef4444', linestyle='--', linewidth=1.2)
     ax.set_xlabel('Cycle index'); ax.set_ylabel('Velocity (px/sample)')
     ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     with st.expander("Raw averaged cycle DataFrame (all computed columns)"):
-        st.dataframe(avg_cycle_m.round(3), use_container_width=True)
+        st.dataframe(avg_cycle_m.round(3), width='stretch')
 
 # ===========================================================================
 # STEP 6 — Statistics
@@ -364,13 +362,13 @@ st.markdown("### 📊 Data Quality & Metadata Diagnostics")
 
 with st.expander("Metadata details", expanded=True):
     # Compute metadata diagnostics
-    from rowing_catch.algo.analysis import _compute_metadata_diagnostics, _compute_temporal_metrics
+    from rowing_catch.algo.analysis import step8_metadata_diagnostics, step7_temporal_metrics
     
     # Note: In the debug page context, we're stepping through manually,
     # so we simulate the full pipeline context for metadata calculation
     if 'cycles' in locals() and cycles is not None:
-        time_metrics = _compute_temporal_metrics(avg_cycle_m, catch_idx, finish_idx)
-        metadata = _compute_metadata_diagnostics(df_raw, df_step2, cycles, time_metrics, stats)
+        time_metrics = step7_temporal_metrics(avg_cycle_m, catch_idx, finish_idx)
+        metadata = step8_metadata_diagnostics(df_raw, df_step2, cycles, time_metrics, stats)
         
         # Display metadata metrics
         col_m1, col_m2, col_m3 = st.columns(3)

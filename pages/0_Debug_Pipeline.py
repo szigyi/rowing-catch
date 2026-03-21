@@ -4,14 +4,15 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import os
 
-from rowing_catch.algo.analysis import (
-    step1_rename_columns,
-    step2_smooth,
-    step3_detect_catches,
-    step4_segment_and_average,
-    step5_compute_metrics,
-    step6_statistics
-)
+from rowing_catch.algo.steps.step0_validation import validate_input_df
+from rowing_catch.algo.steps.step1_rename import step1_rename_columns
+from rowing_catch.algo.steps.step2_smoothing import step2_smooth
+from rowing_catch.algo.steps.step3_detection import step3_detect_catches
+from rowing_catch.algo.steps.step4_segmentation import step4_segment_and_average
+from rowing_catch.algo.steps.step5_metrics import step5_compute_metrics
+from rowing_catch.algo.steps.step6_statistics import step6_statistics
+from rowing_catch.algo.steps.step7_temporal import step7_temporal_metrics
+from rowing_catch.algo.steps.step8_diagnostics import step8_metadata_diagnostics
 from rowing_catch.algo.constants import COLUMN_MAP, COLS_TO_SMOOTH
 from rowing_catch.algo.scenarios import create_scenario_data, get_trunk_scenarios
 
@@ -92,6 +93,19 @@ def _fail(msg: str):
 
 
 # ===========================================================================
+# STEP 0 — Validation
+# ===========================================================================
+_step_header(0, "Validation", "Ensure input DataFrame has required columns and enough data.")
+
+with st.expander("Step 0 details", expanded=True):
+    try:
+        validate_input_df(df_raw)
+        _ok("Input validation passed.")
+    except Exception as e:
+        _fail(f"Input validation failed: {e}")
+
+
+# ===========================================================================
 # STEP 1 — Rename columns
 # ===========================================================================
 _step_header(1, "Rename Columns", "Map raw tracker names → clean internal names.")
@@ -165,7 +179,7 @@ with st.expander("Step 2 details", expanded=True):
 # ===========================================================================
 # STEP 3 — Detect catches
 # ===========================================================================
-_step_header(3, "Detect Catches", "Find local minima of Stroke_Compression (= catch events).")
+_step_header(3, "Detect Catches", "Interpolate small gaps and find local minima of Seat_X_Smooth.")
 
 with st.expander("Step 3 details", expanded=True):
     df_step3, catch_indices = step3_detect_catches(df_step2, window=WINDOW)
@@ -255,7 +269,7 @@ with st.expander("Step 4 details", expanded=True):
 # STEP 5 — Compute metrics
 # ===========================================================================
 _step_header(5, "Compute Metrics",
-             "Calculate Trunk_Angle, velocities, and locate catch/finish on the averaged cycle.")
+             "Calculate Trunk_Angle, velocities, and locate catch/finish (reversal-based) on the averaged cycle.")
 
 with st.expander("Step 5 details", expanded=True):
     avg_cycle_m, catch_idx, finish_idx = step5_compute_metrics(avg_cycle, window=WINDOW)
@@ -361,9 +375,6 @@ with st.expander("Step 6 details", expanded=True):
 st.markdown("### 📊 Data Quality & Metadata Diagnostics")
 
 with st.expander("Metadata details", expanded=True):
-    # Compute metadata diagnostics
-    from rowing_catch.algo.analysis import step8_metadata_diagnostics, step7_temporal_metrics
-    
     # Note: In the debug page context, we're stepping through manually,
     # so we simulate the full pipeline context for metadata calculation
     if 'cycles' in locals() and cycles is not None:

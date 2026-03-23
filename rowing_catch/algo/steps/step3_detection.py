@@ -6,7 +6,9 @@ from rowing_catch.algo.helpers import _detect_catches_by_seat_reversal, _interpo
 
 def step3_detect_catches(df: pd.DataFrame,
                          min_separation: int | None = None,
-                         window: int = 10) -> tuple[pd.DataFrame, np.ndarray]:
+                         window: int = 10,
+                         prominence: float | None = None,
+                         min_depth_ratio: float = 0.05) -> tuple[pd.DataFrame, np.ndarray]:
     """Detect catch indices as local minima of Seat_X_Smooth.
 
     The catch is the point where the seat reaches its most forward position
@@ -51,5 +53,7 @@ def step3_detect_catches(df: pd.DataFrame,
         df['Seat_X_Smooth'],
         min_separation=min_separation,
         seat_y=df.get('Seat_Y_Smooth', None),
+        prominence=prominence,
+        min_depth_ratio=min_depth_ratio,
     )
     return df, catch_indices

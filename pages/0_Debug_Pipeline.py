@@ -12,6 +12,8 @@ from rowing_catch.algo.steps.step4_segmentation import step4_segment_and_average
 from rowing_catch.algo.steps.step5_metrics import step5_compute_metrics
 from rowing_catch.algo.steps.step6_statistics import step6_statistics
 from rowing_catch.algo.steps.step7_diagnostics import step7_diagnostics
+from rowing_catch.algo.steps.step5_metrics import _pick_finish_index
+import altair as alt
 from rowing_catch.algo.constants import REQUIRED_COLUMN_NAMES, PROCESSED_COLUMN_NAMES
 from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scenarios
 
@@ -27,7 +29,7 @@ st.markdown(
 # Data source selection
 # ---------------------------------------------------------------------------
 st.sidebar.header("Data Source")
-source = st.sidebar.radio("Choose input", ["CSV Upload", "Built-in Scenario"], index=1)
+source = st.sidebar.radio("Choose input", ["CSV Upload", "Built-in Scenario"], index=0)
 
 df_raw: pd.DataFrame | None = None
 data_label = ""
@@ -44,8 +46,14 @@ if source == "CSV Upload":
             f for f in os.listdir(resource_dir)
             if f.endswith(".csv") and "trajectory" in f.lower()
         )
+        default_file = "2023.12.27.Szabi_36strokesPerMinute_trajectory.csv"
+        default_index = 0
+        if default_file in example_files:
+            default_index = example_files.index(default_file) + 1 # +1 for "None"
+            
         selected_example = st.sidebar.selectbox(
-            "Or pick an example file", ["None"] + example_files
+            "Or pick an example file", ["None"] + example_files,
+            index=default_index
         )
         if selected_example != "None" and df_raw is None:
             df_raw = pd.read_csv(os.path.join(resource_dir, selected_example))
@@ -254,15 +262,46 @@ with st.expander("Step 4 details", expanded=True):
 
     with col_r:
         st.markdown("**Averaged Seat_X (all cycles overlaid):**")
-        fig, ax = plt.subplots(figsize=(5, 2.8))
+        
+        # Prepare data for Altair overlays
+        all_cycles_data = []
         for i, c in enumerate(cycles):
-            ax.plot(c['Seat_X_Smooth'].to_numpy()[:min_length],
-                    color='#cbd5e1', linewidth=0.8, alpha=0.6)
-        ax.plot(avg_cycle['Seat_X_Smooth'], color='#6366f1', linewidth=2, label='Average')
-        ax.set_xlabel('Cycle index'); ax.set_ylabel('Seat_X_Smooth')
-        ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
-        st.pyplot(fig, width='stretch')
-        plt.close(fig)
+            cycle_points = c[['Seat_X_Smooth']].iloc[:min_length].copy()
+            cycle_points['Cycle'] = f"Cycle {i+1}"
+            all_cycles_data.append(cycle_points)
+        
+        df_cycles = pd.concat(all_cycles_data).reset_index()
+        
+        # Calculate confidence bands (std dev)
+        stats_df = df_cycles.groupby('Cycle_Index')['Seat_X_Smooth'].agg(['mean', 'std']).reset_index()
+        stats_df['upper'] = stats_df['mean'] + stats_df['std']
+        stats_df['lower'] = stats_df['mean'] - stats_df['std']
+        
+        # Altair chart
+        base_ov = alt.Chart(df_cycles).encode(
+            x=alt.X('Cycle_Index:Q', title='Cycle Index')
+        ).properties(width='container', height=250).interactive()
+
+        # Individual cycles (faded)
+        lines_ov = base_ov.mark_line(color='#cbd5e1', strokeWidth=0.8, opacity=0.4).encode(
+            y=alt.Y('Seat_X_Smooth:Q', title='Seat_X_Smooth (mm)', scale=alt.Scale(zero=False)),
+            detail='Cycle'
+        )
+
+        # Average cycle (bold)
+        avg_line_ov = alt.Chart(stats_df).mark_line(color='#6366f1', strokeWidth=2).encode(
+            x='Cycle_Index:Q',
+            y='mean:Q'
+        )
+
+        # Confidence band (std dev)
+        band_ov = alt.Chart(stats_df).mark_area(color='#6366f1', opacity=0.15).encode(
+            x='Cycle_Index:Q',
+            y='lower:Q',
+            y2='upper:Q'
+        )
+
+        st.altair_chart(alt.layer(lines_ov, band_ov, avg_line_ov), width='stretch')
 
 # ===========================================================================
 # STEP 5 — Compute metrics
@@ -286,27 +325,174 @@ with st.expander("Step 5 details", expanded=True):
     col5.metric("Trunk angle @ Finish", f"{finish_angle:.1f}°")
 
     st.markdown("**Catch + Finish on averaged cycle**")
-    fig, ax = plt.subplots(figsize=(9, 3))
-    ax.plot(avg_cycle_m.index, avg_cycle_m['Seat_X_Smooth'],
-            color='#6366f1', linewidth=1.5, label='Seat_X_Smooth')
-    ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Smooth'],
-            color='#f59e0b', linewidth=1.2, linestyle='--', label='Handle_X_Smooth')
+    fig, ax1 = plt.subplots(figsize=(9, 5))
+    
+    # 1. Seat X (Left axis)
+    color_seat = '#6366f1'
+    ax1.plot(avg_cycle_m.index, avg_cycle_m['Seat_X_Smooth'],
+             color=color_seat, linewidth=2, label='Seat_X_Smooth')
+    ax1.set_ylabel('Seat X (mm)', color=color_seat)
+    ax1.tick_params(axis='y', labelcolor=color_seat)
+    
+    def _rescale_ax(ax, data, pad=0.15):
+        ymin, ymax = np.nanmin(data), np.nanmax(data)
+        if np.isnan(ymin) or np.isnan(ymax):
+            return
+        diff = ymax - ymin
+        r = diff * pad if diff > 0 else 1.0
+        ax.set_ylim(ymin - r, ymax + r)
 
-    ax.axvline(catch_idx, color='#22c55e', linestyle='--', linewidth=1.4, alpha=0.8, label='Catch idx')
-    ax.scatter([catch_idx], [avg_cycle_m.loc[catch_idx, 'Seat_X_Smooth']],
-               color='#22c55e', s=90, marker='o', zorder=5)
+    _rescale_ax(ax1, avg_cycle_m['Seat_X_Smooth'])
 
-    ax.axvline(finish_idx, color='#d946ef', linestyle='--', linewidth=1.4, alpha=0.8, label='Finish idx')
-    ax.scatter([finish_idx], [avg_cycle_m.loc[finish_idx, 'Seat_X_Smooth']],
-               color='#d946ef', s=90, marker='X', zorder=5)
+    # 2. Handle X (Right axis)
+    color_handle = '#f59e0b'
+    ax2 = ax1.twinx()
+    ax2.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Smooth'],
+             color=color_handle, linewidth=1.5, linestyle='--', label='Handle_X_Smooth')
+    ax2.set_ylabel('Handle X (mm)', color=color_handle)
+    ax2.tick_params(axis='y', labelcolor=color_handle)
+    _rescale_ax(ax2, avg_cycle_m['Handle_X_Smooth'])
 
-    ax.set_xlabel('Cycle sample index')
-    ax.set_ylabel('X position (mm)')
-    ax.set_title('Averaged stroke: catch & finish markers')
-    ax.legend(fontsize=8)
-    ax.spines[['top', 'right']].set_visible(False)
+    # 3. Shoulder X (Offset Right axis)
+    if 'Shoulder_X_Smooth' in avg_cycle_m.columns:
+        color_shoulder = '#10b981'
+        ax3 = ax1.twinx()
+        # Offset the third axis to the right
+        ax3.spines['right'].set_position(('outward', 60))
+        ax3.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_X_Smooth'],
+                 color=color_shoulder, linewidth=1.5, linestyle='-.', label='Shoulder_X_Smooth')
+        ax3.set_ylabel('Shoulder X (mm)', color=color_shoulder)
+        ax3.tick_params(axis='y', labelcolor=color_shoulder)
+        _rescale_ax(ax3, avg_cycle_m['Shoulder_X_Smooth'])
+    
+    # Common markers
+    ax1.axvline(catch_idx, color='#22c55e', linestyle='--', linewidth=1.4, alpha=0.8, label='Catch idx')
+    ax1.scatter([catch_idx], [avg_cycle_m.loc[catch_idx, 'Seat_X_Smooth']],
+                color='#22c55e', s=80, marker='o', zorder=5)
+
+    ax1.axvline(finish_idx, color='#d946ef', linestyle='--', linewidth=1.4, alpha=0.8, label='Finish idx')
+    ax1.scatter([finish_idx], [avg_cycle_m.loc[finish_idx, 'Seat_X_Smooth']],
+                color='#d946ef', s=80, marker='X', zorder=5)
+
+    ax1.set_xlabel('Cycle sample index')
+    ax1.spines[['top']].set_visible(False)
+    ax1.grid(axis='x', alpha=0.2)
+    
+    # Combined legend
+    lines, labels = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    all_lines = lines + lines2
+    all_labels = labels + labels2
+    if 'Shoulder_X_Smooth' in avg_cycle_m.columns:
+        lines3, labels3 = ax3.get_legend_handles_labels()
+        all_lines += lines3
+        all_labels += labels3
+    
+    # Place legend clearly
+    ax1.legend(all_lines, all_labels, loc='upper left', bbox_to_anchor=(0.02, 0.98), fontsize=8, framealpha=0.6)
+    
+    plt.tight_layout()
     st.pyplot(fig, width='stretch')
     plt.close(fig)
+
+    # --- Production Heuristic Visualization (Debug Enhancement) ---
+    st.markdown("**All detected Catches & Finishes (Full Trajectory)**")
+    st.caption("This plot shows where the *production* heuristic would place the finish for every individual cycle.")
+    
+    # 1. To use the production heuristic (_pick_finish_index), we need Trunk_Angle on the full signal.
+    df_debug = df_step3.copy()
+    ref_catch = df_debug.iloc[catch_indices[0]] if len(catch_indices) > 0 else df_debug.iloc[0]
+    is_facing_left = ref_catch['Handle_X_Smooth'] < ref_catch['Seat_X_Smooth']
+
+    def _calc_trunk_angle_debug(row):
+        dx = row['Shoulder_X_Smooth'] - row['Seat_X_Smooth']
+        dy = row['Shoulder_Y_Smooth'] - row['Seat_Y_Smooth']
+        dy_abs = abs(dy)
+        return np.degrees(np.arctan2(dx if is_facing_left else -dx, dy_abs))
+
+    df_debug['Trunk_Angle'] = df_debug.apply(_calc_trunk_angle_debug, axis=1)
+
+    # 2. Iterate through each cycle and pick the finish using production logic
+    production_finish_indices = []
+    for i in range(len(catch_indices) - 1):
+        idx_start = catch_indices[i]
+        idx_end = catch_indices[i+1]
+        
+        # Slice the cycle (catch to catch)
+        cycle_slice = df_debug.iloc[idx_start:idx_end]
+        
+        # Use production heuristic (pretending this is an avg cycle)
+        # Note: catch_idx=0 because cycle_slice starts at the catch
+        rel_finish = _pick_finish_index(cycle_slice, catch_idx=0)
+        production_finish_indices.append(idx_start + rel_finish)
+    
+    production_finish_indices = np.array(production_finish_indices, dtype=int)
+
+    # --- Interactive Altair Visualization ---
+
+    # 3. Prepare data for Altair (long format for easier layering)
+    df_plot = df_debug.reset_index().rename(columns={'index': 'Sample'})
+    
+    # Base chart for Seat_X_Smooth
+    base = alt.Chart(df_plot).encode(
+        x=alt.X('Sample:Q', title='Sample Index')
+    ).properties(
+        width='container',
+        height=300
+    ).interactive()
+
+    # Raw signal (faded)
+    raw_line = base.mark_line(color='#cbd5e1', strokeWidth=1, opacity=0.4).encode(
+        y=alt.Y('Seat_X:Q', title='Seat_X (mm)', scale=alt.Scale(zero=False)),
+        tooltip=['Sample', 'Seat_X']
+    )
+
+    # Smoothed signal
+    smooth_line = base.mark_line(color='#6366f1', strokeWidth=1.5).encode(
+        y=alt.Y('Seat_X_Smooth:Q', scale=alt.Scale(zero=False)),
+        tooltip=['Sample', 'Seat_X_Smooth']
+    )
+
+    # Catch markers (Vertical lines and Points)
+    catch_df = df_plot.iloc[catch_indices].copy()
+    catch_df['Event'] = 'Catch'
+    
+    catches_rules = alt.Chart(catch_df).mark_rule(color='#22c55e', strokeDash=[4, 2], opacity=0.6).encode(
+        x='Sample:Q'
+    )
+    catches_points = alt.Chart(catch_df).mark_circle(color='#22c55e', size=40).encode(
+        x='Sample:Q',
+        y='Seat_X_Smooth:Q',
+        tooltip=['Sample', 'Seat_X_Smooth', 'Event']
+    )
+
+    # Finish markers (Vertical lines and Circles)
+    finish_df = df_plot.iloc[production_finish_indices].copy()
+    finish_df['Event'] = 'Finish'
+    
+    finishes_rules = alt.Chart(finish_df).mark_rule(color='#d946ef', strokeDash=[4, 2], opacity=0.6).encode(
+        x='Sample:Q'
+    )
+    finishes_points = alt.Chart(finish_df).mark_circle(color='#d946ef', size=50).encode(
+        x='Sample:Q',
+        y='Seat_X_Smooth:Q',
+        tooltip=['Sample', 'Seat_X_Smooth', 'Event']
+    )
+
+    # Combine everything
+    chart = alt.layer(
+        raw_line, smooth_line, 
+        catches_rules, catches_points, 
+        finishes_rules, finishes_points
+    ).properties(
+        title='Interactive Full Trajectory: Seat_X (Raw vs Smoothed) and Detected Events'
+    ).configure_axis(
+        grid=False
+    ).configure_view(
+        strokeWidth=0
+    )
+
+    st.altair_chart(chart, width='stretch')
 
     # Trunk angle plot
     st.markdown("**Trunk Angle across the averaged stroke:**")

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from rowing_catch.algo.helpers import _detect_catches_by_seat_reversal, _detect_finishes_by_seat_reversal
+from rowing_catch.algo.helpers import _detect_catches_by_seat_reversal
 
 
 def step5_compute_metrics(
@@ -76,95 +76,42 @@ def step5_compute_metrics(
     else:
         catch_idx = int(avg_cycle['Seat_X_Smooth'].idxmin())
 
-    finish_idx = _pick_finish_index(avg_cycle, catch_idx=catch_idx, window=window)
+    finish_idx = _pick_finish_index(avg_cycle, catch_idx=catch_idx)
 
     return avg_cycle, catch_idx, finish_idx
 
 
-def _pick_finish_index(avg_cycle: pd.DataFrame,
-                       catch_idx: int,
-                       window: int = 10) -> int:
-    """Pick finish index using multiple signals.
-
-    Desired finish definition (coaching oriented):
-    - Seat is at/near its maximum (rearward)
+def _pick_finish_index(avg_cycle: pd.DataFrame, catch_idx: int) -> int:
+    """Desired finish definition (coaching oriented):
     - Handle is at/near its maximum (end of draw)
-    - Trunk is at/near its maximum layback
     - And it's right around the time the handle starts moving backwards
       (Handle_X velocity changes from positive to non-positive).
 
     Returns an integer index into avg_cycle.
     """
-    seat = avg_cycle['Seat_X_Smooth'].to_numpy(dtype=float)
     handle = avg_cycle['Handle_X_Smooth'].to_numpy(dtype=float)
-    trunk = avg_cycle['Trunk_Angle'].to_numpy(dtype=float)
-
-    # --- Refined detection using Seat_X reversal ---
-    # Look for the finish on the avg_cycle (one major peak expected).
-    # Use a lower depth ratio (0.01) for the averaged cycle since it is cleaner.
-    fin_candidates = _detect_finishes_by_seat_reversal(
-        avg_cycle['Seat_X_Smooth'],
-        min_separation=max(10, window),
-        seat_y=avg_cycle.get('Seat_Y_Smooth', None),
-        min_depth_ratio=0.01
-    )
-
     n = len(avg_cycle)
     catch_idx = int(np.clip(int(catch_idx), 0, n - 1))
-    post = slice(catch_idx, n)
-
-    if fin_candidates.size:
-        after_catch = fin_candidates[fin_candidates > catch_idx]
-        if after_catch.size:
-            # If we have multiple candidates, pick the one that best matches
-            # the handle and trunk peaks. Technical artifacts (humps) often
-            # occur early in the drive.
-            handle_peak = catch_idx + int(np.nanargmax(handle[post]))
-            trunk_peak = catch_idx + int(np.nanargmax(trunk[post]))
-            expected_finish = (handle_peak + trunk_peak) // 2
-
-            # Pick the candidate closest to our expected finish zone.
-            best_idx = after_catch[np.argmin(np.abs(after_catch - expected_finish))]
-            return int(best_idx)
-
-    # --- Fallback to Gradient-based approach ---
+    # The finish is defined by the end of the pull, which is the peak of Handle_X.
     if n == 0:
         return int(catch_idx)
 
     catch_idx = int(np.clip(int(catch_idx), 0, n - 1))
 
     post = slice(catch_idx, n)
-
     hvel = np.gradient(handle)
-
     handle_peak = catch_idx + int(np.nanargmax(handle[post]))
-
+    
+    # Look for the velocity zero-crossing (positive to negative) after catch
     rev = np.where((hvel[:-1] > 0) & (hvel[1:] <= 0))[0] + 1
     rev = rev[rev > catch_idx]
-    rev_after_peak = rev[rev >= handle_peak]
-
+    rev_after_peak = rev[rev >= handle_peak - 5] # Allow slightly before peak for edge cases
+    
+    handle_target = handle_peak
     if rev_after_peak.size:
-        fin = int(rev_after_peak[0])
-        # Often the sign-change is detected one sample late; if previous sample is
-        # closer to the peak, use that.
-        if fin - 1 > catch_idx and handle[fin - 1] >= handle[fin]:
-            fin = fin - 1
-    else:
-        # If we don't have an explicit reversal (very smooth data), start from handle peak.
-        fin = int(np.clip(handle_peak, catch_idx + 1, n - 1))
+        handle_target = int(rev_after_peak[0])
+        # Refine to the actual peak sample if it's adjacent
+        if handle_target - 1 > catch_idx and handle[handle_target - 1] > handle[handle_target]:
+            handle_target = handle_target - 1
 
-    # Enforce "not still accelerating" expectation: hvel should be flat/decreasing.
-    # Step back a few samples if needed.
-    back_limit = max(catch_idx + 1, fin - max(3, window // 2))
-    i = fin
-    while i - 1 >= back_limit and hvel[i] > hvel[i - 1]:
-        i -= 1
-
-    fin = int(i)
-
-    # Very small safeguard: keep finish near trunk peak after catch.
-    trunk_peak = catch_idx + int(np.nanargmax(trunk[post]))
-    if fin > trunk_peak + max(3, window // 2):
-        fin = int(np.clip(trunk_peak, catch_idx + 1, n - 1))
-
-    return int(fin)
+    return int(np.clip(handle_target, catch_idx + 1, n - 1))

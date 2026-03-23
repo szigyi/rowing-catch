@@ -57,7 +57,7 @@ def process_rowing_data(df: pd.DataFrame, pre_catch_window: int = 10) -> dict | 
     df = step2_smooth(df, window=window)
 
     # Step 3
-    df, catch_indices = step3_detect_catches(df, window=window)
+    df, catch_indices = step3_detect_catches(df, window=window, prominence=None, min_depth_ratio=0.05)
     if len(catch_indices) < 2:
         return None
 

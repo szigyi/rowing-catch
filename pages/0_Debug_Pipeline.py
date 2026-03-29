@@ -304,6 +304,37 @@ _step_header(5, "Compute Metrics",
 with st.expander("Step 5 details", expanded=True):
     avg_cycle_m, catch_idx, finish_idx = step5_compute_metrics(avg_cycle, window=WINDOW)
 
+    # --- Experimental Metrics Calculations ---
+    if 'Shoulder_X_Smooth' in avg_cycle_m.columns:
+        if 'Time' in avg_cycle_m.columns:
+            t = avg_cycle_m['Time'].to_numpy(dtype=float)
+            avg_cycle_m['Shoulder_X_Vel'] = np.gradient(avg_cycle_m['Shoulder_X_Smooth'], t)
+        else:
+            avg_cycle_m['Shoulder_X_Vel'] = np.gradient(avg_cycle_m['Shoulder_X_Smooth'])
+        
+        avg_cycle_m['Rower_Vel'] = (avg_cycle_m['Seat_X_Vel'] + avg_cycle_m['Shoulder_X_Vel']) / 2
+        avg_cycle_m['Shoulder_rel_Seat_Vel'] = avg_cycle_m['Shoulder_X_Vel'] - avg_cycle_m['Seat_X_Vel']
+    
+    avg_cycle_m['Handle_rel_Seat_Vel'] = avg_cycle_m['Handle_X_Vel'] - avg_cycle_m['Seat_X_Vel']
+    
+    if 'Time' in avg_cycle_m.columns:
+        t = avg_cycle_m['Time'].to_numpy(dtype=float)
+        avg_cycle_m['Handle_X_Accel'] = np.gradient(avg_cycle_m['Handle_X_Vel'], t)
+        avg_cycle_m['Handle_X_Jerk'] = np.gradient(avg_cycle_m['Handle_X_Accel'], t)
+    else:
+        avg_cycle_m['Handle_X_Accel'] = np.gradient(avg_cycle_m['Handle_X_Vel'])
+        avg_cycle_m['Handle_X_Jerk'] = np.gradient(avg_cycle_m['Handle_X_Accel'])
+    
+    # Power Curve calculation is restricted to the drive phase
+    avg_cycle_m['Power_Proxy'] = 0.0
+    drive_mask = (avg_cycle_m.index >= catch_idx) & (avg_cycle_m.index <= finish_idx)
+    avg_cycle_m.loc[drive_mask, 'Power_Proxy'] = np.maximum(
+        0, 
+        avg_cycle_m.loc[drive_mask, 'Handle_X_Vel'] * avg_cycle_m.loc[drive_mask, 'Handle_X_Accel']
+    )
+
+
+
     catch_angle = float(avg_cycle_m.loc[catch_idx, 'Trunk_Angle'])
     finish_angle = float(avg_cycle_m.loc[finish_idx, 'Trunk_Angle'])
 
@@ -499,22 +530,66 @@ with st.expander("Step 5 details", expanded=True):
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
-    # Velocity plot
-    st.markdown("**Seat vs. Handle velocity coordination:**")
-    fig, ax = plt.subplots(figsize=(10, 2.8))
-    ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Vel'],
-            color='#3b82f6', linewidth=1.5, label='Handle_X velocity')
-    ax.plot(avg_cycle_m.index, avg_cycle_m['Seat_X_Vel'],
-            color='#f59e0b', linewidth=1.5, label='Seat_X velocity')
+    # Detailed Velocity plot
+    st.markdown("**Detailed Velocity (Seat, Handle, Shoulder, Rower):**")
+    fig, ax = plt.subplots(figsize=(10, 3.5))
+    ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Vel'], color='#3b82f6', linewidth=1.5, label='Handle')
+    ax.plot(avg_cycle_m.index, avg_cycle_m['Seat_X_Vel'], color='#f59e0b', linewidth=1.5, label='Seat')
+    if 'Shoulder_X_Vel' in avg_cycle_m.columns:
+        ax.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_X_Vel'], color='#10b981', linewidth=1.2, linestyle='--', label='Shoulder')
+        ax.plot(avg_cycle_m.index, avg_cycle_m['Rower_Vel'], color='#6366f1', linewidth=2, label='Rower (Torso)')
     ax.axhline(0, color='#888', linestyle=':', linewidth=1, alpha=0.5)
     ax.axvline(catch_idx, color='#22c55e', linestyle='--', linewidth=1.2)
     ax.axvline(finish_idx, color='#ef4444', linestyle='--', linewidth=1.2)
     ax.set_xlabel('Cycle index'); ax.set_ylabel('Velocity (px/sample)')
+    ax.legend(fontsize=8, loc='upper right'); ax.spines[['top', 'right']].set_visible(False)
+    st.pyplot(fig, width='stretch')
+    plt.close(fig)
+
+    col_v1, col_v2 = st.columns(2)
+    with col_v1:
+        # Relative Velocity
+        st.markdown("**Relative Velocity (vs. Seat):**")
+        fig, ax = plt.subplots(figsize=(5, 3))
+        ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_rel_Seat_Vel'], color='#3b82f6', linewidth=1.5, label='Handle - Seat')
+        if 'Shoulder_rel_Seat_Vel' in avg_cycle_m.columns:
+            ax.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_rel_Seat_Vel'], color='#10b981', linewidth=1.5, label='Shoulder - Seat')
+        ax.axhline(0, color='#888', linestyle=':', linewidth=1, alpha=0.5)
+        ax.axvline(catch_idx, color='#22c55e', linestyle='--', linewidth=1.2)
+        ax.axvline(finish_idx, color='#ef4444', linestyle='--', linewidth=1.2)
+        ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
+        st.pyplot(fig, width='stretch')
+        plt.close(fig)
+
+    with col_v2:
+        # Jerk
+        st.markdown("**Handle Jerk (Smoothness):**")
+        fig, ax = plt.subplots(figsize=(5, 3))
+        ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Jerk'], color='#ec4899', linewidth=1.5, label='Handle Jerk')
+        ax.axhline(0, color='#888', linestyle=':', linewidth=1, alpha=0.5)
+        ax.axvline(catch_idx, color='#22c55e', linestyle='--', linewidth=1.2)
+        ax.axvline(finish_idx, color='#ef4444', linestyle='--', linewidth=1.2)
+        ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
+        st.pyplot(fig, width='stretch')
+        plt.close(fig)
+
+    # Power Curve
+    st.markdown("**Power Curve (Proxy: Velocity × Acceleration):**")
+    fig, ax = plt.subplots(figsize=(10, 3.5))
+    # Plot against Handle Position for a classic "monitor" look
+    # We only care about the drive phase for the power curve usually
+    drive_slice = avg_cycle_m.iloc[catch_idx:finish_idx]
+    if not drive_slice.empty:
+        ax.fill_between(drive_slice['Handle_X_Smooth'], drive_slice['Power_Proxy'], color='#ef4444', alpha=0.3)
+        ax.plot(drive_slice['Handle_X_Smooth'], drive_slice['Power_Proxy'], color='#ef4444', linewidth=2, label='Drive Power')
+    
+    ax.set_xlabel('Handle Position (mm)'); ax.set_ylabel('Power Proxy (v * a)')
     ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     with st.expander("Raw averaged cycle DataFrame (all computed columns)"):
+
         st.dataframe(avg_cycle_m.round(3), width='stretch')
 
 # ===========================================================================
@@ -545,6 +620,59 @@ with st.expander("Step 6 details", expanded=True):
     ax.spines[['top', 'right', 'left']].set_visible(False)
     st.pyplot(fig, width='content')
     plt.close(fig)
+
+    # --- Ratio & Rhythm Spread Diagram ---
+    st.markdown("**Ratio & Rhythm Spread (Consistency):**")
+    
+    cycle_data = []
+    for i, c in enumerate(cycles):
+        if 'Time' in c.columns and len(c) > 1:
+            t = c['Time'].to_numpy(dtype=float)
+            duration = t[-1] - t[0]
+            if duration > 0:
+                spm = 60.0 / duration
+                # Find finish for this specific cycle using the same heuristic
+                f_idx = _pick_finish_index(c, catch_idx=0)
+                drive_dur = t[f_idx] - t[0]
+                rec_dur = duration - drive_dur
+                ratio = drive_dur / rec_dur if rec_dur > 0 else np.nan
+                cycle_data.append({
+                    'Cycle': i + 1,
+                    'SPM': round(spm, 1),
+                    'Ratio_DR': round(ratio, 2),
+                    'Drive (s)': round(drive_dur, 2),
+                    'Recovery (s)': round(rec_dur, 2)
+                })
+    
+    if cycle_data:
+        df_spread = pd.DataFrame(cycle_data)
+        
+        # Altair Scatter Plot
+        spread_chart = alt.Chart(df_spread).mark_circle(size=100, color='#6366f1').encode(
+            x=alt.X('SPM:Q', scale=alt.Scale(zero=False), title='Strokes Per Minute (SPM)'),
+            y=alt.Y('Ratio_DR:Q', scale=alt.Scale(zero=False), title='Drive:Recovery Ratio'),
+            tooltip=['Cycle', 'SPM', alt.Tooltip('Ratio_DR:Q', title='Ratio (D:R)'), 'Drive (s)', 'Recovery (s)']
+        ).properties(
+            title='Stroke-by-Stroke Rhythm Consistency',
+            width='container',
+            height=350
+        ).interactive()
+        
+        # Add a mean line for SPM
+        mean_spm = alt.Chart(df_spread).mark_rule(color='#94a3b8', strokeDash=[4,2]).encode(
+            x='mean(SPM):Q'
+        )
+        
+        # Add a mean line for Ratio
+        mean_ratio = alt.Chart(df_spread).mark_rule(color='#94a3b8', strokeDash=[4,2]).encode(
+            y='mean(Ratio_DR):Q'
+        )
+
+        
+        st.altair_chart(alt.layer(spread_chart, mean_spm, mean_ratio), use_container_width=True)
+    else:
+        st.info("Insufficient time data to calculate stroke-by-stroke rhythm spread.")
+
 
 # ===========================================================================
 # METADATA & DIAGNOSTICS

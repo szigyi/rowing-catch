@@ -79,12 +79,15 @@ WINDOW = 10
 # ---------------------------------------------------------------------------
 def _step_header(number: int, title: str, subtitle: str):
     st.markdown(
-        f"<div style='background:#1e293b;padding:10px 16px;border-radius:8px;"
-        f"border-left:4px solid #6366f1;margin-bottom:8px'>"
-        f"<span style='color:#a5b4fc;font-size:11px;font-weight:600;letter-spacing:1px'>"
-        f"STEP {number}</span>"
-        f"<h4 style='color:#f1f5f9;margin:2px 0 0'>{title}</h4>"
-        f"<p style='color:#94a3b8;margin:0;font-size:13px'>{subtitle}</p>"
+        f"<div style='display:flex;align-items:center;justify-content:space-between;"
+        f"background:#1e293b;padding:6px 10px;border-radius:8px;border-left:4px solid #6366f1;"
+        f"margin-bottom:6px;font-family:inherit;font-size:14px;'>"
+        f"<div style='display:flex;align-items:center;gap:10px;'>"
+        f"<span style='color:#a5b4fc;font-size:11px;font-weight:700;letter-spacing:1px;"
+        f"text-transform:uppercase'>STEP {number}</span>"
+        f"<strong style='color:#f1f5f9;font-size:14px;margin:0'>{title}</strong>"
+        f"</div>"
+        f"<span style='color:#94a3b8;font-size:12px;margin:0;white-space:nowrap;'>{subtitle}</span>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -104,7 +107,7 @@ def _fail(msg: str):
 # ===========================================================================
 _step_header(0, "Validation", "Ensure input DataFrame has required columns and enough data.")
 
-with st.expander("Step 0 details", expanded=True):
+with st.expander("Step 0 details", expanded=False):
     try:
         validate_input_df(df_raw)
         _ok("Input validation passed.")
@@ -117,7 +120,7 @@ with st.expander("Step 0 details", expanded=True):
 # ===========================================================================
 _step_header(1, "Rename Columns", "Map raw tracker names → clean internal names.")
 
-with st.expander("Step 1 details", expanded=True):
+with st.expander("Step 1 details", expanded=False):
     df_step1 = step1_rename_columns(df_raw)
 
     col_a, col_b = st.columns(2)
@@ -149,7 +152,7 @@ with st.expander("Step 1 details", expanded=True):
 # ===========================================================================
 _step_header(2, "Smooth", f"Apply centred rolling mean (window={WINDOW}) to position columns.")
 
-with st.expander("Step 2 details", expanded=True):
+with st.expander("Step 2 details", expanded=False):
     df_step2 = step2_smooth(df_step1, window=WINDOW)
 
     _ok(f"Rows after smoothing: {len(df_step2):,} (all rows preserved, including edges with min_periods=1).")
@@ -188,7 +191,7 @@ with st.expander("Step 2 details", expanded=True):
 # ===========================================================================
 _step_header(3, "Detect Catches", "Interpolate small gaps and find local minima of Seat_X_Smooth.")
 
-with st.expander("Step 3 details", expanded=True):
+with st.expander("Step 3 details", expanded=False):
     df_step3, catch_indices = step3_detect_catches(df_step2, window=WINDOW)
 
     n_catches = len(catch_indices)
@@ -197,9 +200,8 @@ with st.expander("Step 3 details", expanded=True):
 
     _ok(f"{n_catches} catches detected at indices: {catch_indices.tolist()}")
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
+    fig, ax1 = plt.subplots(1, 1, figsize=(10, 3), sharex=True)
 
-    # Top: Seat_X_Smooth — what we actually detect minima on
     ax1.plot(df_step3.index, df_step3['Seat_X_Smooth'],
              color='#6366f1', linewidth=1.2, label='Seat_X_Smooth (detection signal)')
     for ci in catch_indices:
@@ -209,16 +211,6 @@ with st.expander("Step 3 details", expanded=True):
     ax1.set_ylabel('Seat_X_Smooth')
     ax1.set_title('Seat_X_Smooth — local minima = catches (one per stroke)')
     ax1.legend(fontsize=8); ax1.spines[['top', 'right']].set_visible(False)
-
-    # Bottom: Stroke_Compression — shown for context only
-    ax2.plot(df_step3.index, df_step3['Stroke_Compression'],
-             color='#f59e0b', linewidth=1.2, label='Stroke_Compression |Seat_X − Handle_X|')
-    for ci in catch_indices:
-        ax2.axvline(ci, color='#22c55e', linewidth=1, linestyle='--', alpha=0.8)
-    ax2.set_xlabel('Sample index')
-    ax2.set_ylabel('|Seat_X − Handle_X|')
-    ax2.set_title('Stroke_Compression — shown for context (has 2 minima per stroke: catch + finish)')
-    ax2.legend(fontsize=8); ax2.spines[['top', 'right']].set_visible(False)
 
     plt.tight_layout()
     st.pyplot(fig, width='stretch')
@@ -240,7 +232,7 @@ with st.expander("Step 3 details", expanded=True):
 # ===========================================================================
 _step_header(4, "Segment & Average", "Cut data into per-stroke cycles and average them.")
 
-with st.expander("Step 4 details", expanded=True):
+with st.expander("Step 4 details", expanded=False):
     result4 = step4_segment_and_average(df_step3, catch_indices, window=WINDOW)
 
     if result4 is None:

@@ -3,6 +3,8 @@ import logging
 import numpy as np
 import pandas as pd
 
+from rowing_catch.algo.steps.step5_metrics import _pick_finish_index
+
 logger = logging.getLogger(__name__)
 
 def step6_statistics(
@@ -12,6 +14,7 @@ def step6_statistics(
     finish_idx: int,
     avg_cycle: pd.DataFrame,
 ) -> dict:
+
     """Compute stroke-level statistics from the individual cycles and the average.
 
     This step consolidates all scalar performance metrics, including both sample-based
@@ -63,6 +66,23 @@ def step6_statistics(
     # 3. Temporal metrics from the averaged cycle (merged from former Step 7)
     temporal = _compute_temporal_metrics(avg_cycle, catch_idx, finish_idx)
 
+    # 4. Per-cycle details for consistency spread
+    cycle_details = []
+    for i, c in enumerate(cycles):
+        detail = {'cycle_idx': i + 1}
+        if 'Time' in c.columns and len(c) > 1:
+            t_c = c['Time'].to_numpy(dtype=float)
+            dur = t_c[-1] - t_c[0]
+            if dur > 0:
+                detail['spm'] = 60.0 / dur
+                # Map finish to this cycle
+                f_idx_c = _pick_finish_index(c, catch_idx=0)
+                drive_dur = t_c[f_idx_c] - t_c[0]
+                rec_dur = dur - drive_dur
+                detail['drive_recovery_ratio'] = drive_dur / rec_dur if rec_dur > 0 else None
+        
+        cycle_details.append(detail)
+
     return {
         'cv_length': cv_length,
         'drive_len': drive_len,
@@ -71,7 +91,9 @@ def step6_statistics(
         'drive_volume_mm_sec': drive_volume_mm_sec,
         'recovery_volume_mm_sec': recovery_volume_mm_sec,
         **temporal,
+        'cycle_details': cycle_details,
     }
+
 
 
 def _compute_phase_volume(positions: np.ndarray,

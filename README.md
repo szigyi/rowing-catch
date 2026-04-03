@@ -44,6 +44,11 @@ Optional (local/dev) extras:
    pip install -r requirements-dev.txt
    ```
 
+## Testing
+   ```bash
+   pytest
+   ```
+
 ## License
 MIT License.
 

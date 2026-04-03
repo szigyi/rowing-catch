@@ -62,9 +62,9 @@ def get_stroke_phase(num_points: int, drive_ratio: float = 1/3) -> np.ndarray:
     return result
 
 def generate_cycle_df(num_points=100,
-                      handle_x_range=(0, 400), 
+                      handle_x_range=(150, 550), 
                       handle_y_range=(-50, -10),
-                      seat_x_range=(0, 300),
+                      seat_x_range=(250, 550),
                       trunk_angles=None,
                       handle_y_noise=0,
                       seat_finish_lag: float = 0.03):
@@ -224,7 +224,7 @@ def get_consistency_scenarios():
         "Rushed Recovery": "The time spent on recovery is too short compared to the drive."
     }
 
-def create_scenario_data(scenario_type, subtype):
+def create_scenario_data(scenario_type, subtype, handle_x_range=None, seat_x_range=None):
     num_cycles = 5
     cycle_points = 100
     
@@ -234,9 +234,13 @@ def create_scenario_data(scenario_type, subtype):
         scenarios = get_trunk_scenarios()
         angles = scenarios[subtype]["angles"]
         for _ in range(num_cycles):
+            # Use provided ranges or defaults
+            h_range = handle_x_range if handle_x_range else (150, 550)
+            s_range = seat_x_range if seat_x_range else (250, 550)
+            
             # Add tiny noise to simulate real data
             angles_with_noise = (angles[0] + np.random.normal(0, 0.5), angles[1] + np.random.normal(0, 0.5))
-
+            
             if subtype == "No Separation":
                 # Trunk opens immediately (reaches max angle at 25% of the stroke, holds it)
                 phase = get_stroke_phase(cycle_points)
@@ -246,47 +250,55 @@ def create_scenario_data(scenario_type, subtype):
                                        np.where(phase <= 0.55, 
                                                 angles_with_noise[1], 
                                                 angles_with_noise[1] - (angles_with_noise[1] - angles_with_noise[0]) * ((phase - 0.55) / 0.45)))
-                cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=trunk_angle))
+                cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=trunk_angle, handle_x_range=h_range, seat_x_range=s_range))
             elif subtype == "Rigid Trunk":
                 # Minimal movement
-                cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=angles_with_noise))
+                cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=angles_with_noise, handle_x_range=h_range, seat_x_range=s_range))
             elif subtype == "Slow Hand Away":
                 # Trunk opens like ideal, but returns extremely slowly across the whole recovery
                 phase = get_stroke_phase(cycle_points)
                 trunk_angle = _trunk_angle_legs_first_progression(phase, catch_angle=float(angles_with_noise[0]),
                                                                   finish_angle=float(angles_with_noise[1]),
                                                                   drive_hold=0.40, finish_hold=0.1, rec_return=0.8)
-                cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=trunk_angle))
+                cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=trunk_angle, handle_x_range=h_range, seat_x_range=s_range))
             else:
                 # By default, use a sequencing-aware progression (legs-first, body swing later).
                 phase = get_stroke_phase(cycle_points)
                 trunk_angle = _trunk_angle_legs_first_progression(phase, catch_angle=float(angles_with_noise[0]),
                                                                   finish_angle=float(angles_with_noise[1]),
                                                                   drive_hold=0.35)
-                cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=trunk_angle))
+                cycles.append(generate_cycle_df(num_points=cycle_points, trunk_angles=trunk_angle, handle_x_range=h_range, seat_x_range=s_range))
     elif scenario_type == "Coordination":
         # Handle X and Seat X velocities
+        h_range = handle_x_range if handle_x_range else (150, 550)
+        s_range = seat_x_range if seat_x_range else (250, 550)
+        
         for _ in range(num_cycles):
-            df = generate_cycle_df(num_points=cycle_points)
+            df = generate_cycle_df(num_points=cycle_points, handle_x_range=h_range, seat_x_range=s_range)
             if subtype == "Shooting the Slide":
                 # Seat X reaches 80% of max in first 30% of drive
                 drive_points = int(cycle_points / 3)
                 phase = np.linspace(0, 1, drive_points)
                 # Normal linear is phase. Accelerated is phase^0.5
-                seat_x_drive = 300 * (phase ** 0.4)
+                s_start, s_end = s_range[0], s_range[1]
+                seat_x_drive = s_start + (s_end - s_start) * (phase ** 0.4)
                 df.iloc[:drive_points, df.columns.get_loc('Seat/0/X')] = seat_x_drive
             elif subtype == "Arm-Only Drive":
-                # Seat stays at 0 for first 40% of drive
+                # Seat stays at start for first 40% of drive
                 drive_points = int(cycle_points / 3)
                 wait_points = int(drive_points * 0.4)
-                seat_x_drive = np.zeros(drive_points)
-                seat_x_drive[wait_points:] = np.linspace(0, 300, drive_points - wait_points)
+                s_start, s_end = s_range[0], s_range[1]
+                seat_x_drive = np.full(drive_points, s_start)
+                seat_x_drive[wait_points:] = np.linspace(s_start, s_end, drive_points - wait_points)
                 df.iloc[:drive_points, df.columns.get_loc('Seat/0/X')] = seat_x_drive
             cycles.append(df)
 
     elif scenario_type == "Trajectory":
+        h_range = handle_x_range if handle_x_range else (150, 550)
+        s_range = seat_x_range if seat_x_range else (250, 550)
+        
         for _ in range(num_cycles):
-            df = generate_cycle_df(num_points=cycle_points)
+            df = generate_cycle_df(num_points=cycle_points, handle_x_range=h_range, seat_x_range=s_range)
             drive_points = int(cycle_points / 3)
             if subtype == "Digging Deep":
                 # Handle Y goes deeper in the middle of drive (more positive)
@@ -302,22 +314,27 @@ def create_scenario_data(scenario_type, subtype):
             cycles.append(df)
 
     elif scenario_type == "Consistency":
-        for i in range(num_cycles):
-            s_max = 300
-            if subtype == "Inconsistent Length":
-                s_max = 300 + np.random.normal(0, 30)
+            s_start = seat_x_range[0] if seat_x_range else 250
+            s_end = seat_x_range[1] if seat_x_range else 550
+            h_range = handle_x_range if handle_x_range else (s_start - 100, s_end)
             
-            p_count = 100
-            if subtype == "Rushed Recovery":
-                # Standard is Drive=33, Rec=67. 
-                # Rushed Recovery simulates shortening the recovery section abruptly.
-                df_drive = generate_cycle_df(num_points=100, seat_x_range=(0, s_max))
-                # Take the drive (0 to 33) and half the recovery duration (67 to 100)
-                df = pd.concat([df_drive.iloc[:33], df_drive.iloc[67:100]]).reset_index(drop=True)
-            else:
-                df = generate_cycle_df(num_points=p_count, seat_x_range=(0, s_max))
-            
-            cycles.append(df)
+            for _ in range(num_cycles):
+                if subtype == "Inconsistent Length":
+                    s_end_var = s_end + np.random.normal(0, 30)
+                else:
+                    s_end_var = s_end
+                
+                p_count = 100
+                if subtype == "Rushed Recovery":
+                    # Standard is Drive=33, Rec=67. 
+                    # Rushed Recovery simulates shortening the recovery section abruptly.
+                    df_drive = generate_cycle_df(num_points=100, seat_x_range=(s_start, s_end_var), handle_x_range=h_range)
+                    # Take the drive (0 to 33) and half the recovery duration (67 to 100)
+                    df = pd.concat([df_drive.iloc[:33], df_drive.iloc[67:100]]).reset_index(drop=True)
+                else:
+                    df = generate_cycle_df(num_points=p_count, seat_x_range=(s_start, s_end_var), handle_x_range=h_range)
+                
+                cycles.append(df)
 
     else:
         for _ in range(num_cycles):

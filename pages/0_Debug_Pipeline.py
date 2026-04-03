@@ -669,7 +669,7 @@ with st.expander("Step 6 details", expanded=True):
         )
 
         
-        st.altair_chart(alt.layer(spread_chart, mean_spm, mean_ratio), use_container_width=True)
+        st.altair_chart(alt.layer(spread_chart, mean_spm, mean_ratio), width='stretch')
     else:
         st.info("Insufficient time data to calculate stroke-by-stroke rhythm spread.")
 

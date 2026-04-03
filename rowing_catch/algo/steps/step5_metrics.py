@@ -52,12 +52,46 @@ def step5_compute_metrics(
         if len(t) > 1 and np.all(np.diff(t) > 0):
             avg_cycle['Handle_X_Vel'] = np.gradient(avg_cycle['Handle_X_Smooth'], t)
             avg_cycle['Seat_X_Vel'] = np.gradient(avg_cycle['Seat_X_Smooth'], t)
+            if 'Shoulder_X_Smooth' in avg_cycle.columns:
+                avg_cycle['Shoulder_X_Vel'] = np.gradient(avg_cycle['Shoulder_X_Smooth'], t)
+            avg_cycle['Handle_X_Accel'] = np.gradient(avg_cycle['Handle_X_Vel'], t)
+            avg_cycle['Handle_X_Jerk'] = np.gradient(avg_cycle['Handle_X_Accel'], t)
         else:
             avg_cycle['Handle_X_Vel'] = np.gradient(avg_cycle['Handle_X_Smooth'])
             avg_cycle['Seat_X_Vel'] = np.gradient(avg_cycle['Seat_X_Smooth'])
+            if 'Shoulder_X_Smooth' in avg_cycle.columns:
+                avg_cycle['Shoulder_X_Vel'] = np.gradient(avg_cycle['Shoulder_X_Smooth'])
+            avg_cycle['Handle_X_Accel'] = np.gradient(avg_cycle['Handle_X_Vel'])
+            avg_cycle['Handle_X_Jerk'] = np.gradient(avg_cycle['Handle_X_Accel'])
     else:
         avg_cycle['Handle_X_Vel'] = np.gradient(avg_cycle['Handle_X_Smooth'])
         avg_cycle['Seat_X_Vel'] = np.gradient(avg_cycle['Seat_X_Smooth'])
+        if 'Shoulder_X_Smooth' in avg_cycle.columns:
+            avg_cycle['Shoulder_X_Vel'] = np.gradient(avg_cycle['Shoulder_X_Smooth'])
+        avg_cycle['Handle_X_Accel'] = np.gradient(avg_cycle['Handle_X_Vel'])
+        avg_cycle['Handle_X_Jerk'] = np.gradient(avg_cycle['Handle_X_Accel'])
+
+    # --- Advanced Power Proxy (V^3 Model) ---
+    # Power = Force * Velocity. For rowing, Force ~ Velocity^2 (drag).
+    # Thus, Technical Power Proxy = V_handle^2 * V_component.
+    v_h = avg_cycle['Handle_X_Vel'].to_numpy()
+    v_s = avg_cycle['Seat_X_Vel'].to_numpy()
+    
+    # Drag Force Proxy is proportional to speed squared, maintaining direction of pull
+    force_proxy = v_h * np.abs(v_h)
+    
+    avg_cycle['Power_Total'] = force_proxy * v_h
+    avg_cycle['Power_Legs'] = force_proxy * v_s
+    
+    if 'Shoulder_X_Vel' in avg_cycle.columns:
+        v_sh = avg_cycle['Shoulder_X_Vel'].to_numpy()
+        avg_cycle['Power_Trunk'] = force_proxy * (v_sh - v_s)
+        avg_cycle['Power_Arms'] = force_proxy * (v_h - v_sh)
+    else:
+        # Fallback if shoulder tracking is missing: assume non-leg power is "upper body"
+        avg_cycle['Power_Trunk'] = force_proxy * (v_h - v_s)
+        avg_cycle['Power_Arms'] = 0.0
+
 
     # Re-detect catch on averaged cycle for precise alignment.
     avg_cycle['Stroke_Compression'] = np.abs(

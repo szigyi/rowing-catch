@@ -7,7 +7,7 @@ from rowing_catch.ui.components import plot_handle_trajectory
 
 st.set_page_config(page_title="Handle Trajectory Analysis", layout="wide")
 
-st.title("✅ Handle Trajectory 'Box' Plot")
+st.title("Handle Trajectory 'Box' Plot")
 
 st.markdown("""
 ### Deep Dive: Handle Trajectory

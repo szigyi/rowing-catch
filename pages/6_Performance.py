@@ -6,7 +6,7 @@ from pages.components.dev_performance import (
     plot_performance_metrics
 )
 
-st.set_page_config(page_title="Performance Analysis", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="Performance Analysis", layout="wide")
 
 st.title("Performance Analysis")
 

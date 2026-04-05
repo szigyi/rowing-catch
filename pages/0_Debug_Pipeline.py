@@ -19,7 +19,7 @@ from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scen
 
 st.set_page_config(page_title="Debug: Data Pipeline", layout="wide")
 
-st.title("🔬 Data Processing Pipeline — Debug View")
+st.title("Data Processing Pipeline — Debug View")
 st.markdown(
     "This page runs the analysis pipeline step-by-step and exposes the **intermediate "
     "state of the data** after each step. Use it to spot where numbers go wrong."
@@ -67,7 +67,7 @@ else:
     data_label = f"Scenario: {selected_scenario}"
 
 if df_raw is None:
-    st.info("👈 Select a data source in the sidebar to begin.")
+    st.info("Select a data source in the sidebar to begin.")
     st.stop()
 
 st.caption(f"**Input:** {data_label} — {len(df_raw):,} rows × {len(df_raw.columns)} columns")
@@ -94,11 +94,11 @@ def _step_header(number: int, title: str, subtitle: str):
 
 
 def _ok(msg: str):
-    st.success(f"✅ {msg}")
+    st.success(f"{msg}")
 
 
 def _fail(msg: str):
-    st.error(f"❌ {msg}")
+    st.error(f"{msg}")
     st.stop()
 
 
@@ -129,7 +129,7 @@ with st.expander("Step 1 details", expanded=False):
         rename_rows = []
         for raw, clean in REQUIRED_COLUMN_NAMES.items():
             found = raw in df_raw.columns
-            rename_rows.append({"Raw column": raw, "Clean column": clean, "Found": "✅" if found else "⚠️ missing"})
+            rename_rows.append({"Raw column": raw, "Clean column": clean, "Found": "Found" if found else "Missing"})
         st.dataframe(pd.DataFrame(rename_rows), width='stretch', hide_index=True)
 
     with col_b:
@@ -677,7 +677,7 @@ with st.expander("Step 6 details", expanded=True):
 # ===========================================================================
 # METADATA & DIAGNOSTICS
 # ===========================================================================
-st.markdown("### 📊 Data Quality & Metadata Diagnostics")
+st.markdown("### Data Quality & Metadata Diagnostics")
 
 with st.expander("Metadata details", expanded=True):
     # Note: In the debug page context, we're stepping through manually,
@@ -688,25 +688,32 @@ with st.expander("Metadata details", expanded=True):
         # Display metadata metrics
         col_m1, col_m2, col_m3 = st.columns(3)
         col_m1.metric("Cycles Detected", metadata['capture_length'], help="Number of complete strokes")
-        col_m2.metric("Sampling Stable?", "✅ Yes" if metadata['sampling_is_stable'] else "⚠️ No")
+        
+        # Sampling status with background color
+        with col_m2:
+            if metadata['sampling_is_stable']:
+                st.success("Sampling Status: Stable")
+            else:
+                st.warning("Sampling Status: Unstable")
+                
         if metadata['sampling_cv'] is not None:
             col_m3.metric("Sampling CV", f"{metadata['sampling_cv']:.2f}%", help="Coefficient of variation")
         
         # Row drops
         if metadata['rows_dropped'] > 0:
-            st.info(f"📉 {metadata['rows_dropped']} rows dropped during processing")
+            st.info(f"{metadata['rows_dropped']} rows dropped during processing")
         
         # Warnings
         if metadata['warnings']:
             for warning in metadata['warnings']:
-                st.warning(f"⚠️ {warning}")
+                st.warning(f"Quality Alert: {warning}")
         else:
-            st.success("✅ No data quality warnings detected")
+            st.success("Quality Status: Clear")
 
     _ok("Pipeline completed successfully — all six steps produced valid output.")
 
 st.divider()
 st.caption(
-    "💡 This page is intended for debugging only. To view the full coaching report, "
-    "use the main **🚣 Rowing Analysis Report** page."
+    "This page is intended for debugging only. To view the full coaching report, "
+    "use the main **Rowing Analysis Report** page."
 )

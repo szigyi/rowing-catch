@@ -7,7 +7,7 @@ from rowing_catch.ui.components import plot_velocity_coordination
 
 st.set_page_config(page_title="Velocity Coordination Analysis", layout="wide")
 
-st.title("✅ Seat vs. Handle Velocity Coordination")
+st.title("Seat vs. Handle Velocity Coordination")
 
 st.markdown("""
 ### Deep Dive: Velocity Coordination

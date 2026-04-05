@@ -7,7 +7,7 @@ from rowing_catch.ui.components import plot_consistency_rhythm
 
 st.set_page_config(page_title="Consistency & Rhythm Analysis", layout="wide")
 
-st.title("✅ Consistency & Rhythm Analysis")
+st.title("Consistency & Rhythm Analysis")
 
 st.markdown("""
 ### Deep Dive: Rhythm and Consistency

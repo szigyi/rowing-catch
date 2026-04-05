@@ -14,8 +14,8 @@ def get_traffic_light(value, ideal, yellow_threshold=15, green_threshold=5):
     """
     deviation = abs(value - ideal) / ideal * 100
     if deviation <= green_threshold:
-        return "Green", "✅"
+        return "Green"
     elif deviation <= yellow_threshold:
-        return "Yellow", "⚠️"
+        return "Yellow"
     else:
-        return "Red", "🚨"
+        return "Red"

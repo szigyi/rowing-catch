@@ -13,7 +13,7 @@ from rowing_catch.ui.components import (
 
 st.set_page_config(page_title="The Rowing Catch - Rowing Analysis Report", layout="wide")
 
-st.title("🚣 The Rowing Catch - Rowing Analysis Report")
+st.title("The Rowing Catch - Rowing Analysis Report")
 st.markdown("""
 Upload your raw trajectory data (CSV) to generate a comprehensive technical report.
 You can also explore detailed explanations of each metric using the sidebar navigation.
@@ -66,17 +66,26 @@ if df is not None:
         
         # Consistency
         cv = results['cv_length']
-        status, icon = get_traffic_light(cv, 2, green_threshold=2, yellow_threshold=5) # Ideal CV < 2%
+        status = get_traffic_light(cv, 2, green_threshold=2, yellow_threshold=5) # Ideal CV < 2%
         st.sidebar.metric("Consistency (CV)", f"{cv:.2f}%", help="Professional Goal < 2%")
-        st.sidebar.write(f"Status: {icon} {status}")
+        if status == "Green":
+            st.sidebar.success(f"Status: {status}")
+        elif status == "Yellow":
+            st.sidebar.warning(f"Status: {status}")
+        else:
+            st.sidebar.error(f"Status: {status}")
         
-        # Drive/Recovery Ratio
         drive_p = (results['drive_len'] / results['min_length']) * 100
         rec_p = (results['recovery_len'] / results['min_length']) * 100
         # Ideal at low rates is roughly 1:2 (33% drive)
-        ratio_status, ratio_icon = get_traffic_light(drive_p, 33, green_threshold=5, yellow_threshold=15)
+        ratio_status = get_traffic_light(drive_p, 33, green_threshold=5, yellow_threshold=15)
         st.sidebar.metric("Drive/Recovery Ratio", f"{drive_p:.1f}% / {rec_p:.1f}%")
-        st.sidebar.write(f"Status: {ratio_icon} {ratio_status}")
+        if ratio_status == "Green":
+            st.sidebar.success(f"Status: {ratio_status}")
+        elif ratio_status == "Yellow":
+            st.sidebar.warning(f"Status: {ratio_status}")
+        else:
+            st.sidebar.error(f"Status: {ratio_status}")
 
         # --- Main Report ---
         
@@ -86,22 +95,22 @@ if df is not None:
             st.subheader("1. Biomechanical & Technical Efficiency")
 
             # Trunk Angle Plot
-            st.write("#### ✅ Trunk Angle & Range Analysis")
+            st.write("#### Trunk Angle & Range Analysis")
             plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx)
 
             # Coordination Plot
-            st.write("#### ✅ Seat vs. Handle Velocity Coordination")
+            st.write("#### Seat vs. Handle Velocity Coordination")
             plot_velocity_coordination(avg_cycle, catch_idx, finish_idx)
 
         with col2:
             st.subheader("2. Consistency & Rhythm")
             
             # Handle Trajectory
-            st.write("#### ✅ Handle Trajectory 'Box' Plot")
+            st.write("#### Handle Trajectory 'Box' Plot")
             plot_handle_trajectory(avg_cycle, catch_idx, finish_idx)
             
             # Consistency Score & Drive/Recovery Ratio
-            st.write("#### ✅ Consistency & Rhythm Analysis")
+            st.write("#### Consistency & Rhythm Analysis")
             plot_consistency_rhythm(cv, drive_p, rec_p)
 
 else:

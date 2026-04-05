@@ -8,7 +8,7 @@ from pages.components.dev_performance import (
     plot_handle_trajectory
 )
 
-st.set_page_config(page_title="Development Analysis", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="Development Analysis", layout="wide")
 
 st.title("Development Analysis")
 

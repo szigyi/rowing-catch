@@ -384,7 +384,7 @@ with st.expander("Step 5 details", expanded=True):
     col5.metric("Trunk angle @ Finish", f"{finish_angle:.1f}°")
 
     st.markdown("**Catch + Finish on averaged cycle**")
-    fig, ax1 = setup_premium_plot(xlabel='Cycle sample index', ylabel='Seat X (mm)', figsize=(9, 5))
+    fig, ax1 = setup_premium_plot(xlabel='Cycle sample index (time)', ylabel='Seat X (mm)', figsize=(9, 5))
     fig.patch.set_facecolor(BG_COLOR_FIGURE)
     
     # 1. Seat X (Left axis)
@@ -402,6 +402,7 @@ with st.expander("Step 5 details", expanded=True):
         ax.set_ylim(ymin - r, ymax + r)
 
     _rescale_ax(ax1, avg_cycle_m['Seat_X_Smooth'])
+    ax1.invert_yaxis()
 
     # 2. Handle X (Right axis)
     ax2 = ax1.twinx()
@@ -412,6 +413,7 @@ with st.expander("Step 5 details", expanded=True):
     ax2.spines['top'].set_visible(False)
     ax2.spines['right'].set_color('#DDDDDD')
     _rescale_ax(ax2, avg_cycle_m['Handle_X_Smooth'])
+    ax2.invert_yaxis()
 
     # 3. Shoulder X (Offset Right axis)
     if 'Shoulder_X_Smooth' in avg_cycle_m.columns:
@@ -425,6 +427,7 @@ with st.expander("Step 5 details", expanded=True):
         ax3.set_ylabel('Shoulder X (mm)', color=COLOR_ARMS)
         ax3.tick_params(axis='y', labelcolor=COLOR_ARMS)
         _rescale_ax(ax3, avg_cycle_m['Shoulder_X_Smooth'])
+        ax3.invert_yaxis()
     
     # Common markers — no legend labels; annotate directly on the plot instead
     ax1.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.4, alpha=0.8)
@@ -452,11 +455,11 @@ with st.expander("Step 5 details", expanded=True):
     ax1.axhline(seat_min, color=COLOR_CATCH, linestyle=':', linewidth=1.5, alpha=0.7)
     ax1.text(x_end, seat_min, 'Front stop',
              color=COLOR_CATCH, fontsize=8, fontweight='bold',
-             va='bottom', ha='right')
+             va='top', ha='right')
     ax1.axhline(seat_max, color=COLOR_FINISH, linestyle=':', linewidth=1.5, alpha=0.7)
     ax1.text(x_end, seat_max, 'Back stop',
              color=COLOR_FINISH, fontsize=8, fontweight='bold',
-             va='top', ha='right')
+             va='bottom', ha='right')
 
     ax1.grid(axis='x', alpha=0.2)
 
@@ -470,7 +473,8 @@ with st.expander("Step 5 details", expanded=True):
         all_lines += legend_lines3
         all_labels += legend_labels3
 
-    ax1.legend(all_lines, all_labels, loc='upper left', bbox_to_anchor=(0.02, 0.98),
+    ax1.legend(all_lines, all_labels, loc='upper center', bbox_to_anchor=(0.5, 0.98),
+               ncol=min(3, len(all_lines)),
                fontsize=8, framealpha=0.8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     
     st.pyplot(fig, width='stretch')

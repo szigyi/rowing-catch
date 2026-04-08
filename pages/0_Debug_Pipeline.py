@@ -426,28 +426,50 @@ with st.expander("Step 5 details", expanded=True):
         ax3.tick_params(axis='y', labelcolor=COLOR_ARMS)
         _rescale_ax(ax3, avg_cycle_m['Shoulder_X_Smooth'])
     
-    # Common markers
-    ax1.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.4, alpha=0.8, label='Catch idx')
-    ax1.scatter([catch_idx], [avg_cycle_m.loc[catch_idx, 'Seat_X_Smooth']],
-                color=COLOR_CATCH, s=80, marker='o', zorder=5)
+    # Common markers — no legend labels; annotate directly on the plot instead
+    ax1.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.4, alpha=0.8)
+    catch_y = float(avg_cycle_m.loc[catch_idx, 'Seat_X_Smooth'])
+    ax1.scatter([catch_idx], [catch_y], color=COLOR_CATCH, s=80, marker='o', zorder=5)
+    ax1.annotate(
+        'Catch', xy=(catch_idx, catch_y),
+        xytext=(catch_idx + max(1, len(avg_cycle_m) * 0.01), catch_y),
+        color=COLOR_CATCH, fontsize=8, fontweight='bold', va='center',
+    )
 
-    ax1.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.4, alpha=0.8, label='Finish idx')
-    ax1.scatter([finish_idx], [avg_cycle_m.loc[finish_idx, 'Seat_X_Smooth']],
-                color=COLOR_FINISH, s=80, marker='X', zorder=5)
+    ax1.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.4, alpha=0.8)
+    finish_y = float(avg_cycle_m.loc[finish_idx, 'Seat_X_Smooth'])
+    ax1.scatter([finish_idx], [finish_y], color=COLOR_FINISH, s=80, marker='X', zorder=5)
+    ax1.annotate(
+        'Finish', xy=(finish_idx, finish_y),
+        xytext=(finish_idx + max(1, len(avg_cycle_m) * 0.01), finish_y),
+        color=COLOR_FINISH, fontsize=8, fontweight='bold', va='center',
+    )
+
+    # Front stop / Back stop — seat travel limits; label on the right edge of the line
+    seat_min = float(avg_cycle_m['Seat_X_Smooth'].min())
+    seat_max = float(avg_cycle_m['Seat_X_Smooth'].max())
+    x_end = float(avg_cycle_m.index.max())
+    ax1.axhline(seat_min, color=COLOR_CATCH, linestyle=':', linewidth=1.5, alpha=0.7)
+    ax1.text(x_end, seat_min, 'Front stop',
+             color=COLOR_CATCH, fontsize=8, fontweight='bold',
+             va='bottom', ha='right')
+    ax1.axhline(seat_max, color=COLOR_FINISH, linestyle=':', linewidth=1.5, alpha=0.7)
+    ax1.text(x_end, seat_max, 'Back stop',
+             color=COLOR_FINISH, fontsize=8, fontweight='bold',
+             va='top', ha='right')
 
     ax1.grid(axis='x', alpha=0.2)
-    
-    # Combined legend
-    lines, labels = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    all_lines = lines + lines2
-    all_labels = labels + labels2
+
+    # Legend: only the data lines (Seat, Handle, Shoulder) — event labels are now on the plot
+    legend_lines, legend_labels = ax1.get_legend_handles_labels()
+    legend_lines2, legend_labels2 = ax2.get_legend_handles_labels()
+    all_lines = legend_lines + legend_lines2
+    all_labels = legend_labels + legend_labels2
     if 'Shoulder_X_Smooth' in avg_cycle_m.columns:
-        lines3, labels3 = ax3.get_legend_handles_labels()
-        all_lines += lines3
-        all_labels += labels3
-    
-    # Place legend clearly
+        legend_lines3, legend_labels3 = ax3.get_legend_handles_labels()
+        all_lines += legend_lines3
+        all_labels += legend_labels3
+
     ax1.legend(all_lines, all_labels, loc='upper left', bbox_to_anchor=(0.02, 0.98),
                fontsize=8, framealpha=0.8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     

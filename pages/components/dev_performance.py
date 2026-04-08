@@ -4,29 +4,11 @@ import numpy as np
 import pandas as pd
 import altair as alt
 from rowing_catch.ui.annotations import DIAGRAM_ANNOTATIONS
-
-# --- Styling Constants ---
-COLOR_LEGS = '#636EFA'
-COLOR_TRUNK = '#EF553B'
-COLOR_ARMS = '#00CC96'
-COLOR_HANDLE = '#AB63FA'
-COLOR_SEAT = '#FFA15A'
-COLOR_IDEAL = '#A8B2C1'
-BG_COLOR = '#F8F9FA'
-
-def _setup_premium_plot(title="", xlabel="", ylabel="", figsize=(10, 5)):
-    fig, ax = plt.subplots(figsize=figsize)
-    fig.patch.set_facecolor(BG_COLOR)
-    ax.set_facecolor('#FFFFFF')
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_color('#DDDDDD')
-    ax.spines['bottom'].set_color('#DDDDDD')
-    ax.grid(axis='y', linestyle='-', linewidth=0.5, color='#F0F0F0', zorder=0)
-    ax.set_title(title, fontsize=14, fontweight='bold', pad=20, color='#444444')
-    ax.set_xlabel(xlabel, fontweight='bold', color='#666666')
-    ax.set_ylabel(ylabel, fontweight='bold', color='#666666')
-    return fig, ax
+from rowing_catch.ui.utils import (
+    setup_premium_plot, COLOR_MAIN, COLOR_LEGS, COLOR_TRUNK, COLOR_ARMS, 
+    COLOR_HANDLE, COLOR_SEAT, COLOR_CATCH, COLOR_FINISH, COLOR_COMPARE, 
+    BG_COLOR_FIGURE, BG_COLOR_AXES, COLOR_TEXT_MAIN, COLOR_TEXT_SUB
+)
 
 def _apply_annotations(ax, diagram_key, data, catch_idx=None, finish_idx=None, y_data=None, scenario_name="None"):
     """
@@ -128,17 +110,17 @@ def _apply_annotations(ax, diagram_key, data, catch_idx=None, finish_idx=None, y
 
 def plot_trunk_angle_separation(avg_cycle, catch_idx, finish_idx, scenario_data=None, scenario_name="None"):
     """Trunk angle vs Seat Position to show separation/timing."""
-    fig, ax = _setup_premium_plot("Trunk Angle vs Stroke Progress", "Seat Position (mm)", "Trunk Angle (deg)")
+    fig, ax = setup_premium_plot("Trunk Angle vs Stroke Progress", "Seat Position (mm)", "Trunk Angle (deg)")
     
     # Main Plot
     ax.plot(avg_cycle['Seat_X_Smooth'], avg_cycle['Trunk_Angle'], color=COLOR_TRUNK, linewidth=3, label="Your Data", zorder=5)
     
     # Mark catch/finish
-    ax.scatter(avg_cycle.loc[catch_idx, 'Seat_X_Smooth'], avg_cycle.loc[catch_idx, 'Trunk_Angle'], color='green', s=100, label="Catch", zorder=6)
-    ax.scatter(avg_cycle.loc[finish_idx, 'Seat_X_Smooth'], avg_cycle.loc[finish_idx, 'Trunk_Angle'], color='red', s=100, label="Finish", zorder=6)
+    ax.scatter(avg_cycle.loc[catch_idx, 'Seat_X_Smooth'], avg_cycle.loc[catch_idx, 'Trunk_Angle'], color=COLOR_CATCH, s=100, label="Catch", zorder=6)
+    ax.scatter(avg_cycle.loc[finish_idx, 'Seat_X_Smooth'], avg_cycle.loc[finish_idx, 'Trunk_Angle'], color=COLOR_FINISH, s=100, label="Finish", zorder=6)
 
     if scenario_data is not None:
-        ax.plot(scenario_data['Seat_X_Smooth'], scenario_data['Trunk_Angle'], color=COLOR_IDEAL, linestyle='--', alpha=0.7, label=f"Comparison: {scenario_name}", zorder=4)
+        ax.plot(scenario_data['Seat_X_Smooth'], scenario_data['Trunk_Angle'], color=COLOR_COMPARE, linestyle='--', alpha=0.7, label=f"Comparison: {scenario_name}", zorder=4)
 
     ax.legend()
     
@@ -151,7 +133,7 @@ def plot_trunk_angle_separation(avg_cycle, catch_idx, finish_idx, scenario_data=
 
 def plot_handle_seat_distance(avg_cycle, catch_idx, finish_idx, scenario_data=None, scenario_name="None"):
     """Plots the distance (compression) between handle and seat."""
-    fig, ax = _setup_premium_plot("Handle-Seat Separation", "Stroke Index", "Distance (mm)")
+    fig, ax = setup_premium_plot("Handle-Seat Separation", "Stroke Index", "Distance (mm)")
     
     dist = np.abs(avg_cycle['Handle_X_Smooth'] - avg_cycle['Seat_X_Smooth'])
     ax.plot(avg_cycle.index, dist, color=COLOR_HANDLE, linewidth=2.5, label="Distance")
@@ -159,10 +141,10 @@ def plot_handle_seat_distance(avg_cycle, catch_idx, finish_idx, scenario_data=No
     
     if scenario_data is not None:
         s_dist = np.abs(scenario_data['Handle_X_Smooth'] - scenario_data['Seat_X_Smooth'])
-        ax.plot(scenario_data.index, s_dist, color=COLOR_IDEAL, linestyle=':', alpha=0.5, label=f"Comparison: {scenario_name}")
+        ax.plot(scenario_data.index, s_dist, color=COLOR_COMPARE, linestyle=':', alpha=0.5, label=f"Comparison: {scenario_name}")
 
-    ax.axvline(catch_idx, color='green', linestyle='--', alpha=0.5)
-    ax.axvline(finish_idx, color='red', linestyle='--', alpha=0.5)
+    ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', alpha=0.5)
+    ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', alpha=0.5)
     ax.legend()
     
     _apply_annotations(ax, "handle_seat_distance", avg_cycle, catch_idx, finish_idx, y_data=dist, scenario_name=scenario_name)
@@ -173,7 +155,7 @@ def plot_handle_seat_distance(avg_cycle, catch_idx, finish_idx, scenario_data=No
 
 def plot_handle_trajectory(avg_cycle, catch_idx, finish_idx, scenario_data=None, scenario_name="None"):
     """Vertical vs Horizontal Handle Path (The Box Plot)."""
-    fig, ax = _setup_premium_plot("Handle Trajectory Path", "Horizontal Position (mm)", "Vertical Position (mm)")
+    fig, ax = setup_premium_plot("Handle Trajectory Path", "Horizontal Position (mm)", "Vertical Position (mm)")
     
     # Calculate Box
     h_x = avg_cycle['Handle_X_Smooth']
@@ -189,18 +171,18 @@ def plot_handle_trajectory(avg_cycle, catch_idx, finish_idx, scenario_data=None,
     # Plot Ideal Box
     ideal_x = [h_x_min, h_x_max, h_x_max, h_x_min, h_x_min]
     ideal_y = [ideal_y_drive, ideal_y_drive, ideal_y_recovery, ideal_y_recovery, ideal_y_drive]
-    ax.plot(ideal_x, ideal_y, color=COLOR_IDEAL, linestyle='--', alpha=0.4, label="Reference Path", linewidth=1.5, zorder=1)
+    ax.plot(ideal_x, ideal_y, color=COLOR_COMPARE, linestyle='--', alpha=0.4, label="Reference Path", linewidth=1.5, zorder=1)
     
     # Plot Actual Trajectory
     ax.plot(h_x, h_y, color=COLOR_HANDLE, linewidth=3, label="Your Data", zorder=3)
     
     # Comparison
     if scenario_data is not None:
-        ax.plot(scenario_data['Handle_X_Smooth'], scenario_data['Handle_Y_Smooth'], color=COLOR_IDEAL, linestyle=':', alpha=0.6, label=f"Comparison: {scenario_name}", zorder=2)
+        ax.plot(scenario_data['Handle_X_Smooth'], scenario_data['Handle_Y_Smooth'], color=COLOR_COMPARE, linestyle=':', alpha=0.6, label=f"Comparison: {scenario_name}", zorder=2)
         
     # Mark catch/finish
-    ax.scatter(h_x.iloc[catch_idx], h_y.iloc[catch_idx], color='green', s=100, label="Catch", zorder=4)
-    ax.scatter(h_x.iloc[finish_idx], h_y.iloc[finish_idx], color='red', s=100, label="Finish", zorder=4)
+    ax.scatter(h_x.iloc[catch_idx], h_y.iloc[catch_idx], color=COLOR_CATCH, s=100, label="Catch", zorder=4)
+    ax.scatter(h_x.iloc[finish_idx], h_y.iloc[finish_idx], color=COLOR_FINISH, s=100, label="Finish", zorder=4)
     
     ax.invert_yaxis() # Up is higher, down is deeper
     ax.legend()
@@ -223,17 +205,28 @@ def plot_ratio_consistency(stats):
         st.warning("Insufficient data points for consistency plot.")
         return
 
-    chart = alt.Chart(df).mark_circle(size=100, opacity=0.7).encode(
+    chart = alt.Chart(df).mark_circle(size=100, opacity=0.7, color=COLOR_MAIN).encode(
         x=alt.X('spm:Q', title='Strokes Per Minute (SPM)', scale=alt.Scale(zero=False)),
         y=alt.Y('drive_recovery_ratio:Q', title='Drive/Recovery Ratio', scale=alt.Scale(zero=False)),
         tooltip=['cycle_idx', 'spm', 'drive_recovery_ratio']
     ).properties(
         title="Rhythm Consistency (SPM vs Ratio)",
         width=700,
-        height=400
+        height=400,
+        background=BG_COLOR_FIGURE
+    ).configure_view(
+        fill=BG_COLOR_AXES,
+        strokeWidth=0
     ).configure_axis(
         grid=True,
-        gridColor='#F0F0F0'
+        gridColor='#F0F0F0',
+        domainColor='#DDDDDD',
+        tickColor='#DDDDDD',
+        labelColor=COLOR_TEXT_SUB,
+        titleColor=COLOR_TEXT_SUB
+    ).configure_title(
+        color=COLOR_TEXT_MAIN,
+        fontSize=14
     )
     
     st.altair_chart(chart, width='stretch')
@@ -243,7 +236,7 @@ def plot_ratio_consistency(stats):
 
 def plot_power_accumulation(avg_cycle, catch_idx, finish_idx, scenario_data=None, scenario_name="None"):
     """Stacked power curve: Legs -> Trunk -> Arms."""
-    fig, ax = _setup_premium_plot("Segmental Power Accumulation", "Drive Progress (%)", "Power Proxy (Watts-like)")
+    fig, ax = setup_premium_plot("Segmental Power Accumulation", "Drive Progress (%)", "Power Proxy (Watts-like)")
     
     # Only plot drive phase
     drive = avg_cycle.loc[catch_idx:finish_idx].copy()
@@ -280,7 +273,7 @@ def plot_power_accumulation(avg_cycle, catch_idx, finish_idx, scenario_data=None
 
 def plot_kinetic_chain(avg_cycle, catch_idx, finish_idx, scenario_name="None"):
     """Velocities and Acceleration Coordination."""
-    fig, ax = _setup_premium_plot("Kinetic Chain Coordination", "Stroke Index", "Velocity / Accel")
+    fig, ax = setup_premium_plot("Kinetic Chain Coordination", "Stroke Index", "Velocity / Accel")
     
     ax.plot(avg_cycle.index, avg_cycle['Handle_X_Vel'], color=COLOR_HANDLE, label='Handle Vel', linewidth=2.5)
     ax.plot(avg_cycle.index, avg_cycle['Seat_X_Vel'], color=COLOR_SEAT, label='Seat Vel', linewidth=2)
@@ -292,8 +285,8 @@ def plot_kinetic_chain(avg_cycle, catch_idx, finish_idx, scenario_name="None"):
     ax2.spines['right'].set_visible(True)
     ax2.spines['right'].set_color('#EB55DE')
     
-    ax.axvline(catch_idx, color='green', linestyle='--', alpha=0.3)
-    ax.axvline(finish_idx, color='red', linestyle='--', alpha=0.3)
+    ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', alpha=0.3)
+    ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', alpha=0.3)
     
     ax.legend(loc='upper left')
     
@@ -303,7 +296,7 @@ def plot_kinetic_chain(avg_cycle, catch_idx, finish_idx, scenario_name="None"):
 
 def plot_recovery_control(avg_cycle, finish_idx, scenario_name="None"):
     """Seat velocity during recovery - looking for 'rushing' or 'pausing'."""
-    fig, ax = _setup_premium_plot("Recovery Slide Control", "Recovery Progress (%)", "Seat Velocity")
+    fig, ax = setup_premium_plot("Recovery Slide Control", "Recovery Progress (%)", "Seat Velocity")
     
     # Recovery is from finish to end of cycle
     rec = avg_cycle.loc[finish_idx:].copy()
@@ -331,15 +324,15 @@ def plot_performance_metrics(avg_cycle, catch_idx, finish_idx, scenario_name="No
     
     with col1:
         st.write("#### Handle Jerk (Smoothness)")
-        fig, ax = _setup_premium_plot(ylabel="Jerk (mm/s³)", figsize=(5, 4))
+        fig, ax = setup_premium_plot(ylabel="Jerk (mm/s³)", figsize=(5, 4))
         ax.plot(avg_cycle.index, avg_cycle['Handle_X_Jerk'], color='#FF4B4B', linewidth=1.5)
-        ax.axvline(catch_idx, color='green', alpha=0.3)
+        ax.axvline(catch_idx, color=COLOR_CATCH, alpha=0.3)
         _apply_annotations(ax, "handle_jerk", avg_cycle, catch_idx, finish_idx, y_data=avg_cycle['Handle_X_Jerk'], scenario_name=scenario_name)
         st.pyplot(fig)
     
     with col2:
         st.write("#### Handle Height Stability")
-        fig, ax = _setup_premium_plot(ylabel="Handle Y (mm)", figsize=(5, 4))
+        fig, ax = setup_premium_plot(ylabel="Handle Y (mm)", figsize=(5, 4))
         # High-low during drive
         drive_y = avg_cycle.loc[catch_idx:finish_idx, 'Handle_Y_Smooth']
         ax.boxplot(drive_y, patch_artist=True, boxprops=dict(facecolor=COLOR_HANDLE, alpha=0.5))

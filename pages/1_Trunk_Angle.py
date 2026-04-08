@@ -59,8 +59,8 @@ The trunk angle is a critical biomechanical metric that measures the rower's lea
 - **Range:** The total degrees of movement between catch and finish.
 
 #### How to read this diagram:
-- The **Purple Line** shows your trunk angle throughout one average stroke.
+- The **Blue Line** shows your trunk angle throughout one average stroke.
 - The **Green Shaded Zone** is the ideal catch angle.
-- The **Blue Shaded Zone** is the ideal finish angle.
+- The **Red-Orange Shaded Zone** is the ideal finish angle.
 - Vertical dashed lines mark the **Catch** (Green) and **Finish** (Red) as detected by your seat movement.
 """)

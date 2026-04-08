@@ -19,8 +19,8 @@ The 'Box' plot shows the 2D path of the handle (Vertical vs. Horizontal) during 
 - **Minimal "Dipping":** Skewed or dipping paths often indicate "digging" (too deep) or "skying" (handle too high before the catch).
 
 #### How to read this diagram:
-- The **Black Line** is your actual handle path.
-- The **Gray Dashed Box** is the ideal path based on your current stroke length.
+- The **Blue-Purple Line** is your actual handle path.
+- The **Gray Dashed Box** is the ideal reference path based on your current stroke length.
 - The **Green Dot** is the catch point.
 - The **Red Dot** is the finish point.
 - *Note: The vertical axis is inverted to match common coaching perspectives (up is higher, down is deeper).*

@@ -16,6 +16,11 @@ from rowing_catch.algo.steps.step5_metrics import _pick_finish_index
 import altair as alt
 from rowing_catch.algo.constants import REQUIRED_COLUMN_NAMES, PROCESSED_COLUMN_NAMES
 from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scenarios
+from rowing_catch.ui.utils import (
+    setup_premium_plot, COLOR_MAIN, COLOR_SEAT, COLOR_HANDLE, COLOR_ARMS,
+    COLOR_CATCH, COLOR_FINISH, COLOR_COMPARE,
+    BG_COLOR_FIGURE, BG_COLOR_AXES, COLOR_TEXT_MAIN, COLOR_TEXT_SUB
+)
 
 st.set_page_config(page_title="Debug: Data Pipeline", layout="wide")
 
@@ -160,25 +165,23 @@ with st.expander("Step 2 details", expanded=False):
     col_left, col_right = st.columns(2)
     with col_left:
         st.markdown("**Before vs. after — `Seat_X`:**")
-        fig, ax = plt.subplots(figsize=(5, 2.5))
+        fig, ax = setup_premium_plot(xlabel='Sample index', ylabel='Seat_X', figsize=(5, 2.5))
         ax.plot(df_step1.index, df_step1.get('Seat_X', pd.Series(dtype=float)),
-                color='#94a3b8', linewidth=0.8, label='Raw')
+                color=COLOR_COMPARE, linewidth=0.8, label='Raw')
         ax.plot(df_step2.index, df_step2['Seat_X_Smooth'],
-                color='#6366f1', linewidth=1.5, label='Smoothed')
-        ax.set_xlabel('Sample index'); ax.set_ylabel('Seat_X')
-        ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
+                color=COLOR_SEAT, linewidth=1.5, label='Smoothed')
+        ax.legend(fontsize=8)
         st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     with col_right:
         st.markdown("**Before vs. after — `Handle_X`:**")
-        fig, ax = plt.subplots(figsize=(5, 2.5))
+        fig, ax = setup_premium_plot(xlabel='Sample index', ylabel='Handle_X', figsize=(5, 2.5))
         ax.plot(df_step1.index, df_step1.get('Handle_X', pd.Series(dtype=float)),
-                color='#94a3b8', linewidth=0.8, label='Raw')
+                color=COLOR_COMPARE, linewidth=0.8, label='Raw')
         ax.plot(df_step2.index, df_step2['Handle_X_Smooth'],
-                color='#f59e0b', linewidth=1.5, label='Smoothed')
-        ax.set_xlabel('Sample index'); ax.set_ylabel('Handle_X')
-        ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
+                color=COLOR_HANDLE, linewidth=1.5, label='Smoothed')
+        ax.legend(fontsize=8)
         st.pyplot(fig, width='stretch')
         plt.close(fig)
 
@@ -200,19 +203,21 @@ with st.expander("Step 3 details", expanded=False):
 
     _ok(f"{n_catches} catches detected at indices: {catch_indices.tolist()}")
 
-    fig, ax1 = plt.subplots(1, 1, figsize=(10, 3), sharex=True)
+    fig, ax1 = setup_premium_plot(
+        title='Seat_X_Smooth — local minima = catches (one per stroke)',
+        ylabel='Seat_X_Smooth', figsize=(10, 3)
+    )
 
     ax1.plot(df_step3.index, df_step3['Seat_X_Smooth'],
-             color='#6366f1', linewidth=1.2, label='Seat_X_Smooth (detection signal)')
+             color=COLOR_SEAT, linewidth=1.2, label='Seat_X_Smooth (detection signal)')
+    ax1.fill_between(df_step3.index, df_step3['Seat_X_Smooth'],
+                     df_step3['Seat_X_Smooth'].min(), color=COLOR_SEAT, alpha=0.08)
     for ci in catch_indices:
-        ax1.axvline(ci, color='#22c55e', linewidth=1, linestyle='--', alpha=0.8)
+        ax1.axvline(ci, color=COLOR_CATCH, linewidth=1, linestyle='--', alpha=0.8)
     ax1.scatter(catch_indices, df_step3['Seat_X_Smooth'].iloc[catch_indices],
-                color='#22c55e', s=60, zorder=5, label='Detected Catch (local min)')
-    ax1.set_ylabel('Seat_X_Smooth')
-    ax1.set_title('Seat_X_Smooth — local minima = catches (one per stroke)')
-    ax1.legend(fontsize=8); ax1.spines[['top', 'right']].set_visible(False)
+                color=COLOR_CATCH, s=60, zorder=5, label='Detected Catch (local min)')
+    ax1.legend(fontsize=8)
 
-    plt.tight_layout()
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
@@ -348,14 +353,14 @@ with st.expander("Step 5 details", expanded=True):
     col5.metric("Trunk angle @ Finish", f"{finish_angle:.1f}°")
 
     st.markdown("**Catch + Finish on averaged cycle**")
-    fig, ax1 = plt.subplots(figsize=(9, 5))
+    fig, ax1 = setup_premium_plot(xlabel='Cycle sample index', ylabel='Seat X (mm)', figsize=(9, 5))
+    fig.patch.set_facecolor(BG_COLOR_FIGURE)
     
     # 1. Seat X (Left axis)
-    color_seat = '#6366f1'
     ax1.plot(avg_cycle_m.index, avg_cycle_m['Seat_X_Smooth'],
-             color=color_seat, linewidth=2, label='Seat_X_Smooth')
-    ax1.set_ylabel('Seat X (mm)', color=color_seat)
-    ax1.tick_params(axis='y', labelcolor=color_seat)
+             color=COLOR_SEAT, linewidth=2, label='Seat_X_Smooth')
+    ax1.set_ylabel('Seat X (mm)', color=COLOR_SEAT)
+    ax1.tick_params(axis='y', labelcolor=COLOR_SEAT)
     
     def _rescale_ax(ax, data, pad=0.15):
         ymin, ymax = np.nanmin(data), np.nanmax(data)
@@ -368,37 +373,37 @@ with st.expander("Step 5 details", expanded=True):
     _rescale_ax(ax1, avg_cycle_m['Seat_X_Smooth'])
 
     # 2. Handle X (Right axis)
-    color_handle = '#f59e0b'
     ax2 = ax1.twinx()
     ax2.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Smooth'],
-             color=color_handle, linewidth=1.5, linestyle='--', label='Handle_X_Smooth')
-    ax2.set_ylabel('Handle X (mm)', color=color_handle)
-    ax2.tick_params(axis='y', labelcolor=color_handle)
+             color=COLOR_HANDLE, linewidth=1.5, linestyle='--', label='Handle_X_Smooth')
+    ax2.set_ylabel('Handle X (mm)', color=COLOR_HANDLE)
+    ax2.tick_params(axis='y', labelcolor=COLOR_HANDLE)
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_color('#DDDDDD')
     _rescale_ax(ax2, avg_cycle_m['Handle_X_Smooth'])
 
     # 3. Shoulder X (Offset Right axis)
     if 'Shoulder_X_Smooth' in avg_cycle_m.columns:
-        color_shoulder = '#10b981'
         ax3 = ax1.twinx()
         # Offset the third axis to the right
         ax3.spines['right'].set_position(('outward', 60))
+        ax3.spines['right'].set_color('#DDDDDD')
+        ax3.spines['top'].set_visible(False)
         ax3.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_X_Smooth'],
-                 color=color_shoulder, linewidth=1.5, linestyle='-.', label='Shoulder_X_Smooth')
-        ax3.set_ylabel('Shoulder X (mm)', color=color_shoulder)
-        ax3.tick_params(axis='y', labelcolor=color_shoulder)
+                 color=COLOR_ARMS, linewidth=1.5, linestyle='-.', label='Shoulder_X_Smooth')
+        ax3.set_ylabel('Shoulder X (mm)', color=COLOR_ARMS)
+        ax3.tick_params(axis='y', labelcolor=COLOR_ARMS)
         _rescale_ax(ax3, avg_cycle_m['Shoulder_X_Smooth'])
     
     # Common markers
-    ax1.axvline(catch_idx, color='#22c55e', linestyle='--', linewidth=1.4, alpha=0.8, label='Catch idx')
+    ax1.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.4, alpha=0.8, label='Catch idx')
     ax1.scatter([catch_idx], [avg_cycle_m.loc[catch_idx, 'Seat_X_Smooth']],
-                color='#22c55e', s=80, marker='o', zorder=5)
+                color=COLOR_CATCH, s=80, marker='o', zorder=5)
 
-    ax1.axvline(finish_idx, color='#d946ef', linestyle='--', linewidth=1.4, alpha=0.8, label='Finish idx')
+    ax1.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.4, alpha=0.8, label='Finish idx')
     ax1.scatter([finish_idx], [avg_cycle_m.loc[finish_idx, 'Seat_X_Smooth']],
-                color='#d946ef', s=80, marker='X', zorder=5)
+                color=COLOR_FINISH, s=80, marker='X', zorder=5)
 
-    ax1.set_xlabel('Cycle sample index')
-    ax1.spines[['top']].set_visible(False)
     ax1.grid(axis='x', alpha=0.2)
     
     # Combined legend
@@ -412,9 +417,9 @@ with st.expander("Step 5 details", expanded=True):
         all_labels += labels3
     
     # Place legend clearly
-    ax1.legend(all_lines, all_labels, loc='upper left', bbox_to_anchor=(0.02, 0.98), fontsize=8, framealpha=0.6)
+    ax1.legend(all_lines, all_labels, loc='upper left', bbox_to_anchor=(0.02, 0.98),
+               fontsize=8, framealpha=0.8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     
-    plt.tight_layout()
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
@@ -519,30 +524,31 @@ with st.expander("Step 5 details", expanded=True):
 
     # Trunk angle plot
     st.markdown("**Trunk Angle across the averaged stroke:**")
-    fig, ax = plt.subplots(figsize=(10, 3))
+    fig, ax = setup_premium_plot(xlabel='Cycle index', ylabel='Degrees from vertical', figsize=(10, 3))
     ax.plot(avg_cycle_m.index, avg_cycle_m['Trunk_Angle'],
-            color='#6366f1', linewidth=2, label='Trunk Angle')
-    ax.axhline(0, color='#888', linestyle=':', linewidth=1, alpha=0.5)
-    ax.axvline(catch_idx, color='#22c55e', linestyle='--', linewidth=1.5, label=f'Catch ({catch_angle:.1f}°)')
-    ax.axvline(finish_idx, color='#ef4444', linestyle='--', linewidth=1.5, label=f'Finish ({finish_angle:.1f}°)')
-    ax.set_xlabel('Cycle index'); ax.set_ylabel('Degrees from vertical')
-    ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
+            color=COLOR_MAIN, linewidth=2, label='Trunk Angle')
+    ax.fill_between(avg_cycle_m.index, avg_cycle_m['Trunk_Angle'], 0, color=COLOR_MAIN, alpha=0.08)
+    ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
+    ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.5, label=f'Catch ({catch_angle:.1f}°)')
+    ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.5, label=f'Finish ({finish_angle:.1f}°)')
+    ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     # Detailed Velocity plot
     st.markdown("**Detailed Velocity (Seat, Handle, Shoulder, Rower):**")
-    fig, ax = plt.subplots(figsize=(10, 3.5))
-    ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Vel'], color='#3b82f6', linewidth=1.5, label='Handle')
-    ax.plot(avg_cycle_m.index, avg_cycle_m['Seat_X_Vel'], color='#f59e0b', linewidth=1.5, label='Seat')
+    fig, ax = setup_premium_plot(xlabel='Cycle index', ylabel='Velocity (px/sample)', figsize=(10, 3.5))
+    ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Vel'], color=COLOR_HANDLE, linewidth=1.5, label='Handle')
+    ax.fill_between(avg_cycle_m.index, avg_cycle_m['Handle_X_Vel'], 0, color=COLOR_HANDLE, alpha=0.08)
+    ax.plot(avg_cycle_m.index, avg_cycle_m['Seat_X_Vel'], color=COLOR_SEAT, linewidth=1.5, label='Seat')
+    ax.fill_between(avg_cycle_m.index, avg_cycle_m['Seat_X_Vel'], 0, color=COLOR_SEAT, alpha=0.08)
     if 'Shoulder_X_Vel' in avg_cycle_m.columns:
-        ax.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_X_Vel'], color='#10b981', linewidth=1.2, linestyle='--', label='Shoulder')
-        ax.plot(avg_cycle_m.index, avg_cycle_m['Rower_Vel'], color='#6366f1', linewidth=2, label='Rower (Torso)')
-    ax.axhline(0, color='#888', linestyle=':', linewidth=1, alpha=0.5)
-    ax.axvline(catch_idx, color='#22c55e', linestyle='--', linewidth=1.2)
-    ax.axvline(finish_idx, color='#ef4444', linestyle='--', linewidth=1.2)
-    ax.set_xlabel('Cycle index'); ax.set_ylabel('Velocity (px/sample)')
-    ax.legend(fontsize=8, loc='upper right'); ax.spines[['top', 'right']].set_visible(False)
+        ax.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_X_Vel'], color=COLOR_ARMS, linewidth=1.2, linestyle='--', label='Shoulder')
+        ax.plot(avg_cycle_m.index, avg_cycle_m['Rower_Vel'], color=COLOR_MAIN, linewidth=2, label='Rower (Torso)')
+    ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
+    ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2)
+    ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2)
+    ax.legend(fontsize=8, loc='upper right', facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
@@ -550,41 +556,40 @@ with st.expander("Step 5 details", expanded=True):
     with col_v1:
         # Relative Velocity
         st.markdown("**Relative Velocity (vs. Seat):**")
-        fig, ax = plt.subplots(figsize=(5, 3))
-        ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_rel_Seat_Vel'], color='#3b82f6', linewidth=1.5, label='Handle - Seat')
+        fig, ax = setup_premium_plot(ylabel='Relative Velocity', figsize=(5, 3))
+        ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_rel_Seat_Vel'], color=COLOR_HANDLE, linewidth=1.5, label='Handle - Seat')
+        ax.fill_between(avg_cycle_m.index, avg_cycle_m['Handle_rel_Seat_Vel'], 0, color=COLOR_HANDLE, alpha=0.08)
         if 'Shoulder_rel_Seat_Vel' in avg_cycle_m.columns:
-            ax.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_rel_Seat_Vel'], color='#10b981', linewidth=1.5, label='Shoulder - Seat')
-        ax.axhline(0, color='#888', linestyle=':', linewidth=1, alpha=0.5)
-        ax.axvline(catch_idx, color='#22c55e', linestyle='--', linewidth=1.2)
-        ax.axvline(finish_idx, color='#ef4444', linestyle='--', linewidth=1.2)
-        ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
+            ax.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_rel_Seat_Vel'], color=COLOR_ARMS, linewidth=1.5, label='Shoulder - Seat')
+        ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
+        ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2)
+        ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2)
+        ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
         st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     with col_v2:
         # Jerk
         st.markdown("**Handle Jerk (Smoothness):**")
-        fig, ax = plt.subplots(figsize=(5, 3))
+        fig, ax = setup_premium_plot(ylabel='Jerk (mm/s³)', figsize=(5, 3))
         ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Jerk'], color='#ec4899', linewidth=1.5, label='Handle Jerk')
-        ax.axhline(0, color='#888', linestyle=':', linewidth=1, alpha=0.5)
-        ax.axvline(catch_idx, color='#22c55e', linestyle='--', linewidth=1.2)
-        ax.axvline(finish_idx, color='#ef4444', linestyle='--', linewidth=1.2)
-        ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
+        ax.fill_between(avg_cycle_m.index, avg_cycle_m['Handle_X_Jerk'], 0, color='#ec4899', alpha=0.08)
+        ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
+        ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2)
+        ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2)
+        ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
         st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     # Power Curve
     st.markdown("**Power Curve (Proxy: Velocity × Acceleration):**")
-    fig, ax = plt.subplots(figsize=(10, 3.5))
-    # Plot against Handle Position for a classic "monitor" look
-    # We only care about the drive phase for the power curve usually
+    fig, ax = setup_premium_plot(xlabel='Handle Position (mm)', ylabel='Power Proxy (v * a)', figsize=(10, 3.5))
     drive_slice = avg_cycle_m.iloc[catch_idx:finish_idx]
     if not drive_slice.empty:
-        ax.fill_between(drive_slice['Handle_X_Smooth'], drive_slice['Power_Proxy'], color='#ef4444', alpha=0.3)
-        ax.plot(drive_slice['Handle_X_Smooth'], drive_slice['Power_Proxy'], color='#ef4444', linewidth=2, label='Drive Power')
+        ax.fill_between(drive_slice['Handle_X_Smooth'], drive_slice['Power_Proxy'], color=COLOR_FINISH, alpha=0.25)
+        ax.plot(drive_slice['Handle_X_Smooth'], drive_slice['Power_Proxy'], color=COLOR_FINISH, linewidth=2, label='Drive Power')
     
-    ax.set_xlabel('Handle Position (mm)'); ax.set_ylabel('Power Proxy (v * a)')
-    ax.legend(fontsize=8); ax.spines[['top', 'right']].set_visible(False)
+    ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
@@ -613,11 +618,16 @@ with st.expander("Step 6 details", expanded=True):
 
     # Bar chart for drive vs recovery
     fig, ax = plt.subplots(figsize=(4, 2))
+    fig.patch.set_facecolor(BG_COLOR_FIGURE)
+    ax.set_facecolor(BG_COLOR_AXES)
     bars = ax.barh(['Drive', 'Recovery'], [drive_pct, rec_pct],
-                   color=['#6366f1', '#22c55e'], height=0.4)
-    ax.bar_label(bars, fmt='%.1f%%', padding=4, fontsize=9)
-    ax.set_xlim(0, 100); ax.set_xlabel('%')
+                   color=[COLOR_MAIN, COLOR_CATCH], height=0.4)
+    ax.bar_label(bars, fmt='%.1f%%', padding=4, fontsize=9, color=COLOR_TEXT_MAIN)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel('%', color=COLOR_TEXT_SUB)
+    ax.tick_params(colors=COLOR_TEXT_SUB)
     ax.spines[['top', 'right', 'left']].set_visible(False)
+    ax.spines['bottom'].set_color('#DDDDDD')
     st.pyplot(fig, width='content')
     plt.close(fig)
 

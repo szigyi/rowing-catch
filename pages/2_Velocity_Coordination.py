@@ -15,11 +15,11 @@ This metric analyzes the coordination between the legs (seat velocity) and the u
 
 #### What to look for:
 - **Peak Overlap:** Ideally, the peaks of the seat and handle velocities should overlap or be very close together. This indicates that the power from the legs is being effectively transferred through the back and arms to the handle.
-- **Shooting the Slide:** If the **Orange Peak** (Seat) occurs significantly before the **Blue Peak** (Handle), it identifies "shooting the slide." This means the legs are moving, but the handle is not accelerating proportionally, leading to power loss.
+- **Shooting the Slide:** If the **Orange Peak** (Seat) occurs significantly before the **Purple Peak** (Handle), it identifies "shooting the slide." This means the legs are moving, but the handle is not accelerating proportionally, leading to power loss.
 
 #### How to read this diagram:
 - The **Orange Line** is the seat's horizontal velocity.
-- The **Blue Line** is the handle's horizontal velocity.
+- The **Blue-Purple Line** is the handle's horizontal velocity.
 - The vertical lines mark the **Catch** (Green) and **Finish** (Red).
 """)
 

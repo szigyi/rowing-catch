@@ -1,20 +1,26 @@
 import streamlit as st
 import matplotlib.pyplot as plt
+import numpy as np
+from rowing_catch.ui.utils import (
+    setup_premium_plot, COLOR_MAIN, COLOR_SEAT, COLOR_CATCH, COLOR_FINISH, 
+    COLOR_COMPARE, BG_COLOR_FIGURE, BG_COLOR_AXES, COLOR_TEXT_MAIN, COLOR_TEXT_SUB
+)
 
 def plot_velocity_coordination(avg_cycle, catch_idx, finish_idx):
-    fig, ax = plt.subplots()
-    ax.plot(avg_cycle.index, avg_cycle['Handle_X_Vel'], label='Handle Velocity', color='blue')
-    ax.plot(avg_cycle.index, avg_cycle['Seat_X_Vel'], label='Seat Velocity', color='orange')
-    ax.axvline(catch_idx, color='green', linestyle='--')
-    ax.axvline(finish_idx, color='red', linestyle='--')
-    ax.set_ylabel('Velocity')
-    ax.legend()
+    fig, ax = setup_premium_plot("Velocity Coordination", "Stroke Index", "Velocity")
+    ax.plot(avg_cycle.index, avg_cycle['Handle_X_Vel'], label='Handle Velocity', color=COLOR_MAIN, linewidth=2.5, zorder=5)
+    ax.fill_between(avg_cycle.index, avg_cycle['Handle_X_Vel'], 0, color=COLOR_MAIN, alpha=0.1, zorder=4)
+    ax.plot(avg_cycle.index, avg_cycle['Seat_X_Vel'], label='Seat Velocity', color=COLOR_SEAT, linewidth=2.5, zorder=5)
+    ax.fill_between(avg_cycle.index, avg_cycle['Seat_X_Vel'], 0, color=COLOR_SEAT, alpha=0.1, zorder=4)
+    ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.5, zorder=2)
+    ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.5, zorder=2)
+    ax.legend(frameon=True, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     st.pyplot(fig)
     st.info("**Coach's Tip:** The goal is for your legs and handle to accelerate together. "
             "Gaps between these peaks mean you are losing power (shooting the slide).")
 
 def plot_handle_trajectory(avg_cycle, catch_idx, finish_idx):
-    fig, ax = plt.subplots()
+    fig, ax = setup_premium_plot("Handle Trajectory", "Horizontal Position", "Vertical Position")
     
     # Ideal Handle Path Calculation
     h_x_min = avg_cycle['Handle_X_Smooth'].min()
@@ -28,16 +34,15 @@ def plot_handle_trajectory(avg_cycle, catch_idx, finish_idx):
     ideal_x = [h_x_min, h_x_max, h_x_max, h_x_min, h_x_min]
     ideal_y = [ideal_y_drive, ideal_y_drive, ideal_y_recovery, ideal_y_recovery, ideal_y_drive]
     
-    ax.plot(ideal_x, ideal_y, color='gray', linestyle='--', alpha=0.3, label='Ideal Path', linewidth=1)
-    ax.scatter([h_x_min, h_x_max], [ideal_y_drive, ideal_y_drive], color='gray', s=30, alpha=0.3, label='Ideal Catch/Finish')
+    ax.plot(ideal_x, ideal_y, color=COLOR_COMPARE, linestyle='--', alpha=0.5, label='Ideal Path', linewidth=1.5, zorder=2)
+    ax.scatter([h_x_min, h_x_max], [ideal_y_drive, ideal_y_drive], color=COLOR_COMPARE, s=50, alpha=0.5, label='Ideal Catch/Finish', zorder=2)
     
-    ax.plot(avg_cycle['Handle_X_Smooth'], avg_cycle['Handle_Y_Smooth'], color='black', label='Handle Path')
-    ax.scatter(avg_cycle.loc[catch_idx, 'Handle_X_Smooth'], avg_cycle.loc[catch_idx, 'Handle_Y_Smooth'], color='green', s=100, label='Catch')
-    ax.scatter(avg_cycle.loc[finish_idx, 'Handle_X_Smooth'], avg_cycle.loc[finish_idx, 'Handle_Y_Smooth'], color='red', s=100, label='Finish')
-    ax.set_xlabel('Horizontal Position')
-    ax.set_ylabel('Vertical Position')
+    ax.plot(avg_cycle['Handle_X_Smooth'], avg_cycle['Handle_Y_Smooth'], color=COLOR_MAIN, label='Handle Path', linewidth=2.5, zorder=4)
+    ax.scatter(avg_cycle.loc[catch_idx, 'Handle_X_Smooth'], avg_cycle.loc[catch_idx, 'Handle_Y_Smooth'], color=COLOR_CATCH, s=100, label='Catch', zorder=5)
+    ax.scatter(avg_cycle.loc[finish_idx, 'Handle_X_Smooth'], avg_cycle.loc[finish_idx, 'Handle_Y_Smooth'], color=COLOR_FINISH, s=100, label='Finish', zorder=5)
+    
     ax.invert_yaxis()
-    ax.legend()
+    ax.legend(frameon=True, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     st.pyplot(fig)
     st.info("**Coach's Tip:** A flatter top line on the drive means a more consistent depth in the water.")
 
@@ -52,9 +57,16 @@ def plot_consistency_rhythm(cv, drive_p, rec_p):
 
     labels = ['Drive', 'Recovery']
     sizes = [drive_p, rec_p]
-    fig, ax = plt.subplots()
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['#ff9999','#66b3ff'])
+    
+    fig, ax = plt.subplots(figsize=(6, 6))
+    fig.patch.set_facecolor(BG_COLOR_FIGURE)
+    ax.set_facecolor(BG_COLOR_AXES)
+    
+    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, 
+           colors=[COLOR_FINISH, COLOR_MAIN], 
+           textprops={'color': COLOR_TEXT_MAIN, 'fontweight': 'bold'})
     ax.axis('equal')
+    
     st.pyplot(fig)
     st.info(f"**Coach's Tip:** {'You are rushing the recovery.' if drive_p > 35 else 'Good rhythm.'} "
             "Slower movement on the slide (recovery) allows your muscles to recover.")

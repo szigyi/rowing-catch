@@ -13,7 +13,6 @@ from rowing_catch.algo.steps.step5_metrics import step5_compute_metrics
 from rowing_catch.algo.steps.step6_statistics import step6_statistics
 from rowing_catch.algo.steps.step7_diagnostics import step7_diagnostics
 from rowing_catch.algo.steps.step5_metrics import _pick_finish_index
-import altair as alt
 from rowing_catch.algo.constants import REQUIRED_COLUMN_NAMES, PROCESSED_COLUMN_NAMES
 from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scenarios
 from rowing_catch.ui.utils import (
@@ -82,6 +81,24 @@ WINDOW = 10
 # ---------------------------------------------------------------------------
 # Helper: a small reusable banner for each step
 # ---------------------------------------------------------------------------
+def _phase_header(title: str, subtitle: str):
+    """Render a wide, amber-accented phase-level divider banner."""
+    st.markdown(
+        f"<div style='display:flex;align-items:center;justify-content:space-between;"
+        f"background:#1c1a12;padding:10px 14px;border-radius:10px;"
+        f"border-left:5px solid #f59e0b;margin:20px 0 10px 0;"
+        f"font-family:inherit;'>"
+        f"<div style='display:flex;align-items:center;gap:12px;'>"
+        f"<span style='color:#fbbf24;font-size:10px;font-weight:800;letter-spacing:1.5px;"
+        f"text-transform:uppercase'>PHASE</span>"
+        f"<strong style='color:#fef3c7;font-size:16px;margin:0;letter-spacing:0.3px'>{title}</strong>"
+        f"</div>"
+        f"<span style='color:#92400e;font-size:12px;margin:0;font-style:italic;'>{subtitle}</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _step_header(number: int, title: str, subtitle: str):
     st.markdown(
         f"<div style='display:flex;align-items:center;justify-content:space-between;"
@@ -106,6 +123,14 @@ def _fail(msg: str):
     st.error(f"{msg}")
     st.stop()
 
+
+# ===========================================================================
+# PHASE 1 — Raw Data Intake & Validation
+# ===========================================================================
+_phase_header(
+    "Raw Data Intake & Validation",
+    "Steps 0–1 · Ingest raw CSV, verify required columns exist, and normalise column names",
+)
 
 # ===========================================================================
 # STEP 0 — Validation
@@ -153,6 +178,14 @@ with st.expander("Step 1 details", expanded=False):
         _ok(f"{len(df_step1):,} rows, all required columns present.")
 
 # ===========================================================================
+# PHASE 2 — Signal Conditioning
+# ===========================================================================
+_phase_header(
+    "Signal Conditioning",
+    "Step 2 · Apply centred rolling-mean smoothing to suppress high-frequency sensor noise before analysis",
+)
+
+# ===========================================================================
 # STEP 2 — Smooth
 # ===========================================================================
 _step_header(2, "Smooth", f"Apply centred rolling mean (window={WINDOW}) to position columns.")
@@ -188,6 +221,14 @@ with st.expander("Step 2 details", expanded=False):
     st.markdown("**Smoothed column stats:**")
     smooth_cols = [f'{c}_Smooth' for c in PROCESSED_COLUMN_NAMES if f'{c}_Smooth' in df_step2.columns]
     st.dataframe(df_step2[smooth_cols].describe().T.round(2), width='stretch')
+
+# ===========================================================================
+# PHASE 3 — Stroke Segmentation
+# ===========================================================================
+_phase_header(
+    "Stroke Segmentation",
+    "Steps 3–4 · Detect each catch event, slice the recording into individual stroke cycles, time-align and average them",
+)
 
 # ===========================================================================
 # STEP 3 — Detect catches
@@ -259,46 +300,36 @@ with st.expander("Step 4 details", expanded=False):
 
     with col_r:
         st.markdown("**Averaged Seat_X (all cycles overlaid):**")
-        
-        # Prepare data for Altair overlays
-        all_cycles_data = []
-        for i, c in enumerate(cycles):
-            cycle_points = c[['Seat_X_Smooth']].iloc[:min_length].copy()
-            cycle_points['Cycle'] = f"Cycle {i+1}"
-            all_cycles_data.append(cycle_points)
-        
-        df_cycles = pd.concat(all_cycles_data).reset_index()
-        
-        # Calculate confidence bands (std dev)
-        stats_df = df_cycles.groupby('Cycle_Index')['Seat_X_Smooth'].agg(['mean', 'std']).reset_index()
-        stats_df['upper'] = stats_df['mean'] + stats_df['std']
-        stats_df['lower'] = stats_df['mean'] - stats_df['std']
-        
-        # Altair chart
-        base_ov = alt.Chart(df_cycles).encode(
-            x=alt.X('Cycle_Index:Q', title='Cycle Index')
-        ).properties(width='container', height=250).interactive()
 
+        # Build per-cycle arrays and mean/std bands
+        cycle_arrays = [c['Seat_X_Smooth'].to_numpy(dtype=float)[:min_length] for c in cycles]
+        x_idx = np.arange(min_length)
+        stack = np.vstack(cycle_arrays)
+        mean_vals = stack.mean(axis=0)
+        std_vals = stack.std(axis=0)
+
+        fig, ax = setup_premium_plot(
+            xlabel='Cycle Index', ylabel='Seat_X_Smooth (mm)', figsize=(5, 3)
+        )
         # Individual cycles (faded)
-        lines_ov = base_ov.mark_line(color='#cbd5e1', strokeWidth=0.8, opacity=0.4).encode(
-            y=alt.Y('Seat_X_Smooth:Q', title='Seat_X_Smooth (mm)', scale=alt.Scale(zero=False)),
-            detail='Cycle'
-        )
-
+        for arr in cycle_arrays:
+            ax.plot(x_idx, arr, color='#cbd5e1', linewidth=0.8, alpha=0.4)
+        # ±1 SD confidence band
+        ax.fill_between(x_idx, mean_vals - std_vals, mean_vals + std_vals,
+                        color=COLOR_MAIN, alpha=0.15, label='±1 SD')
         # Average cycle (bold)
-        avg_line_ov = alt.Chart(stats_df).mark_line(color='#6366f1', strokeWidth=2).encode(
-            x='Cycle_Index:Q',
-            y='mean:Q'
-        )
+        ax.plot(x_idx, mean_vals, color=COLOR_MAIN, linewidth=2, label='Mean cycle')
+        ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
+        st.pyplot(fig, width='stretch')
+        plt.close(fig)
 
-        # Confidence band (std dev)
-        band_ov = alt.Chart(stats_df).mark_area(color='#6366f1', opacity=0.15).encode(
-            x='Cycle_Index:Q',
-            y='lower:Q',
-            y2='upper:Q'
-        )
-
-        st.altair_chart(alt.layer(lines_ov, band_ov, avg_line_ov), width='stretch')
+# ===========================================================================
+# PHASE 4 — Biomechanical Metrics on the Average Cycle
+# ===========================================================================
+_phase_header(
+    "Biomechanical Metrics on the Average Cycle",
+    "Step 5 · Derive trunk angle, velocities, acceleration, jerk, and drive-phase power proxy from the averaged stroke",
+)
 
 # ===========================================================================
 # STEP 5 — Compute metrics
@@ -456,71 +487,38 @@ with st.expander("Step 5 details", expanded=True):
     
     production_finish_indices = np.array(production_finish_indices, dtype=int)
 
-    # --- Interactive Altair Visualization ---
-
-    # 3. Prepare data for Altair (long format for easier layering)
-    df_plot = df_debug.reset_index().rename(columns={'index': 'Sample'})
-    
-    # Base chart for Seat_X_Smooth
-    base = alt.Chart(df_plot).encode(
-        x=alt.X('Sample:Q', title='Sample Index')
-    ).properties(
-        width='container',
-        height=300
-    ).interactive()
-
+    # 3. Full-trajectory matplotlib plot
+    sample_idx = df_debug.index.to_numpy()
+    fig, ax = setup_premium_plot(
+        title='Full Trajectory: Seat_X (Raw vs Smoothed) with Detected Events',
+        xlabel='Sample Index', ylabel='Seat_X (mm)', figsize=(10, 3.5)
+    )
     # Raw signal (faded)
-    raw_line = base.mark_line(color='#cbd5e1', strokeWidth=1, opacity=0.4).encode(
-        y=alt.Y('Seat_X:Q', title='Seat_X (mm)', scale=alt.Scale(zero=False)),
-        tooltip=['Sample', 'Seat_X']
-    )
-
+    if 'Seat_X' in df_debug.columns:
+        ax.plot(sample_idx, df_debug['Seat_X'], color=COLOR_COMPARE,
+                linewidth=0.8, alpha=0.4, label='Raw Seat_X')
     # Smoothed signal
-    smooth_line = base.mark_line(color='#6366f1', strokeWidth=1.5).encode(
-        y=alt.Y('Seat_X_Smooth:Q', scale=alt.Scale(zero=False)),
-        tooltip=['Sample', 'Seat_X_Smooth']
+    ax.plot(sample_idx, df_debug['Seat_X_Smooth'], color=COLOR_SEAT,
+            linewidth=1.5, label='Smoothed Seat_X')
+    # Catch markers
+    for ci in catch_indices:
+        ax.axvline(ci, color=COLOR_CATCH, linewidth=1, linestyle='--', alpha=0.7)
+    ax.scatter(
+        catch_indices,
+        df_debug['Seat_X_Smooth'].iloc[catch_indices],
+        color=COLOR_CATCH, s=50, zorder=5, label='Catch'
     )
-
-    # Catch markers (Vertical lines and Points)
-    catch_df = df_plot.iloc[catch_indices].copy()
-    catch_df['Event'] = 'Catch'
-    
-    catches_rules = alt.Chart(catch_df).mark_rule(color='#22c55e', strokeDash=[4, 2], opacity=0.6).encode(
-        x='Sample:Q'
+    # Production finish markers
+    for fi in production_finish_indices:
+        ax.axvline(fi, color=COLOR_FINISH, linewidth=1, linestyle='--', alpha=0.7)
+    ax.scatter(
+        production_finish_indices,
+        df_debug['Seat_X_Smooth'].iloc[production_finish_indices],
+        color=COLOR_FINISH, marker='X', s=60, zorder=5, label='Finish'
     )
-    catches_points = alt.Chart(catch_df).mark_circle(color='#22c55e', size=40).encode(
-        x='Sample:Q',
-        y='Seat_X_Smooth:Q',
-        tooltip=['Sample', 'Seat_X_Smooth', 'Event']
-    )
-
-    # Finish markers (Vertical lines and Circles)
-    finish_df = df_plot.iloc[production_finish_indices].copy()
-    finish_df['Event'] = 'Finish'
-    
-    finishes_rules = alt.Chart(finish_df).mark_rule(color='#d946ef', strokeDash=[4, 2], opacity=0.6).encode(
-        x='Sample:Q'
-    )
-    finishes_points = alt.Chart(finish_df).mark_circle(color='#d946ef', size=50).encode(
-        x='Sample:Q',
-        y='Seat_X_Smooth:Q',
-        tooltip=['Sample', 'Seat_X_Smooth', 'Event']
-    )
-
-    # Combine everything
-    chart = alt.layer(
-        raw_line, smooth_line, 
-        catches_rules, catches_points, 
-        finishes_rules, finishes_points
-    ).properties(
-        title='Interactive Full Trajectory: Seat_X (Raw vs Smoothed) and Detected Events'
-    ).configure_axis(
-        grid=False
-    ).configure_view(
-        strokeWidth=0
-    )
-
-    st.altair_chart(chart, width='stretch')
+    ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
+    st.pyplot(fig, width='stretch')
+    plt.close(fig)
 
     # Trunk angle plot
     st.markdown("**Trunk Angle across the averaged stroke:**")
@@ -598,6 +596,14 @@ with st.expander("Step 5 details", expanded=True):
         st.dataframe(avg_cycle_m.round(3), width='stretch')
 
 # ===========================================================================
+# PHASE 5 — Stroke-Level Statistics
+# ===========================================================================
+_phase_header(
+    "Stroke-Level Statistics",
+    "Step 6 · Aggregate scalar metrics across all individual cycles: consistency CV, SPM, drive/recovery ratio and temporal durations",
+)
+
+# ===========================================================================
 # STEP 6 — Statistics
 # ===========================================================================
 _step_header(6, "Statistics", "Summarise stroke consistency, drive/recovery ratio.")
@@ -656,37 +662,49 @@ with st.expander("Step 6 details", expanded=True):
     
     if cycle_data:
         df_spread = pd.DataFrame(cycle_data)
-        
-        # Altair Scatter Plot
-        spread_chart = alt.Chart(df_spread).mark_circle(size=100, color='#6366f1').encode(
-            x=alt.X('SPM:Q', scale=alt.Scale(zero=False), title='Strokes Per Minute (SPM)'),
-            y=alt.Y('Ratio_DR:Q', scale=alt.Scale(zero=False), title='Drive:Recovery Ratio'),
-            tooltip=['Cycle', 'SPM', alt.Tooltip('Ratio_DR:Q', title='Ratio (D:R)'), 'Drive (s)', 'Recovery (s)']
-        ).properties(
-            title='Stroke-by-Stroke Rhythm Consistency',
-            width='container',
-            height=350
-        ).interactive()
-        
-        # Add a mean line for SPM
-        mean_spm = alt.Chart(df_spread).mark_rule(color='#94a3b8', strokeDash=[4,2]).encode(
-            x='mean(SPM):Q'
-        )
-        
-        # Add a mean line for Ratio
-        mean_ratio = alt.Chart(df_spread).mark_rule(color='#94a3b8', strokeDash=[4,2]).encode(
-            y='mean(Ratio_DR):Q'
-        )
 
-        
-        st.altair_chart(alt.layer(spread_chart, mean_spm, mean_ratio), width='stretch')
+        fig, ax = setup_premium_plot(
+            title='Stroke-by-Stroke Rhythm Consistency',
+            xlabel='Strokes Per Minute (SPM)',
+            ylabel='Drive:Recovery Ratio',
+            figsize=(7, 4)
+        )
+        spm_vals = df_spread['SPM'].to_numpy(dtype=float)
+        ratio_vals = df_spread['Ratio_DR'].to_numpy(dtype=float)
+        cycle_nums = df_spread['Cycle'].to_numpy()
+
+        # Mean crosshair lines
+        ax.axvline(float(np.nanmean(spm_vals)), color='#94a3b8',
+                   linewidth=1, linestyle='--', alpha=0.7, label='Mean SPM')
+        ax.axhline(float(np.nanmean(ratio_vals)), color='#94a3b8',
+                   linewidth=1, linestyle='--', alpha=0.7, label='Mean D:R')
+
+        # Scatter points
+        ax.scatter(spm_vals, ratio_vals, color=COLOR_MAIN, s=80, zorder=5)
+
+        # Cycle number labels next to each point
+        for cx, cy, label in zip(spm_vals, ratio_vals, cycle_nums):
+            ax.annotate(
+                str(label), (cx, cy),
+                textcoords='offset points', xytext=(6, 4),
+                fontsize=8, color=COLOR_TEXT_SUB
+            )
+
+        ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
+        st.pyplot(fig, width='stretch')
+        plt.close(fig)
     else:
         st.info("Insufficient time data to calculate stroke-by-stroke rhythm spread.")
 
 
 # ===========================================================================
-# METADATA & DIAGNOSTICS
+# PHASE 6 — Data Quality & Diagnostics
 # ===========================================================================
+_phase_header(
+    "Data Quality & Diagnostics",
+    "Step 7 · Assess sampling stability, count rows dropped, and surface any pipeline warnings",
+)
+
 st.markdown("### Data Quality & Metadata Diagnostics")
 
 with st.expander("Metadata details", expanded=True):

@@ -70,9 +70,21 @@ else:
     df_raw = create_scenario_data("Trunk", selected_scenario)
     data_label = f"Scenario: {selected_scenario}"
 
+# New parameter for unit conversion
+st.sidebar.divider()
+fps = st.sidebar.number_input(
+    "Recording FPS", 
+    min_value=1.0, max_value=240.0, value=120.0, step=1.0,
+    help="Frames Per Second of the video. Used to calculate real-world velocity (mm/s)."
+)
+
 if df_raw is None:
     st.info("Select a data source in the sidebar to begin.")
     st.stop()
+
+# Ensure Time column exists for mm/s conversion
+if 'Time' not in df_raw.columns:
+    df_raw['Time'] = np.arange(len(df_raw)) / fps
 
 st.caption(f"**Input:** {data_label} — {len(df_raw):,} rows × {len(df_raw.columns)} columns")
 
@@ -340,34 +352,15 @@ _step_header(5, "Compute Metrics",
 with st.expander("Step 5 details", expanded=True):
     avg_cycle_m, catch_idx, finish_idx = step5_compute_metrics(avg_cycle, window=WINDOW)
 
-    # --- Experimental Metrics Calculations ---
-    if 'Shoulder_X_Smooth' in avg_cycle_m.columns:
-        if 'Time' in avg_cycle_m.columns:
-            t = avg_cycle_m['Time'].to_numpy(dtype=float)
-            avg_cycle_m['Shoulder_X_Vel'] = np.gradient(avg_cycle_m['Shoulder_X_Smooth'], t)
-        else:
-            avg_cycle_m['Shoulder_X_Vel'] = np.gradient(avg_cycle_m['Shoulder_X_Smooth'])
+    # --- Derived Relative Metrics (UI/Analysis helper) ---
+    if 'Seat_X_Vel' in avg_cycle_m.columns:
+        if 'Shoulder_X_Vel' in avg_cycle_m.columns:
+            avg_cycle_m['Shoulder_rel_Seat_Vel'] = avg_cycle_m['Shoulder_X_Vel'] - avg_cycle_m['Seat_X_Vel']
         
-        avg_cycle_m['Rower_Vel'] = (avg_cycle_m['Seat_X_Vel'] + avg_cycle_m['Shoulder_X_Vel']) / 2
-        avg_cycle_m['Shoulder_rel_Seat_Vel'] = avg_cycle_m['Shoulder_X_Vel'] - avg_cycle_m['Seat_X_Vel']
+        avg_cycle_m['Handle_rel_Seat_Vel'] = avg_cycle_m['Handle_X_Vel'] - avg_cycle_m['Seat_X_Vel']
     
-    avg_cycle_m['Handle_rel_Seat_Vel'] = avg_cycle_m['Handle_X_Vel'] - avg_cycle_m['Seat_X_Vel']
-    
-    if 'Time' in avg_cycle_m.columns:
-        t = avg_cycle_m['Time'].to_numpy(dtype=float)
-        avg_cycle_m['Handle_X_Accel'] = np.gradient(avg_cycle_m['Handle_X_Vel'], t)
-        avg_cycle_m['Handle_X_Jerk'] = np.gradient(avg_cycle_m['Handle_X_Accel'], t)
-    else:
-        avg_cycle_m['Handle_X_Accel'] = np.gradient(avg_cycle_m['Handle_X_Vel'])
-        avg_cycle_m['Handle_X_Jerk'] = np.gradient(avg_cycle_m['Handle_X_Accel'])
-    
-    # Power Curve calculation is restricted to the drive phase
-    avg_cycle_m['Power_Proxy'] = 0.0
-    drive_mask = (avg_cycle_m.index >= catch_idx) & (avg_cycle_m.index <= finish_idx)
-    avg_cycle_m.loc[drive_mask, 'Power_Proxy'] = np.maximum(
-        0, 
-        avg_cycle_m.loc[drive_mask, 'Handle_X_Vel'] * avg_cycle_m.loc[drive_mask, 'Handle_X_Accel']
-    )
+    # The V³ Power Proxy columns (Power_Total, Power_Legs, Power_Trunk, Power_Arms)
+    # are already calculated by step5_compute_metrics. No extra computation needed here.
 
 
 
@@ -384,7 +377,7 @@ with st.expander("Step 5 details", expanded=True):
     col5.metric("Trunk angle @ Finish", f"{finish_angle:.1f}°")
 
     st.markdown("**Catch + Finish on averaged cycle**")
-    fig, ax1 = setup_premium_plot(xlabel='Cycle sample index (time)', ylabel='Seat X (mm)', figsize=(9, 5))
+    fig, ax1 = setup_premium_plot(xlabel='Cycle index (time)', ylabel='Seat X (mm)', figsize=(9, 5))
     fig.patch.set_facecolor(BG_COLOR_FIGURE)
     
     # 1. Seat X (Left axis)
@@ -516,13 +509,9 @@ with st.expander("Step 5 details", expanded=True):
     # 3. Full-trajectory matplotlib plot
     sample_idx = df_debug.index.to_numpy()
     fig, ax = setup_premium_plot(
-        title='Full Trajectory: Seat_X (Raw vs Smoothed) with Detected Events',
-        xlabel='Sample Index', ylabel='Seat_X (mm)', figsize=(10, 3.5)
+        title='Full Trajectory: Seat_X_Smooth with Detected Events',
+        xlabel='Cycle Index (time)', ylabel='Seat_X (mm)', figsize=(10, 3.5)
     )
-    # Raw signal (faded)
-    if 'Seat_X' in df_debug.columns:
-        ax.plot(sample_idx, df_debug['Seat_X'], color=COLOR_COMPARE,
-                linewidth=0.8, alpha=0.4, label='Raw Seat_X')
     # Smoothed signal
     ax.plot(sample_idx, df_debug['Seat_X_Smooth'], color=COLOR_SEAT,
             linewidth=1.5, label='Smoothed Seat_X')
@@ -548,27 +537,39 @@ with st.expander("Step 5 details", expanded=True):
 
     # Trunk angle plot
     st.markdown("**Trunk Angle across the averaged stroke:**")
-    fig, ax = setup_premium_plot(xlabel='Cycle index', ylabel='Degrees from vertical', figsize=(10, 3))
+    fig, ax = setup_premium_plot(xlabel='Cycle index (time)', ylabel='Degrees from vertical', figsize=(10, 3))
     ax.plot(avg_cycle_m.index, avg_cycle_m['Trunk_Angle'],
             color=COLOR_MAIN, linewidth=2, label='Trunk Angle')
     ax.fill_between(avg_cycle_m.index, avg_cycle_m['Trunk_Angle'], 0, color=COLOR_MAIN, alpha=0.08)
     ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
-    ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.5, label=f'Catch ({catch_angle:.1f}°)')
-    ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.5, label=f'Finish ({finish_angle:.1f}°)')
+
+    # Catch & Finish vertical lines + annotations
+    ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.5, alpha=0.8)
+    catch_y = float(avg_cycle_m.loc[catch_idx, 'Trunk_Angle'])
+    ax.annotate(f'Catch ({catch_angle:.1f}°) ', xy=(catch_idx, catch_y),
+                xytext=(catch_idx, catch_y - 2), color=COLOR_CATCH,
+                fontsize=8, fontweight='bold', va='center', ha='right')
+
+    ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.5, alpha=0.8)
+    finish_y = float(avg_cycle_m.loc[finish_idx, 'Trunk_Angle'])
+    ax.annotate(f' Finish ({finish_angle:.1f}°)', xy=(finish_idx, finish_y),
+                xytext=(finish_idx + 2, finish_y), color=COLOR_FINISH,
+                fontsize=8, fontweight='bold', va='center', ha='left')
+
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     # Detailed Velocity plot
-    st.markdown("**Detailed Velocity (Seat, Handle, Shoulder, Rower):**")
-    fig, ax = setup_premium_plot(xlabel='Cycle index', ylabel='Velocity (px/sample)', figsize=(10, 3.5))
+    st.markdown("**Detailed Velocity [rate of change] (Seat, Handle, Shoulder, Rower):**")
+    fig, ax = setup_premium_plot(xlabel='Cycle index (time)', ylabel='Velocity (mm/s)', figsize=(10, 3.5))
     ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Vel'], color=COLOR_HANDLE, linewidth=1.5, label='Handle')
     ax.fill_between(avg_cycle_m.index, avg_cycle_m['Handle_X_Vel'], 0, color=COLOR_HANDLE, alpha=0.08)
     ax.plot(avg_cycle_m.index, avg_cycle_m['Seat_X_Vel'], color=COLOR_SEAT, linewidth=1.5, label='Seat')
     ax.fill_between(avg_cycle_m.index, avg_cycle_m['Seat_X_Vel'], 0, color=COLOR_SEAT, alpha=0.08)
     if 'Shoulder_X_Vel' in avg_cycle_m.columns:
         ax.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_X_Vel'], color=COLOR_ARMS, linewidth=1.2, linestyle='--', label='Shoulder')
-        ax.plot(avg_cycle_m.index, avg_cycle_m['Rower_Vel'], color=COLOR_MAIN, linewidth=2, label='Rower (Torso)')
+        ax.plot(avg_cycle_m.index, avg_cycle_m['Rower_Vel'], color=COLOR_MAIN, linewidth=2, label='Torso (Seat/Shoulder Avg)')
     ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
     ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2)
     ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2)
@@ -576,44 +577,97 @@ with st.expander("Step 5 details", expanded=True):
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
-    col_v1, col_v2 = st.columns(2)
-    with col_v1:
-        # Relative Velocity
-        st.markdown("**Relative Velocity (vs. Seat):**")
-        fig, ax = setup_premium_plot(ylabel='Relative Velocity', figsize=(5, 3))
-        ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_rel_Seat_Vel'], color=COLOR_HANDLE, linewidth=1.5, label='Handle - Seat')
-        ax.fill_between(avg_cycle_m.index, avg_cycle_m['Handle_rel_Seat_Vel'], 0, color=COLOR_HANDLE, alpha=0.08)
-        if 'Shoulder_rel_Seat_Vel' in avg_cycle_m.columns:
-            ax.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_rel_Seat_Vel'], color=COLOR_ARMS, linewidth=1.5, label='Shoulder - Seat')
-        ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
-        ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2)
-        ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2)
-        ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
-        st.pyplot(fig, width='stretch')
-        plt.close(fig)
-
-    with col_v2:
-        # Jerk
-        st.markdown("**Handle Jerk (Smoothness):**")
-        fig, ax = setup_premium_plot(ylabel='Jerk (mm/s³)', figsize=(5, 3))
-        ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Jerk'], color='#ec4899', linewidth=1.5, label='Handle Jerk')
-        ax.fill_between(avg_cycle_m.index, avg_cycle_m['Handle_X_Jerk'], 0, color='#ec4899', alpha=0.08)
-        ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
-        ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2)
-        ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2)
-        ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
-        st.pyplot(fig, width='stretch')
-        plt.close(fig)
-
-    # Power Curve
-    st.markdown("**Power Curve (Proxy: Velocity × Acceleration):**")
-    fig, ax = setup_premium_plot(xlabel='Handle Position (mm)', ylabel='Power Proxy (v * a)', figsize=(10, 3.5))
-    drive_slice = avg_cycle_m.iloc[catch_idx:finish_idx]
-    if not drive_slice.empty:
-        ax.fill_between(drive_slice['Handle_X_Smooth'], drive_slice['Power_Proxy'], color=COLOR_FINISH, alpha=0.25)
-        ax.plot(drive_slice['Handle_X_Smooth'], drive_slice['Power_Proxy'], color=COLOR_FINISH, linewidth=2, label='Drive Power')
-    
+    # Relative Velocity
+    st.markdown("**Relative Velocity (vs. Seat):**")
+    fig, ax = setup_premium_plot(xlabel='Cycle index (time)', ylabel='Relative Velocity (mm/s)', figsize=(10, 3.5))
+    ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_rel_Seat_Vel'], color=COLOR_HANDLE, linewidth=1.5, label='Handle - Seat')
+    ax.fill_between(avg_cycle_m.index, avg_cycle_m['Handle_rel_Seat_Vel'], 0, color=COLOR_HANDLE, alpha=0.08)
+    if 'Shoulder_rel_Seat_Vel' in avg_cycle_m.columns:
+        ax.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_rel_Seat_Vel'], color=COLOR_ARMS, linewidth=1.5, label='Shoulder - Seat')
+    ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
+    ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2)
+    ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2)
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
+    st.pyplot(fig, width='stretch')
+    plt.close(fig)
+
+    # Jerk subplots
+    st.markdown("**Jerk in the system (Smoothness):**")
+    st.caption("Each panel compares an individual segment's smoothness vs. the overall System (Torso) baseline.")
+    
+    # Components to compare vs System Jerk
+    components = [
+        ('Handle', 'Handle_X_Jerk', '#ec4899'),
+        ('Seat', 'Seat_X_Jerk', COLOR_SEAT)
+    ]
+    if 'Shoulder_X_Jerk' in avg_cycle_m.columns:
+        components.append(('Shoulder', 'Shoulder_X_Jerk', COLOR_ARMS))
+    
+    n_plots = len(components)
+    fig, axes = plt.subplots(n_plots, 1, figsize=(10, 2.5 * n_plots), sharex=True, sharey=True)
+    if n_plots == 1: axes = [axes]
+    
+    fig.patch.set_facecolor(BG_COLOR_FIGURE)
+    
+    for ax, (label, col, color) in zip(axes, components):
+        # 1. Reference: System Jerk (Torso) - Strengthened but still background
+        if 'Rower_Jerk' in avg_cycle_m.columns:
+            ax.plot(avg_cycle_m.index, avg_cycle_m['Rower_Jerk'], color='#777777', 
+                    linewidth=1.2, linestyle='--', label='System Jerk', alpha=0.7, zorder=1)
+
+        # 2. Individual Component Jerk - Primary focus
+        ax.plot(avg_cycle_m.index, avg_cycle_m[col], color=color, 
+                linewidth=1.5, linestyle='-', label=f'{label} Jerk', zorder=2)
+        
+        # UI Styling
+        ax.set_facecolor(BG_COLOR_AXES)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_color('#DDDDDD')
+        ax.spines['bottom'].set_color('#DDDDDD')
+        ax.grid(axis='y', linestyle='-', linewidth=0.5, color='#F0F0F0', zorder=0)
+        ax.set_ylabel('Jerk (mm/s³)', fontweight='bold', color=COLOR_TEXT_SUB, fontsize=8)
+        
+        # Markers
+        ax.axhline(0, color='#888888', linestyle='-', linewidth=0.5, alpha=0.3)
+        ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2, alpha=0.5)
+        ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2, alpha=0.5)
+        
+        ax.legend(fontsize=7, loc='upper right', framealpha=0.9,
+                  facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
+
+    axes[-1].set_xlabel('Cycle index (time)', fontweight='bold', color=COLOR_TEXT_SUB)
+    plt.tight_layout()
+    st.pyplot(fig, width='stretch')
+    plt.close(fig)
+
+    # Power Curve (V³ Model)
+    st.markdown("**Power Curve (V³ Drag Model):**")
+    drive_slice = avg_cycle_m.iloc[catch_idx:finish_idx]
+    fig, ax = setup_premium_plot(
+        xlabel='Cycle index (time)', ylabel='Power Proxy (V³ units)', figsize=(10, 3.5)
+    )
+    if not drive_slice.empty:
+        x = drive_slice.index
+        # Total power area
+        ax.fill_between(x, drive_slice['Power_Total'].clip(lower=0),
+                        color=COLOR_FINISH, alpha=0.12, label='_nolegend_')
+        ax.plot(x, drive_slice['Power_Total'], color=COLOR_FINISH,
+                linewidth=2, label='Total')
+        # Segmental breakdown
+        if 'Power_Legs' in drive_slice.columns:
+            ax.plot(x, drive_slice['Power_Legs'], color=COLOR_SEAT,
+                    linewidth=1.2, linestyle='--', label='Legs')
+        if 'Power_Trunk' in drive_slice.columns:
+            ax.plot(x, drive_slice['Power_Trunk'], color=COLOR_ARMS,
+                    linewidth=1.2, linestyle='-.', label='Trunk')
+        if 'Power_Arms' in drive_slice.columns:
+            ax.plot(x, drive_slice['Power_Arms'], color=COLOR_HANDLE,
+                    linewidth=1, linestyle=':', label='Arms')
+    ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
+    ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2, alpha=0.6)
+    ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2, alpha=0.6)
+    ax.legend(fontsize=8, loc='upper left', facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
@@ -648,18 +702,36 @@ with st.expander("Step 6 details", expanded=True):
     col_s2.metric("Drive / Recovery", f"{drive_pct:.1f}% / {rec_pct:.1f}%")
     col_s3.metric("Avg cycle duration", f"{stats['mean_duration']:.0f} samples")
 
-    # Bar chart for drive vs recovery
-    fig, ax = plt.subplots(figsize=(4, 2))
+    # Stacked bar chart for drive vs recovery
+    st.markdown("**Drive vs. Recovery Balance:**")
+    fig, ax = plt.subplots(figsize=(6, 1.5))
     fig.patch.set_facecolor(BG_COLOR_FIGURE)
     ax.set_facecolor(BG_COLOR_AXES)
-    bars = ax.barh(['Drive', 'Recovery'], [drive_pct, rec_pct],
-                   color=[COLOR_MAIN, COLOR_CATCH], height=0.4)
-    ax.bar_label(bars, fmt='%.1f%%', padding=4, fontsize=9, color=COLOR_TEXT_MAIN)
+    
+    # Single stacked bar
+    h = 0.5
+    ax.barh(['Ratio'], [drive_pct], color=COLOR_MAIN, height=h, label='Drive')
+    ax.barh(['Ratio'], [rec_pct], left=[drive_pct], color=COLOR_CATCH, height=h, label='Recovery')
+    
+    # Add text labels inside bars
+    ax.text(drive_pct/2, 0, f"Drive\n{drive_pct:.1f}%", ha='center', va='center', 
+            color='white', fontweight='bold', fontsize=9)
+    ax.text(drive_pct + rec_pct/2, 0, f"Recovery\n{rec_pct:.1f}%", ha='center', va='center', 
+            color='white', fontweight='bold', fontsize=9)
+
+    # Ghost line for ideal 1:2 ratio (Drive = 33.3%)
+    ideal_x = 100 / 3  # 33.33%
+    ax.axvline(ideal_x, color='#444444', linestyle=':', linewidth=2, alpha=0.6, zorder=3)
+    ax.text(ideal_x, 0.4, ' Ideal (1:2)', color='#444444', fontsize=8, fontweight='bold', va='bottom')
+
     ax.set_xlim(0, 100)
-    ax.set_xlabel('%', color=COLOR_TEXT_SUB)
-    ax.tick_params(colors=COLOR_TEXT_SUB)
+    ax.set_xticks([0, 25, 33.3, 50, 75, 100])
+    ax.set_xticklabels(['0%', '25%', '33%', '50%', '75%', '100%'], fontsize=8)
+    ax.tick_params(axis='y', which='both', left=False, labelleft=False)
+    ax.tick_params(axis='x', colors=COLOR_TEXT_SUB)
     ax.spines[['top', 'right', 'left']].set_visible(False)
     ax.spines['bottom'].set_color('#DDDDDD')
+    
     st.pyplot(fig, width='content')
     plt.close(fig)
 

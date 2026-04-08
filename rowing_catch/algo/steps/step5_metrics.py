@@ -47,29 +47,39 @@ def step5_compute_metrics(
 
     avg_cycle['Trunk_Angle'] = avg_cycle.apply(_calc_trunk_angle, axis=1)
 
-    if 'Time' in avg_cycle.columns:
-        t = avg_cycle['Time'].to_numpy(dtype=float)
-        if len(t) > 1 and np.all(np.diff(t) > 0):
-            avg_cycle['Handle_X_Vel'] = np.gradient(avg_cycle['Handle_X_Smooth'], t)
-            avg_cycle['Seat_X_Vel'] = np.gradient(avg_cycle['Seat_X_Smooth'], t)
-            if 'Shoulder_X_Smooth' in avg_cycle.columns:
-                avg_cycle['Shoulder_X_Vel'] = np.gradient(avg_cycle['Shoulder_X_Smooth'], t)
-            avg_cycle['Handle_X_Accel'] = np.gradient(avg_cycle['Handle_X_Vel'], t)
-            avg_cycle['Handle_X_Jerk'] = np.gradient(avg_cycle['Handle_X_Accel'], t)
-        else:
-            avg_cycle['Handle_X_Vel'] = np.gradient(avg_cycle['Handle_X_Smooth'])
-            avg_cycle['Seat_X_Vel'] = np.gradient(avg_cycle['Seat_X_Smooth'])
-            if 'Shoulder_X_Smooth' in avg_cycle.columns:
-                avg_cycle['Shoulder_X_Vel'] = np.gradient(avg_cycle['Shoulder_X_Smooth'])
-            avg_cycle['Handle_X_Accel'] = np.gradient(avg_cycle['Handle_X_Vel'])
-            avg_cycle['Handle_X_Jerk'] = np.gradient(avg_cycle['Handle_X_Accel'])
-    else:
-        avg_cycle['Handle_X_Vel'] = np.gradient(avg_cycle['Handle_X_Smooth'])
-        avg_cycle['Seat_X_Vel'] = np.gradient(avg_cycle['Seat_X_Smooth'])
-        if 'Shoulder_X_Smooth' in avg_cycle.columns:
-            avg_cycle['Shoulder_X_Vel'] = np.gradient(avg_cycle['Shoulder_X_Smooth'])
-        avg_cycle['Handle_X_Accel'] = np.gradient(avg_cycle['Handle_X_Vel'])
-        avg_cycle['Handle_X_Jerk'] = np.gradient(avg_cycle['Handle_X_Accel'])
+    # Calculate derivatives (Velocity -> Acceleration -> Jerk)
+    # Using np.gradient which handles non-uniform time steps if 't' is provided.
+    cols_to_derive = ['Handle_X', 'Seat_X', 'Shoulder_X']
+    t = avg_cycle['Time'].to_numpy(dtype=float) if 'Time' in avg_cycle.columns else None
+
+    # 1. Base tracked points
+    for base in cols_to_derive:
+        smooth_col = f'{base}_Smooth'
+        if smooth_col not in avg_cycle.columns:
+            continue
+        
+        # Velocity
+        v_col = f'{base}_Vel'
+        avg_cycle[v_col] = np.gradient(avg_cycle[smooth_col], t) if t is not None else np.gradient(avg_cycle[smooth_col])
+        
+        # Acceleration
+        a_col = f'{base}_Accel'
+        avg_cycle[a_col] = np.gradient(avg_cycle[v_col], t) if t is not None else np.gradient(avg_cycle[v_col])
+        
+        # Jerk
+        j_col = f'{base}_Jerk'
+        avg_cycle[j_col] = np.gradient(avg_cycle[a_col], t) if t is not None else np.gradient(avg_cycle[a_col])
+
+    # 2. Derived Torso Proxy (Average of Seat and Shoulder)
+    if 'Seat_X_Vel' in avg_cycle.columns and 'Shoulder_X_Vel' in avg_cycle.columns:
+        avg_cycle['Rower_Vel'] = (avg_cycle['Seat_X_Vel'] + avg_cycle['Shoulder_X_Vel']) / 2
+        avg_cycle['Rower_Accel'] = np.gradient(avg_cycle['Rower_Vel'], t) if t is not None else np.gradient(avg_cycle['Rower_Vel'])
+        avg_cycle['Rower_Jerk'] = np.gradient(avg_cycle['Rower_Accel'], t) if t is not None else np.gradient(avg_cycle['Rower_Accel'])
+    elif 'Seat_X_Vel' in avg_cycle.columns:
+        # Fallback if shoulder missing
+        avg_cycle['Rower_Vel'] = avg_cycle['Seat_X_Vel']
+        avg_cycle['Rower_Accel'] = avg_cycle['Seat_X_Accel']
+        avg_cycle['Rower_Jerk'] = avg_cycle['Seat_X_Jerk']
 
     # --- Advanced Power Proxy (V^3 Model) ---
     # Power = Force * Velocity. For rowing, Force ~ Velocity^2 (drag).

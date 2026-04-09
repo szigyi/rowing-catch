@@ -1,0 +1,49 @@
+[project]
+name = "rowing-catch"
+version = "0.1.0"
+requires-python = ">=3.14"
+
+[tool.ruff]
+# Target Python version
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+# Enable Pyflakes (F) and Pycodestyle (E, W)
+# Add isort (I) and Bugbear (B)
+select = ["E", "F", "W", "I", "B", "C90", "UP"]
+ignore = []
+
+# Allow fix for all enabled rules (when `--fix`)
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # Relaxed for now to allow integration
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "streamlit.*",
+    "pandas.*",
+    "numpy.*",
+    "matplotlib.*",
+    "seaborn.*",
+    "fpdf.*"
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "--cov=rowing_catch --cov-report=term-missing"

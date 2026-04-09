@@ -1,94 +1,99 @@
+import os
+from typing import Any, cast
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
-import os
 
+from rowing_catch.algo.constants import PROCESSED_COLUMN_NAMES, REQUIRED_COLUMN_NAMES
 from rowing_catch.algo.steps.step0_validation import validate_input_df
 from rowing_catch.algo.steps.step1_rename import step1_rename_columns
 from rowing_catch.algo.steps.step2_smoothing import step2_smooth
 from rowing_catch.algo.steps.step3_detection import step3_detect_catches
 from rowing_catch.algo.steps.step4_segmentation import step4_segment_and_average
-from rowing_catch.algo.steps.step5_metrics import step5_compute_metrics
+from rowing_catch.algo.steps.step5_metrics import _pick_finish_index, step5_compute_metrics
 from rowing_catch.algo.steps.step6_statistics import step6_statistics
 from rowing_catch.algo.steps.step7_diagnostics import step7_diagnostics
-from rowing_catch.algo.steps.step5_metrics import _pick_finish_index
-from rowing_catch.algo.constants import REQUIRED_COLUMN_NAMES, PROCESSED_COLUMN_NAMES
 from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scenarios
 from rowing_catch.ui.utils import (
-    setup_premium_plot, COLOR_MAIN, COLOR_SEAT, COLOR_HANDLE, COLOR_ARMS,
-    COLOR_CATCH, COLOR_FINISH, COLOR_COMPARE,
-    BG_COLOR_FIGURE, BG_COLOR_AXES, COLOR_TEXT_MAIN, COLOR_TEXT_SUB
+    BG_COLOR_AXES,
+    BG_COLOR_FIGURE,
+    COLOR_ARMS,
+    COLOR_CATCH,
+    COLOR_COMPARE,
+    COLOR_FINISH,
+    COLOR_HANDLE,
+    COLOR_MAIN,
+    COLOR_SEAT,
+    COLOR_TEXT_SUB,
+    setup_premium_plot,
 )
 
-st.set_page_config(page_title="Debug: Data Pipeline", layout="wide")
+st.set_page_config(page_title='Debug: Data Pipeline', layout='wide')
 
-st.title("Data Processing Pipeline — Debug View")
+st.title('Data Processing Pipeline — Debug View')
 st.markdown(
-    "This page runs the analysis pipeline step-by-step and exposes the **intermediate "
-    "state of the data** after each step. Use it to spot where numbers go wrong."
+    'This page runs the analysis pipeline step-by-step and exposes the **intermediate '
+    'state of the data** after each step. Use it to spot where numbers go wrong.'
 )
 
 # ---------------------------------------------------------------------------
 # Data source selection
 # ---------------------------------------------------------------------------
-st.sidebar.header("Data Source")
-source = st.sidebar.radio("Choose input", ["CSV Upload", "Built-in Scenario"], index=0)
+st.sidebar.header('Data Source')
+source = st.sidebar.radio('Choose input', ['CSV Upload', 'Built-in Scenario'], index=0)
 
 df_raw: pd.DataFrame | None = None
-data_label = ""
+data_label = ''
 
-if source == "CSV Upload":
-    uploaded = st.sidebar.file_uploader("Upload trajectory CSV", type="csv")
+if source == 'CSV Upload':
+    uploaded = st.sidebar.file_uploader('Upload trajectory CSV', type='csv')
     if uploaded:
         df_raw = pd.read_csv(uploaded)
         data_label = uploaded.name
 
-    resource_dir = "resources"
+    resource_dir = 'resources'
     if os.path.exists(resource_dir):
-        example_files = sorted(
-            f for f in os.listdir(resource_dir)
-            if f.endswith(".csv") and "trajectory" in f.lower()
-        )
-        default_file = "2023.12.27.Szabi_36strokesPerMinute_trajectory.csv"
+        example_files = sorted(f for f in os.listdir(resource_dir) if f.endswith('.csv') and 'trajectory' in f.lower())
+        default_file = '2023.12.27.Szabi_36strokesPerMinute_trajectory.csv'
         default_index = 0
         if default_file in example_files:
-            default_index = example_files.index(default_file) + 1 # +1 for "None"
-            
-        selected_example = st.sidebar.selectbox(
-            "Or pick an example file", ["None"] + example_files,
-            index=default_index
-        )
-        if selected_example != "None" and df_raw is None:
+            default_index = example_files.index(default_file) + 1  # +1 for "None"
+
+        selected_example = st.sidebar.selectbox('Or pick an example file', ['None'] + example_files, index=default_index)
+        if selected_example != 'None' and df_raw is None:
             df_raw = pd.read_csv(os.path.join(resource_dir, selected_example))
             data_label = selected_example
 else:
     scenarios = get_trunk_scenarios()
-    selected_scenario = st.sidebar.selectbox(
-        "Scenario", list(scenarios.keys()), index=0
-    )
-    df_raw = create_scenario_data("Trunk", selected_scenario)
-    data_label = f"Scenario: {selected_scenario}"
+    selected_scenario = st.sidebar.selectbox('Scenario', list(scenarios.keys()), index=0)
+    df_raw = create_scenario_data('Trunk', selected_scenario)
+    data_label = f'Scenario: {selected_scenario}'
 
 # New parameter for unit conversion
 st.sidebar.divider()
 fps = st.sidebar.number_input(
-    "Recording FPS", 
-    min_value=1.0, max_value=240.0, value=120.0, step=1.0,
-    help="Frames Per Second of the video. Used to calculate real-world velocity (mm/s)."
+    'Recording FPS',
+    min_value=1.0,
+    max_value=240.0,
+    value=120.0,
+    step=1.0,
+    help='Frames Per Second of the video. Used to calculate real-world velocity (mm/s).',
 )
 
 if df_raw is None:
-    st.info("Select a data source in the sidebar to begin.")
+    st.info('Select a data source in the sidebar to begin.')
     st.stop()
 
 # Ensure Time column exists for mm/s conversion
 if 'Time' not in df_raw.columns:
     df_raw['Time'] = np.arange(len(df_raw)) / fps
 
-st.caption(f"**Input:** {data_label} — {len(df_raw):,} rows × {len(df_raw.columns)} columns")
+st.caption(f'**Input:** {data_label} — {len(df_raw):,} rows × {len(df_raw.columns)} columns')
 
 WINDOW = 10
+
 
 # ---------------------------------------------------------------------------
 # Helper: a small reusable banner for each step
@@ -97,16 +102,16 @@ def _phase_header(title: str, subtitle: str):
     """Render a wide, amber-accented phase-level divider banner."""
     st.markdown(
         f"<div style='display:flex;align-items:center;justify-content:space-between;"
-        f"background:#1c1a12;padding:10px 14px;border-radius:10px;"
-        f"border-left:5px solid #f59e0b;margin:20px 0 10px 0;"
+        f'background:#1c1a12;padding:10px 14px;border-radius:10px;'
+        f'border-left:5px solid #f59e0b;margin:20px 0 10px 0;'
         f"font-family:inherit;'>"
         f"<div style='display:flex;align-items:center;gap:12px;'>"
         f"<span style='color:#fbbf24;font-size:10px;font-weight:800;letter-spacing:1.5px;"
         f"text-transform:uppercase'>PHASE</span>"
         f"<strong style='color:#fef3c7;font-size:16px;margin:0;letter-spacing:0.3px'>{title}</strong>"
-        f"</div>"
+        f'</div>'
         f"<span style='color:#92400e;font-size:12px;margin:0;font-style:italic;'>{subtitle}</span>"
-        f"</div>",
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -114,25 +119,25 @@ def _phase_header(title: str, subtitle: str):
 def _step_header(number: int, title: str, subtitle: str):
     st.markdown(
         f"<div style='display:flex;align-items:center;justify-content:space-between;"
-        f"background:#1e293b;padding:6px 10px;border-radius:8px;border-left:4px solid #6366f1;"
+        f'background:#1e293b;padding:6px 10px;border-radius:8px;border-left:4px solid #6366f1;'
         f"margin-bottom:6px;font-family:inherit;font-size:14px;'>"
         f"<div style='display:flex;align-items:center;gap:10px;'>"
         f"<span style='color:#a5b4fc;font-size:11px;font-weight:700;letter-spacing:1px;"
         f"text-transform:uppercase'>STEP {number}</span>"
         f"<strong style='color:#f1f5f9;font-size:14px;margin:0'>{title}</strong>"
-        f"</div>"
+        f'</div>'
         f"<span style='color:#94a3b8;font-size:12px;margin:0;white-space:nowrap;'>{subtitle}</span>"
-        f"</div>",
+        f'</div>',
         unsafe_allow_html=True,
     )
 
 
 def _ok(msg: str):
-    st.success(f"{msg}")
+    st.success(f'{msg}')
 
 
 def _fail(msg: str):
-    st.error(f"{msg}")
+    st.error(f'{msg}')
     st.stop()
 
 
@@ -140,97 +145,95 @@ def _fail(msg: str):
 # PHASE 1 — Raw Data Intake & Validation
 # ===========================================================================
 _phase_header(
-    "Raw Data Intake & Validation",
-    "Steps 0–1 · Ingest raw CSV, verify required columns exist, and normalise column names",
+    'Raw Data Intake & Validation',
+    'Steps 0–1 · Ingest raw CSV, verify required columns exist, and normalise column names',
 )
 
 # ===========================================================================
 # STEP 0 — Validation
 # ===========================================================================
-_step_header(0, "Validation", "Ensure input DataFrame has required columns and enough data.")
+_step_header(0, 'Validation', 'Ensure input DataFrame has required columns and enough data.')
 
-with st.expander("Step 0 details", expanded=False):
+with st.expander('Step 0 details', expanded=False):
     try:
         validate_input_df(df_raw)
-        _ok("Input validation passed.")
+        _ok('Input validation passed.')
     except Exception as e:
-        _fail(f"Input validation failed: {e}")
+        _fail(f'Input validation failed: {e}')
 
 
 # ===========================================================================
 # STEP 1 — Rename columns
 # ===========================================================================
-_step_header(1, "Rename Columns", "Map raw tracker names → clean internal names.")
+_step_header(1, 'Rename Columns', 'Map raw tracker names → clean internal names.')
 
-with st.expander("Step 1 details", expanded=False):
+with st.expander('Step 1 details', expanded=False):
     df_step1 = step1_rename_columns(df_raw)
 
     col_a, col_b = st.columns(2)
     with col_a:
-        st.markdown("**Column mapping:**")
+        st.markdown('**Column mapping:**')
         rename_rows = []
         for raw, clean in REQUIRED_COLUMN_NAMES.items():
             found = raw in df_raw.columns
-            rename_rows.append({"Raw column": raw, "Clean column": clean, "Found": "Found" if found else "Missing"})
+            rename_rows.append({'Raw column': raw, 'Clean column': clean, 'Found': 'Found' if found else 'Missing'})
         st.dataframe(pd.DataFrame(rename_rows), width='stretch', hide_index=True)
 
     with col_b:
-        st.markdown("**Output columns:**")
-        col_df = pd.DataFrame({
-            "Column": df_step1.columns.tolist(),
-            "dtype": [str(dt) for dt in df_step1.dtypes],
-            "non-null": df_step1.count().values,
-        })
+        st.markdown('**Output columns:**')
+        col_df = pd.DataFrame(
+            {
+                'Column': df_step1.columns.tolist(),
+                'dtype': [str(dt) for dt in df_step1.dtypes],
+                'non-null': df_step1.count().values,
+            }
+        )
         st.dataframe(col_df, width='stretch', hide_index=True)
 
     missing = [c for c in REQUIRED_COLUMN_NAMES.values() if c not in df_step1.columns]
     if missing:
-        _fail(f"Missing required columns after rename: {missing}")
+        _fail(f'Missing required columns after rename: {missing}')
     else:
-        _ok(f"{len(df_step1):,} rows, all required columns present.")
+        _ok(f'{len(df_step1):,} rows, all required columns present.')
 
 # ===========================================================================
 # PHASE 2 — Signal Conditioning
 # ===========================================================================
 _phase_header(
-    "Signal Conditioning",
-    "Step 2 · Apply centred rolling-mean smoothing to suppress high-frequency sensor noise before analysis",
+    'Signal Conditioning',
+    'Step 2 · Apply centred rolling-mean smoothing to suppress high-frequency sensor noise before analysis',
 )
 
 # ===========================================================================
 # STEP 2 — Smooth
 # ===========================================================================
-_step_header(2, "Smooth", f"Apply centred rolling mean (window={WINDOW}) to position columns.")
+_step_header(2, 'Smooth', f'Apply centred rolling mean (window={WINDOW}) to position columns.')
 
-with st.expander("Step 2 details", expanded=False):
+with st.expander('Step 2 details', expanded=False):
     df_step2 = step2_smooth(df_step1, window=WINDOW)
 
-    _ok(f"Rows after smoothing: {len(df_step2):,} (all rows preserved, including edges with min_periods=1).")
+    _ok(f'Rows after smoothing: {len(df_step2):,} (all rows preserved, including edges with min_periods=1).')
 
     col_left, col_right = st.columns(2)
     with col_left:
-        st.markdown("**Before vs. after — `Seat_X`:**")
+        st.markdown('**Before vs. after — `Seat_X`:**')
         fig, ax = setup_premium_plot(xlabel='Sample index', ylabel='Seat_X', figsize=(5, 2.5))
-        ax.plot(df_step1.index, df_step1.get('Seat_X', pd.Series(dtype=float)),
-                color=COLOR_COMPARE, linewidth=0.8, label='Raw')
-        ax.plot(df_step2.index, df_step2['Seat_X_Smooth'],
-                color=COLOR_SEAT, linewidth=1.5, label='Smoothed')
+        ax.plot(df_step1.index, df_step1.get('Seat_X', pd.Series(dtype=float)), color=COLOR_COMPARE, linewidth=0.8, label='Raw')
+        ax.plot(df_step2.index, df_step2['Seat_X_Smooth'], color=COLOR_SEAT, linewidth=1.5, label='Smoothed')
         ax.legend(fontsize=8)
         st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     with col_right:
-        st.markdown("**Before vs. after — `Handle_X`:**")
+        st.markdown('**Before vs. after — `Handle_X`:**')
         fig, ax = setup_premium_plot(xlabel='Sample index', ylabel='Handle_X', figsize=(5, 2.5))
-        ax.plot(df_step1.index, df_step1.get('Handle_X', pd.Series(dtype=float)),
-                color=COLOR_COMPARE, linewidth=0.8, label='Raw')
-        ax.plot(df_step2.index, df_step2['Handle_X_Smooth'],
-                color=COLOR_HANDLE, linewidth=1.5, label='Smoothed')
+        ax.plot(df_step1.index, df_step1.get('Handle_X', pd.Series(dtype=float)), color=COLOR_COMPARE, linewidth=0.8, label='Raw')
+        ax.plot(df_step2.index, df_step2['Handle_X_Smooth'], color=COLOR_HANDLE, linewidth=1.5, label='Smoothed')
         ax.legend(fontsize=8)
         st.pyplot(fig, width='stretch')
         plt.close(fig)
 
-    st.markdown("**Smoothed column stats:**")
+    st.markdown('**Smoothed column stats:**')
     smooth_cols = [f'{c}_Smooth' for c in PROCESSED_COLUMN_NAMES if f'{c}_Smooth' in df_step2.columns]
     st.dataframe(df_step2[smooth_cols].describe().T.round(2), width='stretch')
 
@@ -238,49 +241,56 @@ with st.expander("Step 2 details", expanded=False):
 # PHASE 3 — Stroke Segmentation
 # ===========================================================================
 _phase_header(
-    "Stroke Segmentation",
-    "Steps 3–4 · Detect each catch event, slice the recording into individual stroke cycles, time-align and average them",
+    'Stroke Segmentation',
+    'Steps 3–4 · Detect each catch event, slice the recording into individual stroke cycles, time-align and average them',
 )
 
 # ===========================================================================
 # STEP 3 — Detect catches
 # ===========================================================================
-_step_header(3, "Detect Catches", "Interpolate small gaps and find local minima of Seat_X_Smooth.")
+_step_header(3, 'Detect Catches', 'Interpolate small gaps and find local minima of Seat_X_Smooth.')
 
-with st.expander("Step 3 details", expanded=False):
+with st.expander('Step 3 details', expanded=False):
     df_step3, catch_indices = step3_detect_catches(df_step2, window=WINDOW)
 
     n_catches = len(catch_indices)
     if n_catches < 2:
-        _fail(f"Only {n_catches} catch(es) detected — need at least 2 to form a cycle.")
+        _fail(f'Only {n_catches} catch(es) detected — need at least 2 to form a cycle.')
 
-    _ok(f"{n_catches} catches detected at indices: {catch_indices.tolist()}")
+    _ok(f'{n_catches} catches detected at indices: {catch_indices.tolist()}')
 
     fig, ax1 = setup_premium_plot(
-        title='Seat_X_Smooth — local minima = catches (one per stroke)',
-        ylabel='Seat_X_Smooth', figsize=(10, 3)
+        title='Seat_X_Smooth — local minima = catches (one per stroke)', ylabel='Seat_X_Smooth', figsize=(10, 3)
     )
 
-    ax1.plot(df_step3.index, df_step3['Seat_X_Smooth'],
-             color=COLOR_SEAT, linewidth=1.2, label='Seat_X_Smooth (detection signal)')
-    ax1.fill_between(df_step3.index, df_step3['Seat_X_Smooth'],
-                     df_step3['Seat_X_Smooth'].min(), color=COLOR_SEAT, alpha=0.08)
+    ax1.plot(df_step3.index, df_step3['Seat_X_Smooth'], color=COLOR_SEAT, linewidth=1.2, label='Seat_X_Smooth (detection signal)')
+    ax1.fill_between(df_step3.index, df_step3['Seat_X_Smooth'], df_step3['Seat_X_Smooth'].min(), color=COLOR_SEAT, alpha=0.08)
     for ci in catch_indices:
         ax1.axvline(ci, color=COLOR_CATCH, linewidth=1, linestyle='--', alpha=0.8)
-    ax1.scatter(catch_indices, df_step3['Seat_X_Smooth'].iloc[catch_indices],
-                color=COLOR_CATCH, s=60, zorder=5, label='Detected Catch (local min)')
+    ax1.scatter(
+        catch_indices,
+        df_step3['Seat_X_Smooth'].iloc[catch_indices],
+        color=COLOR_CATCH,
+        s=60,
+        zorder=5,
+        label='Detected Catch (local min)',
+    )
     ax1.legend(fontsize=8)
 
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
-    st.markdown("**Catch-to-catch intervals (samples):**")
+    st.markdown('**Catch-to-catch intervals (samples):**')
     intervals = np.diff(catch_indices).tolist()
     st.dataframe(
-        pd.DataFrame({"Catch #": list(range(1, len(intervals) + 1)),
-                      "Start index": catch_indices[:-1].tolist(),
-                      "End index": catch_indices[1:].tolist(),
-                      "Interval (samples)": intervals}),
+        pd.DataFrame(
+            {
+                'Catch #': list(range(1, len(intervals) + 1)),
+                'Start index': catch_indices[:-1].tolist(),
+                'End index': catch_indices[1:].tolist(),
+                'Interval (samples)': intervals,
+            }
+        ),
         width='stretch',
         hide_index=True,
     )
@@ -288,30 +298,32 @@ with st.expander("Step 3 details", expanded=False):
 # ===========================================================================
 # STEP 4 — Segment & Average
 # ===========================================================================
-_step_header(4, "Segment & Average", "Cut data into per-stroke cycles and average them.")
+_step_header(4, 'Segment & Average', 'Cut data into per-stroke cycles and average them.')
 
-with st.expander("Step 4 details", expanded=False):
+with st.expander('Step 4 details', expanded=False):
     result4 = step4_segment_and_average(df_step3, catch_indices, window=WINDOW)
 
     if result4 is None:
-        _fail("Could not extract any valid cycles.")
+        _fail('Could not extract any valid cycles.')
+    assert result4 is not None
 
     cycles, avg_cycle, min_length = result4
-    _ok(f"{len(cycles)} valid cycle(s) extracted. Shortest: {min_length} samples — used as average length.")
+    _ok(f'{len(cycles)} valid cycle(s) extracted. Shortest: {min_length} samples — used as average length.')
 
     col_l, col_r = st.columns(2)
     with col_l:
-        st.markdown("**Cycle lengths:**")
-        cycle_df = pd.DataFrame({
-            "Cycle #": list(range(1, len(cycles) + 1)),
-            "Length (samples)": [len(c) for c in cycles],
-            "Seat_X range": [f"{c['Seat_X_Smooth'].min():.1f} – {c['Seat_X_Smooth'].max():.1f}"
-                             for c in cycles],
-        })
+        st.markdown('**Cycle lengths:**')
+        cycle_df = pd.DataFrame(
+            {
+                'Cycle #': list(range(1, len(cycles) + 1)),
+                'Length (samples)': [len(c) for c in cycles],
+                'Seat_X range': [f'{c["Seat_X_Smooth"].min():.1f} – {c["Seat_X_Smooth"].max():.1f}' for c in cycles],
+            }
+        )
         st.dataframe(cycle_df, width='stretch', hide_index=True)
 
     with col_r:
-        st.markdown("**Averaged Seat_X (all cycles overlaid):**")
+        st.markdown('**Averaged Seat_X (all cycles overlaid):**')
 
         # Build per-cycle arrays and mean/std bands
         cycle_arrays = [c['Seat_X_Smooth'].to_numpy(dtype=float)[:min_length] for c in cycles]
@@ -320,15 +332,12 @@ with st.expander("Step 4 details", expanded=False):
         mean_vals = stack.mean(axis=0)
         std_vals = stack.std(axis=0)
 
-        fig, ax = setup_premium_plot(
-            xlabel='Cycle Index', ylabel='Seat_X_Smooth (mm)', figsize=(5, 3)
-        )
+        fig, ax = setup_premium_plot(xlabel='Cycle Index', ylabel='Seat_X_Smooth (mm)', figsize=(5, 3))
         # Individual cycles (faded)
         for arr in cycle_arrays:
             ax.plot(x_idx, arr, color='#cbd5e1', linewidth=0.8, alpha=0.4)
         # ±1 SD confidence band
-        ax.fill_between(x_idx, mean_vals - std_vals, mean_vals + std_vals,
-                        color=COLOR_MAIN, alpha=0.15, label='±1 SD')
+        ax.fill_between(x_idx, mean_vals - std_vals, mean_vals + std_vals, color=COLOR_MAIN, alpha=0.15, label='±1 SD')
         # Average cycle (bold)
         ax.plot(x_idx, mean_vals, color=COLOR_MAIN, linewidth=2, label='Mean cycle')
         ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
@@ -339,53 +348,51 @@ with st.expander("Step 4 details", expanded=False):
 # PHASE 4 — Biomechanical Metrics on the Average Cycle
 # ===========================================================================
 _phase_header(
-    "Biomechanical Metrics on the Average Cycle",
-    "Step 5 · Derive trunk angle, velocities, acceleration, jerk, and drive-phase power proxy from the averaged stroke",
+    'Biomechanical Metrics on the Average Cycle',
+    'Step 5 · Derive trunk angle, velocities, acceleration, jerk, and drive-phase power proxy from the averaged stroke',
 )
 
 # ===========================================================================
 # STEP 5 — Compute metrics
 # ===========================================================================
-_step_header(5, "Compute Metrics",
-             "Calculate Trunk_Angle, velocities, and locate catch/finish (reversal-based) on the averaged cycle.")
+_step_header(
+    5, 'Compute Metrics', 'Calculate Trunk_Angle, velocities, and locate catch/finish (reversal-based) on the averaged cycle.'
+)
 
-with st.expander("Step 5 details", expanded=True):
+with st.expander('Step 5 details', expanded=True):
     avg_cycle_m, catch_idx, finish_idx = step5_compute_metrics(avg_cycle, window=WINDOW)
 
     # --- Derived Relative Metrics (UI/Analysis helper) ---
     if 'Seat_X_Vel' in avg_cycle_m.columns:
         if 'Shoulder_X_Vel' in avg_cycle_m.columns:
             avg_cycle_m['Shoulder_rel_Seat_Vel'] = avg_cycle_m['Shoulder_X_Vel'] - avg_cycle_m['Seat_X_Vel']
-        
+
         avg_cycle_m['Handle_rel_Seat_Vel'] = avg_cycle_m['Handle_X_Vel'] - avg_cycle_m['Seat_X_Vel']
-    
+
     # The V³ Power Proxy columns (Power_Total, Power_Legs, Power_Trunk, Power_Arms)
     # are already calculated by step5_compute_metrics. No extra computation needed here.
 
-
-
-    catch_angle = float(avg_cycle_m.loc[catch_idx, 'Trunk_Angle'])
-    finish_angle = float(avg_cycle_m.loc[finish_idx, 'Trunk_Angle'])
+    catch_angle = cast(float, avg_cycle_m.loc[catch_idx, 'Trunk_Angle'])
+    finish_angle = cast(float, avg_cycle_m.loc[finish_idx, 'Trunk_Angle'])
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Catch index", catch_idx)
-    col2.metric("Finish index", finish_idx)
-    col3.metric("Drive length (samples)", finish_idx - catch_idx)
+    col1.metric('Catch index', catch_idx)
+    col2.metric('Finish index', finish_idx)
+    col3.metric('Drive length (samples)', finish_idx - catch_idx)
 
     col4, col5 = st.columns(2)
-    col4.metric("Trunk angle @ Catch", f"{catch_angle:.1f}°")
-    col5.metric("Trunk angle @ Finish", f"{finish_angle:.1f}°")
+    col4.metric('Trunk angle @ Catch', f'{catch_angle:.1f}°')
+    col5.metric('Trunk angle @ Finish', f'{finish_angle:.1f}°')
 
-    st.markdown("**Catch + Finish on averaged cycle**")
+    st.markdown('**Catch + Finish on averaged cycle**')
     fig, ax1 = setup_premium_plot(xlabel='Cycle index (time)', ylabel='Seat X (mm)', figsize=(9, 5))
     fig.patch.set_facecolor(BG_COLOR_FIGURE)
-    
+
     # 1. Seat X (Left axis)
-    ax1.plot(avg_cycle_m.index, avg_cycle_m['Seat_X_Smooth'],
-             color=COLOR_SEAT, linewidth=2, label='Seat_X_Smooth')
+    ax1.plot(avg_cycle_m.index, avg_cycle_m['Seat_X_Smooth'], color=COLOR_SEAT, linewidth=2, label='Seat_X_Smooth')
     ax1.set_ylabel('Seat X (mm)', color=COLOR_SEAT)
     ax1.tick_params(axis='y', labelcolor=COLOR_SEAT)
-    
+
     def _rescale_ax(ax, data, pad=0.15):
         ymin, ymax = np.nanmin(data), np.nanmax(data)
         if np.isnan(ymin) or np.isnan(ymax):
@@ -399,8 +406,14 @@ with st.expander("Step 5 details", expanded=True):
 
     # 2. Handle X (Right axis)
     ax2 = ax1.twinx()
-    ax2.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Smooth'],
-             color=COLOR_HANDLE, linewidth=1.5, linestyle='--', label='Handle_X_Smooth')
+    ax2.plot(
+        avg_cycle_m.index,
+        avg_cycle_m['Handle_X_Smooth'],
+        color=COLOR_HANDLE,
+        linewidth=1.5,
+        linestyle='--',
+        label='Handle_X_Smooth',
+    )
     ax2.set_ylabel('Handle X (mm)', color=COLOR_HANDLE)
     ax2.tick_params(axis='y', labelcolor=COLOR_HANDLE)
     ax2.spines['top'].set_visible(False)
@@ -415,30 +428,44 @@ with st.expander("Step 5 details", expanded=True):
         ax3.spines['right'].set_position(('outward', 60))
         ax3.spines['right'].set_color('#DDDDDD')
         ax3.spines['top'].set_visible(False)
-        ax3.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_X_Smooth'],
-                 color=COLOR_ARMS, linewidth=1.5, linestyle='-.', label='Shoulder_X_Smooth')
+        ax3.plot(
+            avg_cycle_m.index,
+            avg_cycle_m['Shoulder_X_Smooth'],
+            color=COLOR_ARMS,
+            linewidth=1.5,
+            linestyle='-.',
+            label='Shoulder_X_Smooth',
+        )
         ax3.set_ylabel('Shoulder X (mm)', color=COLOR_ARMS)
         ax3.tick_params(axis='y', labelcolor=COLOR_ARMS)
         _rescale_ax(ax3, avg_cycle_m['Shoulder_X_Smooth'])
         ax3.invert_yaxis()
-    
+
     # Common markers — no legend labels; annotate directly on the plot instead
     ax1.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.4, alpha=0.8)
-    catch_y = float(avg_cycle_m.loc[catch_idx, 'Seat_X_Smooth'])
+    catch_y = float(cast(Any, avg_cycle_m.loc[catch_idx, 'Seat_X_Smooth']))
     ax1.scatter([catch_idx], [catch_y], color=COLOR_CATCH, s=80, marker='o', zorder=5)
     ax1.annotate(
-        'Catch', xy=(catch_idx, catch_y),
+        'Catch',
+        xy=(catch_idx, catch_y),
         xytext=(catch_idx + max(1, len(avg_cycle_m) * 0.01), catch_y),
-        color=COLOR_CATCH, fontsize=8, fontweight='bold', va='center',
+        color=COLOR_CATCH,
+        fontsize=8,
+        fontweight='bold',
+        va='center',
     )
 
     ax1.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.4, alpha=0.8)
-    finish_y = float(avg_cycle_m.loc[finish_idx, 'Seat_X_Smooth'])
+    finish_y = float(cast(Any, avg_cycle_m.loc[finish_idx, 'Seat_X_Smooth']))
     ax1.scatter([finish_idx], [finish_y], color=COLOR_FINISH, s=80, marker='X', zorder=5)
     ax1.annotate(
-        'Finish', xy=(finish_idx, finish_y),
+        'Finish',
+        xy=(finish_idx, finish_y),
         xytext=(finish_idx + max(1, len(avg_cycle_m) * 0.01), finish_y),
-        color=COLOR_FINISH, fontsize=8, fontweight='bold', va='center',
+        color=COLOR_FINISH,
+        fontsize=8,
+        fontweight='bold',
+        va='center',
     )
 
     # Front stop / Back stop — seat travel limits; label on the right edge of the line
@@ -446,13 +473,9 @@ with st.expander("Step 5 details", expanded=True):
     seat_max = float(avg_cycle_m['Seat_X_Smooth'].max())
     x_end = float(avg_cycle_m.index.max())
     ax1.axhline(seat_min, color=COLOR_CATCH, linestyle=':', linewidth=1.5, alpha=0.7)
-    ax1.text(x_end, seat_min, 'Front stop',
-             color=COLOR_CATCH, fontsize=8, fontweight='bold',
-             va='top', ha='right')
+    ax1.text(x_end, seat_min, 'Front stop', color=COLOR_CATCH, fontsize=8, fontweight='bold', va='top', ha='right')
     ax1.axhline(seat_max, color=COLOR_FINISH, linestyle=':', linewidth=1.5, alpha=0.7)
-    ax1.text(x_end, seat_max, 'Back stop',
-             color=COLOR_FINISH, fontsize=8, fontweight='bold',
-             va='bottom', ha='right')
+    ax1.text(x_end, seat_max, 'Back stop', color=COLOR_FINISH, fontsize=8, fontweight='bold', va='bottom', ha='right')
 
     ax1.grid(axis='x', alpha=0.2)
 
@@ -466,17 +489,25 @@ with st.expander("Step 5 details", expanded=True):
         all_lines += legend_lines3
         all_labels += legend_labels3
 
-    ax1.legend(all_lines, all_labels, loc='upper center', bbox_to_anchor=(0.5, 0.98),
-               ncol=min(3, len(all_lines)),
-               fontsize=8, framealpha=0.8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
-    
+    ax1.legend(
+        all_lines,
+        all_labels,
+        loc='upper center',
+        bbox_to_anchor=(0.5, 0.98),
+        ncol=min(3, len(all_lines)),
+        fontsize=8,
+        framealpha=0.8,
+        facecolor=BG_COLOR_AXES,
+        edgecolor='#DDDDDD',
+    )
+
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     # --- Production Heuristic Visualization (Debug Enhancement) ---
-    st.markdown("**All detected Catches & Finishes (Full Trajectory)**")
-    st.caption("This plot shows where the *production* heuristic would place the finish for every individual cycle.")
-    
+    st.markdown('**All detected Catches & Finishes (Full Trajectory)**')
+    st.caption('This plot shows where the *production* heuristic would place the finish for every individual cycle.')
+
     # 1. To use the production heuristic (_pick_finish_index), we need Trunk_Angle on the full signal.
     df_debug = df_step3.copy()
     ref_catch = df_debug.iloc[catch_indices[0]] if len(catch_indices) > 0 else df_debug.iloc[0]
@@ -494,82 +525,96 @@ with st.expander("Step 5 details", expanded=True):
     production_finish_indices = []
     for i in range(len(catch_indices) - 1):
         idx_start = catch_indices[i]
-        idx_end = catch_indices[i+1]
-        
+        idx_end = catch_indices[i + 1]
+
         # Slice the cycle (catch to catch)
         cycle_slice = df_debug.iloc[idx_start:idx_end]
-        
+
         # Use production heuristic (pretending this is an avg cycle)
         # Note: catch_idx=0 because cycle_slice starts at the catch
         rel_finish = _pick_finish_index(cycle_slice, catch_idx=0)
         production_finish_indices.append(idx_start + rel_finish)
-    
-    production_finish_indices = np.array(production_finish_indices, dtype=int)
+
+    production_finish_indices_arr = np.array(production_finish_indices, dtype=int)
 
     # 3. Full-trajectory matplotlib plot
     sample_idx = df_debug.index.to_numpy()
     fig, ax = setup_premium_plot(
         title='Full Trajectory: Seat_X_Smooth with Detected Events',
-        xlabel='Cycle Index (time)', ylabel='Seat_X (mm)', figsize=(10, 3.5)
+        xlabel='Cycle Index (time)',
+        ylabel='Seat_X (mm)',
+        figsize=(10, 3.5),
     )
     # Smoothed signal
-    ax.plot(sample_idx, df_debug['Seat_X_Smooth'], color=COLOR_SEAT,
-            linewidth=1.5, label='Smoothed Seat_X')
+    ax.plot(sample_idx, df_debug['Seat_X_Smooth'], color=COLOR_SEAT, linewidth=1.5, label='Smoothed Seat_X')
     # Catch markers
     for ci in catch_indices:
         ax.axvline(ci, color=COLOR_CATCH, linewidth=1, linestyle='--', alpha=0.7)
+    ax.scatter(catch_indices, df_debug['Seat_X_Smooth'].iloc[catch_indices], color=COLOR_CATCH, s=50, zorder=5, label='Catch')
     ax.scatter(
-        catch_indices,
-        df_debug['Seat_X_Smooth'].iloc[catch_indices],
-        color=COLOR_CATCH, s=50, zorder=5, label='Catch'
-    )
-    # Production finish markers
-    for fi in production_finish_indices:
-        ax.axvline(fi, color=COLOR_FINISH, linewidth=1, linestyle='--', alpha=0.7)
-    ax.scatter(
-        production_finish_indices,
-        df_debug['Seat_X_Smooth'].iloc[production_finish_indices],
-        color=COLOR_FINISH, marker='X', s=60, zorder=5, label='Finish'
+        production_finish_indices_arr,
+        df_debug['Seat_X_Smooth'].iloc[production_finish_indices_arr],
+        color=COLOR_FINISH,
+        marker='X',
+        s=60,
+        zorder=5,
+        label='Finish',
     )
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     # Trunk angle plot
-    st.markdown("**Trunk Angle across the averaged stroke:**")
+    st.markdown('**Trunk Angle across the averaged stroke:**')
     fig, ax = setup_premium_plot(xlabel='Cycle index (time)', ylabel='Degrees from vertical', figsize=(10, 3))
-    ax.plot(avg_cycle_m.index, avg_cycle_m['Trunk_Angle'],
-            color=COLOR_MAIN, linewidth=2, label='Trunk Angle')
+    ax.plot(avg_cycle_m.index, avg_cycle_m['Trunk_Angle'], color=COLOR_MAIN, linewidth=2, label='Trunk Angle')
     ax.fill_between(avg_cycle_m.index, avg_cycle_m['Trunk_Angle'], 0, color=COLOR_MAIN, alpha=0.08)
     ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
 
     # Catch & Finish vertical lines + annotations
     ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.5, alpha=0.8)
-    catch_y = float(avg_cycle_m.loc[catch_idx, 'Trunk_Angle'])
-    ax.annotate(f'Catch ({catch_angle:.1f}°) ', xy=(catch_idx, catch_y),
-                xytext=(catch_idx, catch_y - 2), color=COLOR_CATCH,
-                fontsize=8, fontweight='bold', va='center', ha='right')
+    catch_y = float(cast(Any, avg_cycle_m.loc[catch_idx, 'Trunk_Angle']))
+    ax.annotate(
+        f'Catch ({catch_angle:.1f}°) ',
+        xy=(catch_idx, catch_y),
+        xytext=(catch_idx, catch_y - 2),
+        color=COLOR_CATCH,
+        fontsize=8,
+        fontweight='bold',
+        va='center',
+        ha='right',
+    )
 
     ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.5, alpha=0.8)
-    finish_y = float(avg_cycle_m.loc[finish_idx, 'Trunk_Angle'])
-    ax.annotate(f' Finish ({finish_angle:.1f}°)', xy=(finish_idx, finish_y),
-                xytext=(finish_idx + 2, finish_y), color=COLOR_FINISH,
-                fontsize=8, fontweight='bold', va='center', ha='left')
+    finish_y = float(cast(Any, avg_cycle_m.loc[finish_idx, 'Trunk_Angle']))
+    ax.annotate(
+        f' Finish ({finish_angle:.1f}°)',
+        xy=(finish_idx, finish_y),
+        xytext=(finish_idx + 2, finish_y),
+        color=COLOR_FINISH,
+        fontsize=8,
+        fontweight='bold',
+        va='center',
+        ha='left',
+    )
 
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     # Detailed Velocity plot
-    st.markdown("**Detailed Velocity [rate of change] (Seat, Handle, Shoulder, Rower):**")
+    st.markdown('**Detailed Velocity [rate of change] (Seat, Handle, Shoulder, Rower):**')
     fig, ax = setup_premium_plot(xlabel='Cycle index (time)', ylabel='Velocity (mm/s)', figsize=(10, 3.5))
     ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_X_Vel'], color=COLOR_HANDLE, linewidth=1.5, label='Handle')
     ax.fill_between(avg_cycle_m.index, avg_cycle_m['Handle_X_Vel'], 0, color=COLOR_HANDLE, alpha=0.08)
     ax.plot(avg_cycle_m.index, avg_cycle_m['Seat_X_Vel'], color=COLOR_SEAT, linewidth=1.5, label='Seat')
     ax.fill_between(avg_cycle_m.index, avg_cycle_m['Seat_X_Vel'], 0, color=COLOR_SEAT, alpha=0.08)
     if 'Shoulder_X_Vel' in avg_cycle_m.columns:
-        ax.plot(avg_cycle_m.index, avg_cycle_m['Shoulder_X_Vel'], color=COLOR_ARMS, linewidth=1.2, linestyle='--', label='Shoulder')
+        ax.plot(
+            avg_cycle_m.index, avg_cycle_m['Shoulder_X_Vel'], color=COLOR_ARMS, linewidth=1.2, linestyle='--', label='Shoulder'
+        )
         ax.plot(avg_cycle_m.index, avg_cycle_m['Rower_Vel'], color=COLOR_MAIN, linewidth=2, label='Torso (Seat/Shoulder Avg)')
+
     ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
     ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2)
     ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2)
@@ -578,7 +623,7 @@ with st.expander("Step 5 details", expanded=True):
     plt.close(fig)
 
     # Relative Velocity
-    st.markdown("**Relative Velocity (vs. Seat):**")
+    st.markdown('**Relative Velocity (vs. Seat):**')
     fig, ax = setup_premium_plot(xlabel='Cycle index (time)', ylabel='Relative Velocity (mm/s)', figsize=(10, 3.5))
     ax.plot(avg_cycle_m.index, avg_cycle_m['Handle_rel_Seat_Vel'], color=COLOR_HANDLE, linewidth=1.5, label='Handle - Seat')
     ax.fill_between(avg_cycle_m.index, avg_cycle_m['Handle_rel_Seat_Vel'], 0, color=COLOR_HANDLE, alpha=0.08)
@@ -592,33 +637,38 @@ with st.expander("Step 5 details", expanded=True):
     plt.close(fig)
 
     # Jerk subplots
-    st.markdown("**Jerk in the system (Smoothness):**")
+    st.markdown('**Jerk in the system (Smoothness):**')
     st.caption("Each panel compares an individual segment's smoothness vs. the overall System (Torso) baseline.")
-    
+
     # Components to compare vs System Jerk
-    components = [
-        ('Handle', 'Handle_X_Jerk', '#ec4899'),
-        ('Seat', 'Seat_X_Jerk', COLOR_SEAT)
-    ]
+    components = [('Handle', 'Handle_X_Jerk', '#ec4899'), ('Seat', 'Seat_X_Jerk', COLOR_SEAT)]
     if 'Shoulder_X_Jerk' in avg_cycle_m.columns:
         components.append(('Shoulder', 'Shoulder_X_Jerk', COLOR_ARMS))
-    
+
     n_plots = len(components)
     fig, axes = plt.subplots(n_plots, 1, figsize=(10, 2.5 * n_plots), sharex=True, sharey=True)
-    if n_plots == 1: axes = [axes]
-    
+    if n_plots == 1:
+        axes = [axes]
+
     fig.patch.set_facecolor(BG_COLOR_FIGURE)
-    
-    for ax, (label, col, color) in zip(axes, components):
+
+    for ax, (label, col, color) in zip(axes, components, strict=False):
         # 1. Reference: System Jerk (Torso) - Strengthened but still background
         if 'Rower_Jerk' in avg_cycle_m.columns:
-            ax.plot(avg_cycle_m.index, avg_cycle_m['Rower_Jerk'], color='#777777', 
-                    linewidth=1.2, linestyle='--', label='System Jerk', alpha=0.7, zorder=1)
+            ax.plot(
+                avg_cycle_m.index,
+                avg_cycle_m['Rower_Jerk'],
+                color='#777777',
+                linewidth=1.2,
+                linestyle='--',
+                label='System Jerk',
+                alpha=0.7,
+                zorder=1,
+            )
 
         # 2. Individual Component Jerk - Primary focus
-        ax.plot(avg_cycle_m.index, avg_cycle_m[col], color=color, 
-                linewidth=1.5, linestyle='-', label=f'{label} Jerk', zorder=2)
-        
+        ax.plot(avg_cycle_m.index, avg_cycle_m[col], color=color, linewidth=1.5, linestyle='-', label=f'{label} Jerk', zorder=2)
+
         # UI Styling
         ax.set_facecolor(BG_COLOR_AXES)
         ax.spines['top'].set_visible(False)
@@ -627,14 +677,13 @@ with st.expander("Step 5 details", expanded=True):
         ax.spines['bottom'].set_color('#DDDDDD')
         ax.grid(axis='y', linestyle='-', linewidth=0.5, color='#F0F0F0', zorder=0)
         ax.set_ylabel('Jerk (mm/s³)', fontweight='bold', color=COLOR_TEXT_SUB, fontsize=8)
-        
+
         # Markers
         ax.axhline(0, color='#888888', linestyle='-', linewidth=0.5, alpha=0.3)
         ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2, alpha=0.5)
         ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2, alpha=0.5)
-        
-        ax.legend(fontsize=7, loc='upper right', framealpha=0.9,
-                  facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
+
+        ax.legend(fontsize=7, loc='upper right', framealpha=0.9, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
 
     axes[-1].set_xlabel('Cycle index (time)', fontweight='bold', color=COLOR_TEXT_SUB)
     plt.tight_layout()
@@ -642,28 +691,21 @@ with st.expander("Step 5 details", expanded=True):
     plt.close(fig)
 
     # Power Curve (V³ Model)
-    st.markdown("**Power Curve (V³ Drag Model):**")
+    st.markdown('**Power Curve (V³ Drag Model):**')
     drive_slice = avg_cycle_m.iloc[catch_idx:finish_idx]
-    fig, ax = setup_premium_plot(
-        xlabel='Cycle index (time)', ylabel='Power Proxy (V³ units)', figsize=(10, 3.5)
-    )
+    fig, ax = setup_premium_plot(xlabel='Cycle index (time)', ylabel='Power Proxy (V³ units)', figsize=(10, 3.5))
     if not drive_slice.empty:
         x = drive_slice.index
         # Total power area
-        ax.fill_between(x, drive_slice['Power_Total'].clip(lower=0),
-                        color=COLOR_FINISH, alpha=0.12, label='_nolegend_')
-        ax.plot(x, drive_slice['Power_Total'], color=COLOR_FINISH,
-                linewidth=2, label='Total')
+        ax.fill_between(x, drive_slice['Power_Total'].clip(lower=0), color=COLOR_FINISH, alpha=0.12, label='_nolegend_')
+        ax.plot(x, drive_slice['Power_Total'], color=COLOR_FINISH, linewidth=2, label='Total')
         # Segmental breakdown
         if 'Power_Legs' in drive_slice.columns:
-            ax.plot(x, drive_slice['Power_Legs'], color=COLOR_SEAT,
-                    linewidth=1.2, linestyle='--', label='Legs')
+            ax.plot(x, drive_slice['Power_Legs'], color=COLOR_SEAT, linewidth=1.2, linestyle='--', label='Legs')
         if 'Power_Trunk' in drive_slice.columns:
-            ax.plot(x, drive_slice['Power_Trunk'], color=COLOR_ARMS,
-                    linewidth=1.2, linestyle='-.', label='Trunk')
+            ax.plot(x, drive_slice['Power_Trunk'], color=COLOR_ARMS, linewidth=1.2, linestyle='-.', label='Trunk')
         if 'Power_Arms' in drive_slice.columns:
-            ax.plot(x, drive_slice['Power_Arms'], color=COLOR_HANDLE,
-                    linewidth=1, linestyle=':', label='Arms')
+            ax.plot(x, drive_slice['Power_Arms'], color=COLOR_HANDLE, linewidth=1, linestyle=':', label='Arms')
     ax.axhline(0, color='#888888', linestyle=':', linewidth=1, alpha=0.5)
     ax.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.2, alpha=0.6)
     ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2, alpha=0.6)
@@ -671,24 +713,26 @@ with st.expander("Step 5 details", expanded=True):
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
-    with st.expander("Raw averaged cycle DataFrame (all computed columns)"):
-
+    with st.expander('Raw averaged cycle DataFrame (all computed columns)'):
         st.dataframe(avg_cycle_m.round(3), width='stretch')
 
 # ===========================================================================
 # PHASE 5 — Stroke-Level Statistics
 # ===========================================================================
 _phase_header(
-    "Stroke-Level Statistics",
-    "Step 6 · Aggregate scalar metrics across all individual cycles: consistency CV, SPM, drive/recovery ratio and temporal durations",
+    'Stroke-Level Statistics',
+    (
+        'Step 6 · Aggregate scalar metrics across all individual cycles: '
+        'consistency CV, SPM, drive/recovery ratio and temporal durations'
+    ),
 )
 
 # ===========================================================================
 # STEP 6 — Statistics
 # ===========================================================================
-_step_header(6, "Statistics", "Summarise stroke consistency, drive/recovery ratio.")
+_step_header(6, 'Statistics', 'Summarise stroke consistency, drive/recovery ratio.')
 
-with st.expander("Step 6 details", expanded=True):
+with st.expander('Step 6 details', expanded=True):
     stats = step6_statistics(cycles, min_length, catch_idx, finish_idx, avg_cycle_m)
 
     cv = stats['cv_length']
@@ -698,26 +742,33 @@ with st.expander("Step 6 details", expanded=True):
     rec_pct = recovery_len / min_length * 100
 
     col_s1, col_s2, col_s3 = st.columns(3)
-    col_s1.metric("Consistency CV", f"{cv:.2f}%", help="Lower is better. Target < 2%.")
-    col_s2.metric("Drive / Recovery", f"{drive_pct:.1f}% / {rec_pct:.1f}%")
-    col_s3.metric("Avg cycle duration", f"{stats['mean_duration']:.0f} samples")
+    col_s1.metric('Consistency CV', f'{cv:.2f}%', help='Lower is better. Target < 2%.')
+    col_s2.metric('Drive / Recovery', f'{drive_pct:.1f}% / {rec_pct:.1f}%')
+    col_s3.metric('Avg cycle duration', f'{stats["mean_duration"]:.0f} samples')
 
     # Stacked bar chart for drive vs recovery
-    st.markdown("**Drive vs. Recovery Balance:**")
+    st.markdown('**Drive vs. Recovery Balance:**')
     fig, ax = plt.subplots(figsize=(6, 1.5))
     fig.patch.set_facecolor(BG_COLOR_FIGURE)
     ax.set_facecolor(BG_COLOR_AXES)
-    
+
     # Single stacked bar
     h = 0.5
     ax.barh(['Ratio'], [drive_pct], color=COLOR_MAIN, height=h, label='Drive')
     ax.barh(['Ratio'], [rec_pct], left=[drive_pct], color=COLOR_CATCH, height=h, label='Recovery')
-    
+
     # Add text labels inside bars
-    ax.text(drive_pct/2, 0, f"Drive\n{drive_pct:.1f}%", ha='center', va='center', 
-            color='white', fontweight='bold', fontsize=9)
-    ax.text(drive_pct + rec_pct/2, 0, f"Recovery\n{rec_pct:.1f}%", ha='center', va='center', 
-            color='white', fontweight='bold', fontsize=9)
+    ax.text(drive_pct / 2, 0, f'Drive\n{drive_pct:.1f}%', ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+    ax.text(
+        drive_pct + rec_pct / 2,
+        0,
+        f'Recovery\n{rec_pct:.1f}%',
+        ha='center',
+        va='center',
+        color='white',
+        fontweight='bold',
+        fontsize=9,
+    )
 
     # Ghost line for ideal 1:2 ratio (Drive = 33.3%)
     ideal_x = 100 / 3  # 33.33%
@@ -731,13 +782,13 @@ with st.expander("Step 6 details", expanded=True):
     ax.tick_params(axis='x', colors=COLOR_TEXT_SUB)
     ax.spines[['top', 'right', 'left']].set_visible(False)
     ax.spines['bottom'].set_color('#DDDDDD')
-    
+
     st.pyplot(fig, width='content')
     plt.close(fig)
 
     # --- Ratio & Rhythm Spread Diagram ---
-    st.markdown("**Ratio & Rhythm Spread (Consistency):**")
-    
+    st.markdown('**Ratio & Rhythm Spread (Consistency):**')
+
     cycle_data = []
     for i, c in enumerate(cycles):
         if 'Time' in c.columns and len(c) > 1:
@@ -750,14 +801,16 @@ with st.expander("Step 6 details", expanded=True):
                 drive_dur = t[f_idx] - t[0]
                 rec_dur = duration - drive_dur
                 ratio = drive_dur / rec_dur if rec_dur > 0 else np.nan
-                cycle_data.append({
-                    'Cycle': i + 1,
-                    'SPM': round(spm, 1),
-                    'Ratio_DR': round(ratio, 2),
-                    'Drive (s)': round(drive_dur, 2),
-                    'Recovery (s)': round(rec_dur, 2)
-                })
-    
+                cycle_data.append(
+                    {
+                        'Cycle': i + 1,
+                        'SPM': round(spm, 1),
+                        'Ratio_DR': round(ratio, 2),
+                        'Drive (s)': round(drive_dur, 2),
+                        'Recovery (s)': round(rec_dur, 2),
+                    }
+                )
+
     if cycle_data:
         df_spread = pd.DataFrame(cycle_data)
 
@@ -765,81 +818,74 @@ with st.expander("Step 6 details", expanded=True):
             title='Stroke-by-Stroke Rhythm Consistency',
             xlabel='Strokes Per Minute (SPM)',
             ylabel='Drive:Recovery Ratio',
-            figsize=(7, 4)
+            figsize=(7, 4),
         )
         spm_vals = df_spread['SPM'].to_numpy(dtype=float)
         ratio_vals = df_spread['Ratio_DR'].to_numpy(dtype=float)
         cycle_nums = df_spread['Cycle'].to_numpy()
 
         # Mean crosshair lines
-        ax.axvline(float(np.nanmean(spm_vals)), color='#94a3b8',
-                   linewidth=1, linestyle='--', alpha=0.7, label='Mean SPM')
-        ax.axhline(float(np.nanmean(ratio_vals)), color='#94a3b8',
-                   linewidth=1, linestyle='--', alpha=0.7, label='Mean D:R')
+        ax.axvline(float(np.nanmean(spm_vals)), color='#94a3b8', linewidth=1, linestyle='--', alpha=0.7, label='Mean SPM')
+        ax.axhline(float(np.nanmean(ratio_vals)), color='#94a3b8', linewidth=1, linestyle='--', alpha=0.7, label='Mean D:R')
 
         # Scatter points
         ax.scatter(spm_vals, ratio_vals, color=COLOR_MAIN, s=80, zorder=5)
 
         # Cycle number labels next to each point
-        for cx, cy, label in zip(spm_vals, ratio_vals, cycle_nums):
-            ax.annotate(
-                str(label), (cx, cy),
-                textcoords='offset points', xytext=(6, 4),
-                fontsize=8, color=COLOR_TEXT_SUB
-            )
+        for cx, cy, label in zip(spm_vals, ratio_vals, cycle_nums, strict=False):
+            ax.annotate(str(label), (cx, cy), textcoords='offset points', xytext=(6, 4), fontsize=8, color=COLOR_TEXT_SUB)
 
         ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
         st.pyplot(fig, width='stretch')
         plt.close(fig)
     else:
-        st.info("Insufficient time data to calculate stroke-by-stroke rhythm spread.")
+        st.info('Insufficient time data to calculate stroke-by-stroke rhythm spread.')
 
 
 # ===========================================================================
 # PHASE 6 — Data Quality & Diagnostics
 # ===========================================================================
 _phase_header(
-    "Data Quality & Diagnostics",
-    "Step 7 · Assess sampling stability, count rows dropped, and surface any pipeline warnings",
+    'Data Quality & Diagnostics',
+    'Step 7 · Assess sampling stability, count rows dropped, and surface any pipeline warnings',
 )
 
-st.markdown("### Data Quality & Metadata Diagnostics")
+st.markdown('### Data Quality & Metadata Diagnostics')
 
-with st.expander("Metadata details", expanded=True):
+with st.expander('Metadata details', expanded=True):
     # Note: In the debug page context, we're stepping through manually,
     # so we simulate the full pipeline context for metadata calculation
     if 'cycles' in locals() and cycles is not None:
         metadata = step7_diagnostics(df_raw, df_step2, cycles, avg_cycle_m, stats)
-        
+
         # Display metadata metrics
         col_m1, col_m2, col_m3 = st.columns(3)
-        col_m1.metric("Cycles Detected", metadata['capture_length'], help="Number of complete strokes")
-        
+        col_m1.metric('Cycles Detected', metadata['capture_length'], help='Number of complete strokes')
+
         # Sampling status with background color
         with col_m2:
             if metadata['sampling_is_stable']:
-                st.success("Sampling Status: Stable")
+                st.success('Sampling Status: Stable')
             else:
-                st.warning("Sampling Status: Unstable")
-                
+                st.warning('Sampling Status: Unstable')
+
         if metadata['sampling_cv'] is not None:
-            col_m3.metric("Sampling CV", f"{metadata['sampling_cv']:.2f}%", help="Coefficient of variation")
-        
+            col_m3.metric('Sampling CV', f'{metadata["sampling_cv"]:.2f}%', help='Coefficient of variation')
+
         # Row drops
         if metadata['rows_dropped'] > 0:
-            st.info(f"{metadata['rows_dropped']} rows dropped during processing")
-        
+            st.info(f'{metadata["rows_dropped"]} rows dropped during processing')
+
         # Warnings
         if metadata['warnings']:
             for warning in metadata['warnings']:
-                st.warning(f"Quality Alert: {warning}")
+                st.warning(f'Quality Alert: {warning}')
         else:
-            st.success("Quality Status: Clear")
+            st.success('Quality Status: Clear')
 
-    _ok("Pipeline completed successfully — all six steps produced valid output.")
+    _ok('Pipeline completed successfully — all six steps produced valid output.')
 
 st.divider()
 st.caption(
-    "This page is intended for debugging only. To view the full coaching report, "
-    "use the main **Rowing Analysis Report** page."
+    'This page is intended for debugging only. To view the full coaching report, use the main **Rowing Analysis Report** page.'
 )

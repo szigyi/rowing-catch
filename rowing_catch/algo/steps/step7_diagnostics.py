@@ -5,6 +5,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+
 def step7_diagnostics(
     df_raw: pd.DataFrame,
     df_processed: pd.DataFrame,
@@ -50,12 +51,18 @@ def step7_diagnostics(
             sampling_cv = (np.std(dt) / np.mean(dt)) * 100 if np.mean(dt) > 0 else None
             if sampling_cv is not None and sampling_cv > 5.0:
                 sampling_is_stable = False
-                warnings.append(f"Sampling frequency unstable: CV={sampling_cv:.1f}% (expected ~0-2%)")
-                logger.warning(f"Sampling frequency unstable: {sampling_cv:.1f}%")
+                warnings.append(f'Sampling frequency unstable: CV={sampling_cv:.1f}% (expected ~0-2%)')
+                logger.warning(f'Sampling frequency unstable: {sampling_cv:.1f}%')
 
     # 2. NaN rate in position columns (from avg_cycle)
-    position_cols = ['Handle_X_Smooth', 'Handle_Y_Smooth', 'Seat_X_Smooth', 'Seat_Y_Smooth',
-                     'Shoulder_X_Smooth', 'Shoulder_Y_Smooth']
+    position_cols = [
+        'Handle_X_Smooth',
+        'Handle_Y_Smooth',
+        'Seat_X_Smooth',
+        'Seat_Y_Smooth',
+        'Shoulder_X_Smooth',
+        'Shoulder_Y_Smooth',
+    ]
     total_cells = 0
     nan_cells = 0
     for col in position_cols:
@@ -75,35 +82,17 @@ def step7_diagnostics(
 
     # 4. Data quality flag determination
     cv_length = stats.get('cv_length', 0)
-    
-    if capture_length < 3:
-        data_quality_flag = 'fail'
-        warnings.append(f"Capture length too short: {capture_length} cycles detected (expected ≥ 3)")
-        logger.warning(f"Capture too short: {capture_length} cycles < 3 minimum")
-    elif nan_rate > 0.1:
-        data_quality_flag = 'fail'
-        warnings.append("Data quality is POOR: high NaN rate (unreliable results)")
-        logger.warning(f"High NaN rate: {nan_rate:.1%} > 10%")
-    elif nan_rate > 0.05 or outlier_count > len(avg_cycle) * 0.05:
-        data_quality_flag = 'warning'
-        details = []
-        if nan_rate > 0.05: details.append(f"NaN rate {nan_rate:.1%}")
-        if outlier_count > 0: details.append(f"{outlier_count} outliers")
-        warnings.append(f"Data quality warning: {', '.join(details)}")
-        logger.warning(f"Moderate data quality issues: NaN_rate={nan_rate:.1%}, outliers={outlier_count}")
-    elif cv_length > 10:
-        data_quality_flag = 'warning'
-        warnings.append(f"High stroke length variability: CV={cv_length:.1f}% (expected < 10%)")
-        logger.warning(f"High stroke length variability: CV={cv_length:.1f}% > 10%")
-    else:
-        data_quality_flag = 'OK'
+    data_quality_flag, quality_warnings = _determine_data_quality(
+        capture_length, nan_rate, outlier_count, len(avg_cycle), cv_length
+    )
+    warnings.extend(quality_warnings)
 
     # 5. Row drops during processing
     if rows_dropped > 0:
         drop_pct = (rows_dropped / len(df_raw)) * 100 if len(df_raw) > 0 else 0
         if drop_pct > 10:
-            warnings.append(f"Significant data loss during processing: {rows_dropped} rows dropped ({drop_pct:.1f}%)")
-            logger.warning(f"High row drop rate: {drop_pct:.1f}%")
+            warnings.append(f'Significant data loss during processing: {rows_dropped} rows dropped ({drop_pct:.1f}%)')
+            logger.warning(f'High row drop rate: {drop_pct:.1f}%')
 
     return {
         'capture_length': capture_length,
@@ -115,6 +104,43 @@ def step7_diagnostics(
         'data_quality_flag': data_quality_flag,
         'warnings': warnings,
     }
+
+
+def _determine_data_quality(
+    capture_length: int,
+    nan_rate: float,
+    outlier_count: int,
+    avg_cycle_len: int,
+    cv_length: float,
+) -> tuple[str, list[str]]:
+    """Internal helper to determine data quality flag and warnings."""
+    warnings = []
+    if capture_length < 3:
+        warnings.append(f'Capture length too short: {capture_length} cycles detected (expected ≥ 3)')
+        logger.warning(f'Capture too short: {capture_length} cycles < 3 minimum')
+        return 'fail', warnings
+
+    if nan_rate > 0.1:
+        warnings.append('Data quality is POOR: high NaN rate (unreliable results)')
+        logger.warning(f'High NaN rate: {nan_rate:.1%} > 10%')
+        return 'fail', warnings
+
+    if nan_rate > 0.05 or outlier_count > avg_cycle_len * 0.05:
+        details = []
+        if nan_rate > 0.05:
+            details.append(f'NaN rate {nan_rate:.1%}')
+        if outlier_count > 0:
+            details.append(f'{outlier_count} outliers')
+        warnings.append(f'Data quality warning: {", ".join(details)}')
+        logger.warning(f'Moderate data quality issues: NaN_rate={nan_rate:.1%}, outliers={outlier_count}')
+        return 'warning', warnings
+
+    if cv_length > 10:
+        warnings.append(f'High stroke length variability: CV={cv_length:.1f}% (expected < 10%)')
+        logger.warning(f'High stroke length variability: CV={cv_length:.1f}% > 10%')
+        return 'warning', warnings
+
+    return 'OK', []
 
 
 def _detect_outliers_zscore(series: np.ndarray, threshold: float = 3.0) -> np.ndarray:
@@ -136,4 +162,4 @@ def _detect_outliers_zscore(series: np.ndarray, threshold: float = 3.0) -> np.nd
     else:
         outliers = np.abs(series - mean) > 1e-6
 
-    return outliers
+    return np.asarray(outliers, dtype=bool)

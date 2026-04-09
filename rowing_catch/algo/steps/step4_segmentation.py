@@ -52,10 +52,6 @@ def step4_segment_and_average(
         return None
 
     min_length = min(c.shape[0] for c in cycles)
-    avg_cycle = (
-        pd.concat([c.iloc[:min_length] for c in cycles])
-        .groupby('Cycle_Index')
-        .mean()
-    )
+    avg_cycle = pd.concat([c.iloc[:min_length] for c in cycles]).groupby('Cycle_Index').mean()
 
     return cycles, avg_cycle, min_length

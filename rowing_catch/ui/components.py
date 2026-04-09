@@ -1,13 +1,24 @@
-import streamlit as st
+from typing import Any, cast
+
 import matplotlib.pyplot as plt
 import numpy as np
+import streamlit as st
+
 from rowing_catch.ui.utils import (
-    setup_premium_plot, COLOR_MAIN, COLOR_SEAT, COLOR_CATCH, COLOR_FINISH, 
-    COLOR_COMPARE, BG_COLOR_FIGURE, BG_COLOR_AXES, COLOR_TEXT_MAIN, COLOR_TEXT_SUB
+    BG_COLOR_AXES,
+    BG_COLOR_FIGURE,
+    COLOR_CATCH,
+    COLOR_COMPARE,
+    COLOR_FINISH,
+    COLOR_MAIN,
+    COLOR_SEAT,
+    COLOR_TEXT_MAIN,
+    setup_premium_plot,
 )
 
+
 def plot_velocity_coordination(avg_cycle, catch_idx, finish_idx):
-    fig, ax = setup_premium_plot("Velocity Coordination", "Stroke Index", "Velocity")
+    fig, ax = setup_premium_plot('Velocity Coordination', 'Stroke Index', 'Velocity')
     ax.plot(avg_cycle.index, avg_cycle['Handle_X_Vel'], label='Handle Velocity', color=COLOR_MAIN, linewidth=2.5, zorder=5)
     ax.fill_between(avg_cycle.index, avg_cycle['Handle_X_Vel'], 0, color=COLOR_MAIN, alpha=0.1, zorder=4)
     ax.plot(avg_cycle.index, avg_cycle['Seat_X_Vel'], label='Seat Velocity', color=COLOR_SEAT, linewidth=2.5, zorder=5)
@@ -16,60 +27,101 @@ def plot_velocity_coordination(avg_cycle, catch_idx, finish_idx):
     ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.5, zorder=2)
     ax.legend(frameon=True, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     st.pyplot(fig)
-    st.info("**Coach's Tip:** The goal is for your legs and handle to accelerate together. "
-            "Gaps between these peaks mean you are losing power (shooting the slide).")
+    st.info(
+        "**Coach's Tip:** The goal is for your legs and handle to accelerate together. "
+        'Gaps between these peaks mean you are losing power (shooting the slide).'
+    )
+
 
 def plot_handle_trajectory(avg_cycle, catch_idx, finish_idx):
-    fig, ax = setup_premium_plot("Handle Trajectory", "Horizontal Position", "Vertical Position")
-    
+    fig, ax = setup_premium_plot('Handle Trajectory', 'Horizontal Position', 'Vertical Position')
+
     # Ideal Handle Path Calculation
     h_x_min = avg_cycle['Handle_X_Smooth'].min()
     h_x_max = avg_cycle['Handle_X_Smooth'].max()
     h_y_min = avg_cycle['Handle_Y_Smooth'].min()
     h_y_max = avg_cycle['Handle_Y_Smooth'].max()
-    
-    ideal_y_drive = h_y_max + (h_y_max - h_y_min) * 0.1 
-    ideal_y_recovery = h_y_min - (h_y_max - h_y_min) * 0.1 
-    
+
+    ideal_y_drive = h_y_max + (h_y_max - h_y_min) * 0.1
+    ideal_y_recovery = h_y_min - (h_y_max - h_y_min) * 0.1
+
     ideal_x = [h_x_min, h_x_max, h_x_max, h_x_min, h_x_min]
     ideal_y = [ideal_y_drive, ideal_y_drive, ideal_y_recovery, ideal_y_recovery, ideal_y_drive]
-    
+
     ax.plot(ideal_x, ideal_y, color=COLOR_COMPARE, linestyle='--', alpha=0.5, label='Ideal Path', linewidth=1.5, zorder=2)
-    ax.scatter([h_x_min, h_x_max], [ideal_y_drive, ideal_y_drive], color=COLOR_COMPARE, s=50, alpha=0.5, label='Ideal Catch/Finish', zorder=2)
-    
-    ax.plot(avg_cycle['Handle_X_Smooth'], avg_cycle['Handle_Y_Smooth'], color=COLOR_MAIN, label='Handle Path', linewidth=2.5, zorder=4)
-    ax.scatter(avg_cycle.loc[catch_idx, 'Handle_X_Smooth'], avg_cycle.loc[catch_idx, 'Handle_Y_Smooth'], color=COLOR_CATCH, s=100, label='Catch', zorder=5)
-    ax.scatter(avg_cycle.loc[finish_idx, 'Handle_X_Smooth'], avg_cycle.loc[finish_idx, 'Handle_Y_Smooth'], color=COLOR_FINISH, s=100, label='Finish', zorder=5)
-    
+    ax.scatter(
+        [h_x_min, h_x_max],
+        [ideal_y_drive, ideal_y_drive],
+        color=COLOR_COMPARE,
+        s=50,
+        alpha=0.5,
+        label='Ideal Catch/Finish',
+        zorder=2,
+    )
+
+    ax.plot(
+        avg_cycle['Handle_X_Smooth'],
+        avg_cycle['Handle_Y_Smooth'],
+        color=COLOR_MAIN,
+        label='Handle Path',
+        linewidth=2.5,
+        zorder=4,
+    )
+    ax.scatter(
+        avg_cycle.loc[catch_idx, 'Handle_X_Smooth'],
+        avg_cycle.loc[catch_idx, 'Handle_Y_Smooth'],
+        color=COLOR_CATCH,
+        s=100,
+        label='Catch',
+        zorder=5,
+    )
+    ax.scatter(
+        avg_cycle.loc[finish_idx, 'Handle_X_Smooth'],
+        avg_cycle.loc[finish_idx, 'Handle_Y_Smooth'],
+        color=COLOR_FINISH,
+        s=100,
+        label='Finish',
+        zorder=5,
+    )
+
     ax.invert_yaxis()
     ax.legend(frameon=True, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
     st.pyplot(fig)
     st.info("**Coach's Tip:** A flatter top line on the drive means a more consistent depth in the water.")
 
+
 def plot_consistency_rhythm(cv, drive_p, rec_p):
-    st.write(f"Your current variability: **{cv:.2f}%**")
+    st.write(f'Your current variability: **{cv:.2f}%**')
     if cv < 2:
-        st.success("Excellent! You have a very stable, robotic rhythm.")
+        st.success('Excellent! You have a very stable, robotic rhythm.')
     elif cv < 5:
-        st.warning("Good consistency, but room to find a more repeatable rhythm.")
+        st.warning('Good consistency, but room to find a more repeatable rhythm.')
     else:
-        st.error("High variability detected. Focus on making every stroke identical.")
+        st.error('High variability detected. Focus on making every stroke identical.')
 
     labels = ['Drive', 'Recovery']
     sizes = [drive_p, rec_p]
-    
+
     fig, ax = plt.subplots(figsize=(6, 6))
     fig.patch.set_facecolor(BG_COLOR_FIGURE)
     ax.set_facecolor(BG_COLOR_AXES)
-    
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, 
-           colors=[COLOR_FINISH, COLOR_MAIN], 
-           textprops={'color': COLOR_TEXT_MAIN, 'fontweight': 'bold'})
+
+    ax.pie(
+        sizes,
+        labels=labels,
+        autopct='%1.1f%%',
+        startangle=90,
+        colors=[COLOR_FINISH, COLOR_MAIN],
+        textprops={'color': COLOR_TEXT_MAIN, 'fontweight': 'bold'},
+    )
     ax.axis('equal')
-    
+
     st.pyplot(fig)
-    st.info(f"**Coach's Tip:** {'You are rushing the recovery.' if drive_p > 35 else 'Good rhythm.'} "
-            "Slower movement on the slide (recovery) allows your muscles to recover.")
+    st.info(
+        f"**Coach's Tip:** {'You are rushing the recovery.' if drive_p > 35 else 'Good rhythm.'} "
+        'Slower movement on the slide (recovery) allows your muscles to recover.'
+    )
+
 
 def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, stage_points=None, ghost_cycle=None):
     """Plot trunk angle (top) and stage stick figures (bottom) with a shared X axis.
@@ -88,7 +140,6 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
         ghost_cycle: optional pandas DataFrame of a comparison scenario to plot behind the main trunk angle.
     """
     import matplotlib.pyplot as plt
-    import numpy as np
 
     x = avg_cycle.index.to_numpy()
 
@@ -97,15 +148,15 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
         rec_end = int(x.max())
         rec_len = max(1, rec_end - int(finish_idx))
         stage_points = [
-            ("Catch", int(catch_idx)),
-            ("3/4 Slide", int(catch_idx + 0.25 * drive_len)),
-            ("1/2 Slide", int(catch_idx + 0.50 * drive_len)),
-            ("1/4 Slide", int(catch_idx + 0.75 * drive_len)),
-            ("Finish", int(finish_idx)),
-            ("1/4 Slide", int(finish_idx + 0.25 * rec_len)),
-            ("1/2 Slide", int(finish_idx + 0.50 * rec_len)),
-            ("3/4 Slide", int(finish_idx + 0.75 * rec_len)),
-            ("Next Catch", rec_end),
+            ('Catch', int(catch_idx)),
+            ('3/4 Slide', int(catch_idx + 0.25 * drive_len)),
+            ('1/2 Slide', int(catch_idx + 0.50 * drive_len)),
+            ('1/4 Slide', int(catch_idx + 0.75 * drive_len)),
+            ('Finish', int(finish_idx)),
+            ('1/4 Slide', int(finish_idx + 0.25 * rec_len)),
+            ('1/2 Slide', int(finish_idx + 0.50 * rec_len)),
+            ('3/4 Slide', int(finish_idx + 0.75 * rec_len)),
+            ('Next Catch', rec_end),
         ]
 
     x_min = int(x.min())
@@ -117,15 +168,15 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
         1,
         figsize=(10, 7),
         sharex=True,
-        gridspec_kw={"height_ratios": [3, 2]},
+        gridspec_kw={'height_ratios': [3, 2]},
         constrained_layout=True,
     )
-    
+
     # Modern Styling
     fig.patch.set_facecolor('#F8F9FA')  # Light gray background for the whole figure
-    ax_top.set_facecolor('#FFFFFF')     # White for the data area
+    ax_top.set_facecolor('#FFFFFF')  # White for the data area
     ax_bot.set_facecolor('#F8F9FA')
-    
+
     # Clean up spines on top plot
     ax_top.spines['top'].set_visible(False)
     ax_top.spines['right'].set_visible(False)
@@ -135,19 +186,44 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
 
     # Add a little extra padding around the whole figure to avoid Streamlit cropping at edges.
     try:
-        fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
+        cast(Any, fig).set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
     except Exception:
         pass
 
     # --- Top: trunk angle trace ---
     ax_top.plot(avg_cycle.index, avg_cycle['Trunk_Angle'], color='#636EFA', label='Trunk Angle', linewidth=2.5, zorder=5)
-    
+
     # Fill under the curve slightly for dynamic effect
-    ax_top.fill_between(avg_cycle.index, avg_cycle['Trunk_Angle'], 0, where=(avg_cycle['Trunk_Angle'] > 0), color='#636EFA', alpha=0.1, zorder=4)
-    ax_top.fill_between(avg_cycle.index, avg_cycle['Trunk_Angle'], 0, where=(avg_cycle['Trunk_Angle'] <= 0), color='#636EFA', alpha=0.1, zorder=4)
-    
+    ax_top.fill_between(
+        avg_cycle.index,
+        avg_cycle['Trunk_Angle'],
+        0,
+        where=(avg_cycle['Trunk_Angle'] > 0),
+        color='#636EFA',
+        alpha=0.1,
+        zorder=4,
+    )
+    ax_top.fill_between(
+        avg_cycle.index,
+        avg_cycle['Trunk_Angle'],
+        0,
+        where=(avg_cycle['Trunk_Angle'] <= 0),
+        color='#636EFA',
+        alpha=0.1,
+        zorder=4,
+    )
+
     if ghost_cycle is not None:
-        ax_top.plot(ghost_cycle.index, ghost_cycle['Trunk_Angle'], color='#A8B2C1', linestyle=':', linewidth=2, alpha=0.8, label='Compare', zorder=4)
+        ax_top.plot(
+            ghost_cycle.index,
+            ghost_cycle['Trunk_Angle'],
+            color='#A8B2C1',
+            linestyle=':',
+            linewidth=2,
+            alpha=0.8,
+            label='Compare',
+            zorder=4,
+        )
 
     # Upright reference (0° from vertical)
     ax_top.axhline(0, color='#888888', linestyle='dashed', linewidth=1, alpha=0.5, zorder=2)
@@ -161,7 +237,7 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
         va='bottom',
         ha='left',
         bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.8, pad=0.6),
-        zorder=6
+        zorder=6,
     )
 
     ax_top.axvline(catch_idx, color='#00CC96', linestyle='--', linewidth=1.5, zorder=2)
@@ -177,18 +253,68 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
 
     y_min, y_max = ax_top.get_ylim()
     y_label = y_max - (y_max - y_min) * 0.05
-    ax_top.text(catch_idx, y_label, 'Catch', color='#00CC96', ha='center', va='top', fontsize=10, fontweight='bold',
-                bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.9, pad=1.5), zorder=6)
-    ax_top.text(finish_idx, y_label, 'Finish', color='#EF553B', ha='center', va='top', fontsize=10, fontweight='bold',
-                bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.9, pad=1.5), zorder=6)
-    ax_top.text(x_max, y_label, 'Catch', color='#00CC96', ha='center', va='top', fontsize=10, fontweight='bold',
-                bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.9, pad=1.5), zorder=6)
+    ax_top.text(
+        catch_idx,
+        y_label,
+        'Catch',
+        color='#00CC96',
+        ha='center',
+        va='top',
+        fontsize=10,
+        fontweight='bold',
+        bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.9, pad=1.5),
+        zorder=6,
+    )
+    ax_top.text(
+        finish_idx,
+        y_label,
+        'Finish',
+        color='#EF553B',
+        ha='center',
+        va='top',
+        fontsize=10,
+        fontweight='bold',
+        bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.9, pad=1.5),
+        zorder=6,
+    )
+    ax_top.text(
+        x_max,
+        y_label,
+        'Catch',
+        color='#00CC96',
+        ha='center',
+        va='top',
+        fontsize=10,
+        fontweight='bold',
+        bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.9, pad=1.5),
+        zorder=6,
+    )
 
     x_right = (avg_cycle.index.min() + avg_cycle.index.max()) * 0.85
-    ax_top.text(x_right, sum(catch_zone) / 2, 'Ideal Catch', color='#00CC96', ha='center', va='center', fontsize=9, fontweight='medium',
-                bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.7, pad=1.5), zorder=6)
-    ax_top.text(x_right, sum(finish_zone) / 2, 'Ideal Finish', color='#EF553B', ha='center', va='center', fontsize=9, fontweight='medium',
-                bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.7, pad=1.5), zorder=6)
+    ax_top.text(
+        x_right,
+        sum(catch_zone) / 2,
+        'Ideal Catch',
+        color='#00CC96',
+        ha='center',
+        va='center',
+        fontsize=9,
+        fontweight='medium',
+        bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.7, pad=1.5),
+        zorder=6,
+    )
+    ax_top.text(
+        x_right,
+        sum(finish_zone) / 2,
+        'Ideal Finish',
+        color='#EF553B',
+        ha='center',
+        va='center',
+        fontsize=9,
+        fontweight='medium',
+        bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.7, pad=1.5),
+        zorder=6,
+    )
 
     legend_kwargs = dict(loc='center right', frameon=True, facecolor='#FFFFFF', edgecolor='#DDDDDD', fontsize=9, borderpad=0.8)
     if not any(spine.get_visible() for spine in ax_top.spines.values()):
@@ -286,7 +412,7 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
         inset.text(
             0,
             1.32,
-            f"{angle:.1f}°",
+            f'{angle:.1f}°',
             ha='center',
             va='bottom',
             fontsize=8,
@@ -303,6 +429,6 @@ def plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, s
     finish_lean = float(avg_cycle.loc[finish_idx, 'Trunk_Angle'])
     st.info(
         f"**Coach's Tip:** You are achieving {abs(finish_lean - catch_lean):.1f}° of range. "
-        f"Catch lean: {catch_lean:.1f}°, Finish lean: {finish_lean:.1f}°. "
-        "Aim for the shaded zones to optimize power."
+        f'Catch lean: {catch_lean:.1f}°, Finish lean: {finish_lean:.1f}°. '
+        'Aim for the shaded zones to optimize power.'
     )

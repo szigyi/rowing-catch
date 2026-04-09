@@ -35,17 +35,7 @@ def step5_compute_metrics(
     ref_catch = avg_cycle.iloc[0]
     is_facing_left = ref_catch['Handle_X_Smooth'] < ref_catch['Seat_X_Smooth']
 
-    def _calc_trunk_angle(row):
-        dx = row['Shoulder_X_Smooth'] - row['Seat_X_Smooth']
-        dy = row['Shoulder_Y_Smooth'] - row['Seat_Y_Smooth']
-        dy_abs = abs(dy)
-
-        if is_facing_left:
-            return np.degrees(np.arctan2(dx, dy_abs))
-        else:
-            return np.degrees(np.arctan2(-dx, dy_abs))
-
-    avg_cycle['Trunk_Angle'] = avg_cycle.apply(_calc_trunk_angle, axis=1)
+    avg_cycle['Trunk_Angle'] = _compute_trunk_angles(avg_cycle, is_facing_left)
 
     # Calculate derivatives (Velocity -> Acceleration -> Jerk)
     # Using np.gradient which handles non-uniform time steps if 't' is provided.
@@ -57,24 +47,37 @@ def step5_compute_metrics(
         smooth_col = f'{base}_Smooth'
         if smooth_col not in avg_cycle.columns:
             continue
-        
+
         # Velocity
         v_col = f'{base}_Vel'
-        avg_cycle[v_col] = np.gradient(avg_cycle[smooth_col], t) if t is not None else np.gradient(avg_cycle[smooth_col])
-        
+        if t is not None:
+            avg_cycle[v_col] = np.gradient(avg_cycle[smooth_col], t)
+        else:
+            avg_cycle[v_col] = np.gradient(avg_cycle[smooth_col])
+
         # Acceleration
         a_col = f'{base}_Accel'
-        avg_cycle[a_col] = np.gradient(avg_cycle[v_col], t) if t is not None else np.gradient(avg_cycle[v_col])
-        
+        if t is not None:
+            avg_cycle[a_col] = np.gradient(avg_cycle[v_col], t)
+        else:
+            avg_cycle[a_col] = np.gradient(avg_cycle[v_col])
+
         # Jerk
         j_col = f'{base}_Jerk'
-        avg_cycle[j_col] = np.gradient(avg_cycle[a_col], t) if t is not None else np.gradient(avg_cycle[a_col])
+        if t is not None:
+            avg_cycle[j_col] = np.gradient(avg_cycle[a_col], t)
+        else:
+            avg_cycle[j_col] = np.gradient(avg_cycle[a_col])
 
     # 2. Derived Torso Proxy (Average of Seat and Shoulder)
     if 'Seat_X_Vel' in avg_cycle.columns and 'Shoulder_X_Vel' in avg_cycle.columns:
         avg_cycle['Rower_Vel'] = (avg_cycle['Seat_X_Vel'] + avg_cycle['Shoulder_X_Vel']) / 2
-        avg_cycle['Rower_Accel'] = np.gradient(avg_cycle['Rower_Vel'], t) if t is not None else np.gradient(avg_cycle['Rower_Vel'])
-        avg_cycle['Rower_Jerk'] = np.gradient(avg_cycle['Rower_Accel'], t) if t is not None else np.gradient(avg_cycle['Rower_Accel'])
+        if t is not None:
+            avg_cycle['Rower_Accel'] = np.gradient(avg_cycle['Rower_Vel'], t)
+            avg_cycle['Rower_Jerk'] = np.gradient(avg_cycle['Rower_Accel'], t)
+        else:
+            avg_cycle['Rower_Accel'] = np.gradient(avg_cycle['Rower_Vel'])
+            avg_cycle['Rower_Jerk'] = np.gradient(avg_cycle['Rower_Accel'])
     elif 'Seat_X_Vel' in avg_cycle.columns:
         # Fallback if shoulder missing
         avg_cycle['Rower_Vel'] = avg_cycle['Seat_X_Vel']
@@ -82,31 +85,10 @@ def step5_compute_metrics(
         avg_cycle['Rower_Jerk'] = avg_cycle['Seat_X_Jerk']
 
     # --- Advanced Power Proxy (V^3 Model) ---
-    # Power = Force * Velocity. For rowing, Force ~ Velocity^2 (drag).
-    # Thus, Technical Power Proxy = V_handle^2 * V_component.
-    v_h = avg_cycle['Handle_X_Vel'].to_numpy()
-    v_s = avg_cycle['Seat_X_Vel'].to_numpy()
-    
-    # Drag Force Proxy is proportional to speed squared, maintaining direction of pull
-    force_proxy = v_h * np.abs(v_h)
-    
-    avg_cycle['Power_Total'] = force_proxy * v_h
-    avg_cycle['Power_Legs'] = force_proxy * v_s
-    
-    if 'Shoulder_X_Vel' in avg_cycle.columns:
-        v_sh = avg_cycle['Shoulder_X_Vel'].to_numpy()
-        avg_cycle['Power_Trunk'] = force_proxy * (v_sh - v_s)
-        avg_cycle['Power_Arms'] = force_proxy * (v_h - v_sh)
-    else:
-        # Fallback if shoulder tracking is missing: assume non-leg power is "upper body"
-        avg_cycle['Power_Trunk'] = force_proxy * (v_h - v_s)
-        avg_cycle['Power_Arms'] = 0.0
-
+    avg_cycle = _compute_power_proxies(avg_cycle)
 
     # Re-detect catch on averaged cycle for precise alignment.
-    avg_cycle['Stroke_Compression'] = np.abs(
-        avg_cycle['Seat_X_Smooth'] - avg_cycle['Handle_X_Smooth']
-    )
+    avg_cycle['Stroke_Compression'] = np.abs(avg_cycle['Seat_X_Smooth'] - avg_cycle['Handle_X_Smooth'])
     catch_candidates_avg = _detect_catches_by_seat_reversal(
         avg_cycle['Seat_X_Smooth'],
         min_separation=max(5, window),
@@ -145,12 +127,12 @@ def _pick_finish_index(avg_cycle: pd.DataFrame, catch_idx: int) -> int:
     post = slice(catch_idx, n)
     hvel = np.gradient(handle)
     handle_peak = catch_idx + int(np.nanargmax(handle[post]))
-    
+
     # Look for the velocity zero-crossing (positive to negative) after catch
     rev = np.where((hvel[:-1] > 0) & (hvel[1:] <= 0))[0] + 1
     rev = rev[rev > catch_idx]
-    rev_after_peak = rev[rev >= handle_peak - 5] # Allow slightly before peak for edge cases
-    
+    rev_after_peak = rev[rev >= handle_peak - 5]  # Allow slightly before peak for edge cases
+
     handle_target = handle_peak
     if rev_after_peak.size:
         handle_target = int(rev_after_peak[0])
@@ -159,3 +141,47 @@ def _pick_finish_index(avg_cycle: pd.DataFrame, catch_idx: int) -> int:
             handle_target = handle_target - 1
 
     return int(np.clip(handle_target, catch_idx + 1, n - 1))
+
+
+def _compute_trunk_angles(df: pd.DataFrame, is_facing_left: bool) -> pd.Series:
+    """Compute trunk angles for each row in the dataframe."""
+
+    def _calc_angle(row):
+        dx = row['Shoulder_X_Smooth'] - row['Seat_X_Smooth']
+        # dy = Shoulder_Y - Seat_Y (Shoulder is higher, so dy is usually positive)
+        dy = row['Shoulder_Y_Smooth'] - row['Seat_Y_Smooth']
+        dy_abs = abs(dy)
+
+        if is_facing_left:
+            return np.degrees(np.arctan2(dx, dy_abs))
+        else:
+            return np.degrees(np.arctan2(-dx, dy_abs))
+
+    return pd.Series(df.apply(_calc_angle, axis=1), dtype=float)
+
+
+def _compute_power_proxies(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute segmental power proxies using a V^3 model.
+
+    Power = Force * Velocity. For rowing, Force ~ Velocity^2 (drag).
+    Thus, Technical Power Proxy = V_handle^2 * V_component.
+    """
+    v_h = df['Handle_X_Vel'].to_numpy()
+    v_s = df['Seat_X_Vel'].to_numpy()
+
+    # Drag Force Proxy is proportional to speed squared, maintaining direction of pull
+    force_proxy = v_h * np.abs(v_h)
+
+    df['Power_Total'] = force_proxy * v_h
+    df['Power_Legs'] = force_proxy * v_s
+
+    if 'Shoulder_X_Vel' in df.columns:
+        v_sh = df['Shoulder_X_Vel'].to_numpy()
+        df['Power_Trunk'] = force_proxy * (v_sh - v_s)
+        df['Power_Arms'] = force_proxy * (v_h - v_sh)
+    else:
+        # Fallback if shoulder tracking is missing: assume non-leg power is "upper body"
+        df['Power_Trunk'] = force_proxy * (v_h - v_s)
+        df['Power_Arms'] = 0.0
+
+    return df

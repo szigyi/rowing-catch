@@ -1,4 +1,3 @@
-
 REQUIRED_COLUMN_NAMES = {
     'Handle/0/X': 'Handle_X',
     'Handle/0/Y': 'Handle_Y',

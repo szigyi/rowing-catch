@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
 def process_rowing_data(df: pd.DataFrame, pre_catch_window: int = 10) -> dict | None:
     """Run the full rowing-data processing pipeline and return analysis results.
 

@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -7,6 +8,7 @@ from rowing_catch.algo.steps.step5_metrics import _pick_finish_index
 
 logger = logging.getLogger(__name__)
 
+
 def step6_statistics(
     cycles: list[pd.DataFrame],
     min_length: int,
@@ -14,7 +16,6 @@ def step6_statistics(
     finish_idx: int,
     avg_cycle: pd.DataFrame,
 ) -> dict:
-
     """Compute stroke-level statistics from the individual cycles and the average.
 
     This step consolidates all scalar performance metrics, including both sample-based
@@ -69,7 +70,7 @@ def step6_statistics(
     # 4. Per-cycle details for consistency spread
     cycle_details = []
     for i, c in enumerate(cycles):
-        detail = {'cycle_idx': i + 1}
+        detail: dict[str, Any] = {'cycle_idx': i + 1}
         if 'Time' in c.columns and len(c) > 1:
             t_c = c['Time'].to_numpy(dtype=float)
             dur = t_c[-1] - t_c[0]
@@ -80,7 +81,7 @@ def step6_statistics(
                 drive_dur = t_c[f_idx_c] - t_c[0]
                 rec_dur = dur - drive_dur
                 detail['drive_recovery_ratio'] = drive_dur / rec_dur if rec_dur > 0 else None
-        
+
         cycle_details.append(detail)
 
     return {
@@ -95,11 +96,7 @@ def step6_statistics(
     }
 
 
-
-def _compute_phase_volume(positions: np.ndarray,
-                          times: np.ndarray | None,
-                          phase_start_idx: int,
-                          phase_end_idx: int) -> float:
+def _compute_phase_volume(positions: np.ndarray, times: np.ndarray | None, phase_start_idx: int, phase_end_idx: int) -> float:
     """Compute integrated distance * time for a phase (drive or recovery)."""
     if phase_end_idx <= phase_start_idx or phase_end_idx > len(positions):
         return 0.0
@@ -129,7 +126,7 @@ def _compute_temporal_metrics(
     finish_idx: int,
 ) -> dict:
     """Calculate temporal metrics and standard units for the averaged cycle."""
-    metrics = {
+    metrics: dict[str, Any] = {
         'sample_rate_hz': None,
         'cycle_duration_s': None,
         'drive_duration_s': None,
@@ -160,13 +157,14 @@ def _compute_temporal_metrics(
 
     stroke_rate_spm = float(60.0 / cycle_duration_s) if cycle_duration_s > 0 else None
 
-    metrics.update({
-        'sample_rate_hz': sample_rate_hz,
-        'cycle_duration_s': cycle_duration_s,
-        'drive_duration_s': drive_duration_s,
-        'recovery_duration_s': recovery_duration_s,
-        'stroke_rate_spm': stroke_rate_spm,
-    })
+    metrics.update(
+        {
+            'sample_rate_hz': sample_rate_hz,
+            'cycle_duration_s': cycle_duration_s,
+            'drive_duration_s': drive_duration_s,
+            'recovery_duration_s': recovery_duration_s,
+            'stroke_rate_spm': stroke_rate_spm,
+        }
+    )
 
     return metrics
-

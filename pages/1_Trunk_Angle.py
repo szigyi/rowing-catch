@@ -1,8 +1,9 @@
 import streamlit as st
 
 from rowing_catch.algo.analysis import process_rowing_data
+from rowing_catch.plot_transforms import get_plot_component
+from rowing_catch.plots.trunk_angle import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scenarios
-from rowing_catch.ui.components import plot_trunk_angle_with_stage_stickfigures
 
 st.set_page_config(page_title='Trunk Angle Analysis', layout='wide')
 
@@ -33,9 +34,8 @@ if selected_scenario:
     results = process_rowing_data(df)
 
     if results:
-        avg_cycle = results['avg_cycle']
-        catch_idx = results['catch_idx']
-        finish_idx = results['finish_idx']
+        # Get plot component and compute plot-ready data
+        component = get_plot_component('trunk_angle')
 
         ghost_cycle = None
         if selected_ghost != 'None':
@@ -44,7 +44,16 @@ if selected_scenario:
             if ghost_results:
                 ghost_cycle = ghost_results['avg_cycle']
 
-        plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx, ghost_cycle=ghost_cycle)
+        computed = component.compute(
+            avg_cycle=results['avg_cycle'],
+            catch_idx=results['catch_idx'],
+            finish_idx=results['finish_idx'],
+            ghost_cycle=ghost_cycle,
+            results=results,
+        )
+
+        # Render plot
+        render_trunk_angle_with_stage_stickfigures(computed)
     else:
         st.error('Could not process the selected scenario.')
 

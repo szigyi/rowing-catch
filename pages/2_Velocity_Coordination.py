@@ -1,8 +1,9 @@
 import streamlit as st
 
 from rowing_catch.algo.analysis import process_rowing_data
+from rowing_catch.plot_transforms import get_plot_component
+from rowing_catch.plots.velocity import render_velocity_coordination
 from rowing_catch.scenario.scenarios import create_scenario_data, get_coordination_scenarios
-from rowing_catch.ui.components import plot_velocity_coordination
 
 st.set_page_config(page_title='Velocity Coordination Analysis', layout='wide')
 
@@ -39,11 +40,17 @@ if selected_scenario:
     results = process_rowing_data(df)
 
     if results:
-        avg_cycle = results['avg_cycle']
-        catch_idx = results['catch_idx']
-        finish_idx = results['finish_idx']
+        # Get plot component and compute plot-ready data
+        component = get_plot_component('velocity')
+        computed = component.compute(
+            avg_cycle=results['avg_cycle'],
+            catch_idx=results['catch_idx'],
+            finish_idx=results['finish_idx'],
+            results=results,
+        )
 
-        plot_velocity_coordination(avg_cycle, catch_idx, finish_idx)
+        # Render plot
+        render_velocity_coordination(computed)
     else:
         st.error('Could not process the selected scenario.')
 

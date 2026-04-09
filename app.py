@@ -4,13 +4,12 @@ import pandas as pd
 import streamlit as st
 
 from rowing_catch.algo.analysis import process_rowing_data
-from rowing_catch.ui.components import (
-    plot_consistency_rhythm,
-    plot_handle_trajectory,
-    plot_trunk_angle_with_stage_stickfigures,
-    plot_velocity_coordination,
-)
-from rowing_catch.ui.utils import get_traffic_light
+from rowing_catch.plot_transforms import get_plot_component
+from rowing_catch.plots.rhythm import render_consistency_rhythm
+from rowing_catch.plots.trajectory import render_handle_trajectory
+from rowing_catch.plots.trunk_angle import render_trunk_angle_with_stage_stickfigures
+from rowing_catch.plots.utils import get_traffic_light
+from rowing_catch.plots.velocity import render_velocity_coordination
 
 st.set_page_config(page_title='The Rowing Catch - Rowing Analysis Report', layout='wide')
 
@@ -58,10 +57,6 @@ if df is not None:
     if results is None:
         st.error('Could not detect enough stroke cycles in the data. Please check the file format.')
     else:
-        avg_cycle = results['avg_cycle']
-        catch_idx = results['catch_idx']
-        finish_idx = results['finish_idx']
-
         # --- Sidebar Metrics ---
         st.sidebar.header('Key Performance Indicators')
 
@@ -97,22 +92,50 @@ if df is not None:
 
             # Trunk Angle Plot
             st.write('#### Trunk Angle & Range Analysis')
-            plot_trunk_angle_with_stage_stickfigures(avg_cycle, catch_idx, finish_idx)
+            component = get_plot_component('trunk_angle')
+            computed = component.compute(
+                avg_cycle=results['avg_cycle'],
+                catch_idx=results['catch_idx'],
+                finish_idx=results['finish_idx'],
+                results=results,
+            )
+            render_trunk_angle_with_stage_stickfigures(computed)
 
             # Coordination Plot
             st.write('#### Seat vs. Handle Velocity Coordination')
-            plot_velocity_coordination(avg_cycle, catch_idx, finish_idx)
+            component = get_plot_component('velocity')
+            computed = component.compute(
+                avg_cycle=results['avg_cycle'],
+                catch_idx=results['catch_idx'],
+                finish_idx=results['finish_idx'],
+                results=results,
+            )
+            render_velocity_coordination(computed)
 
         with col2:
             st.subheader('2. Consistency & Rhythm')
 
             # Handle Trajectory
             st.write("#### Handle Trajectory 'Box' Plot")
-            plot_handle_trajectory(avg_cycle, catch_idx, finish_idx)
+            component = get_plot_component('trajectory')
+            computed = component.compute(
+                avg_cycle=results['avg_cycle'],
+                catch_idx=results['catch_idx'],
+                finish_idx=results['finish_idx'],
+                results=results,
+            )
+            render_handle_trajectory(computed)
 
             # Consistency Score & Drive/Recovery Ratio
             st.write('#### Consistency & Rhythm Analysis')
-            plot_consistency_rhythm(cv, drive_p, rec_p)
+            component = get_plot_component('rhythm')
+            computed = component.compute(
+                avg_cycle=results['avg_cycle'],
+                catch_idx=results['catch_idx'],
+                finish_idx=results['finish_idx'],
+                results=results,
+            )
+            render_consistency_rhythm(computed)
 
 else:
     st.info('Please upload a CSV file from the `resources` folder to see the analysis.')

@@ -5,11 +5,8 @@ import streamlit as st
 
 from rowing_catch.algo.analysis import process_rowing_data
 from rowing_catch.plot_transforms import get_plot_component
-from rowing_catch.plots.rhythm import render_consistency_rhythm
-from rowing_catch.plots.trajectory import render_handle_trajectory
 from rowing_catch.plots.trunk_angle import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plots.utils import get_traffic_light
-from rowing_catch.plots.velocity import render_velocity_coordination
 
 st.set_page_config(page_title='The Rowing Catch - Rowing Analysis Report', layout='wide')
 
@@ -101,41 +98,8 @@ if df is not None:
             )
             render_trunk_angle_with_stage_stickfigures(computed)
 
-            # Coordination Plot
-            st.write('#### Seat vs. Handle Velocity Coordination')
-            component = get_plot_component('velocity')
-            computed = component.compute(
-                avg_cycle=results['avg_cycle'],
-                catch_idx=results['catch_idx'],
-                finish_idx=results['finish_idx'],
-                results=results,
-            )
-            render_velocity_coordination(computed)
-
         with col2:
-            st.subheader('2. Consistency & Rhythm')
-
-            # Handle Trajectory
-            st.write("#### Handle Trajectory 'Box' Plot")
-            component = get_plot_component('trajectory')
-            computed = component.compute(
-                avg_cycle=results['avg_cycle'],
-                catch_idx=results['catch_idx'],
-                finish_idx=results['finish_idx'],
-                results=results,
-            )
-            render_handle_trajectory(computed)
-
-            # Consistency Score & Drive/Recovery Ratio
-            st.write('#### Consistency & Rhythm Analysis')
-            component = get_plot_component('rhythm')
-            computed = component.compute(
-                avg_cycle=results['avg_cycle'],
-                catch_idx=results['catch_idx'],
-                finish_idx=results['finish_idx'],
-                results=results,
-            )
-            render_consistency_rhythm(computed)
+            st.subheader('2. Performance Metrics')
 
 else:
     st.info('Please upload a CSV file from the `resources` folder to see the analysis.')

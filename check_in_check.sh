@@ -15,7 +15,6 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}=== Starting Pre-Commit Pipeline ===${NC}"
 echo -e "${BLUE}Tip: To auto-fix issues, run:${NC}"
 echo -e "${BLUE}  ruff check . --fix && ruff format .  # Fix linting and formatting issues${NC}"
-echo -e "${BLUE}Note: Mypy errors require manual fixes (no auto-fix available)${NC}"
 echo ""
 
 # Source virtual environment if it exists

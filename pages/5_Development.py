@@ -1,13 +1,16 @@
 import streamlit as st
 
-from pages.components.dev_performance import (
-    plot_handle_seat_distance,
-    plot_handle_trajectory,
-    plot_ratio_consistency,
-    plot_recovery_control,
-    plot_trunk_angle_separation,
-)
 from pages.components.shared_ui import render_sidebar_and_process
+from rowing_catch.plot_transforms.handle_seat_distance import HandleSeatDistanceComponent
+from rowing_catch.plot_transforms.handle_trajectory_dev import HandleTrajectoryDevComponent
+from rowing_catch.plot_transforms.recovery_slide_control import RecoverySlideControlComponent
+from rowing_catch.plot_transforms.rhythm_consistency import RhythmConsistencyComponent
+from rowing_catch.plot_transforms.trunk_angle_separation import TrunkAngleSeparationComponent
+from rowing_catch.plots.handle_seat_distance import render_handle_seat_distance
+from rowing_catch.plots.handle_trajectory_dev import render_handle_trajectory_dev
+from rowing_catch.plots.recovery_slide_control import render_recovery_slide_control
+from rowing_catch.plots.rhythm_consistency import render_rhythm_consistency
+from rowing_catch.plots.trunk_angle_separation import render_trunk_angle_separation
 
 st.set_page_config(page_title='Development Analysis', layout='wide')
 
@@ -26,30 +29,62 @@ st.markdown(
     'Shows how the body rocks over relative to seat position. '
     "Ideal technique requires the body to be 'set' before the knees rise."
 )
-plot_trunk_angle_separation(avg_cycle, catch_idx, finish_idx, scenario_data=scenario_avg, scenario_name=selected_scenario)
+trunk_angle_sep_component = TrunkAngleSeparationComponent()
+computed_data = trunk_angle_sep_component.compute(
+    avg_cycle=avg_cycle,
+    catch_idx=catch_idx,
+    finish_idx=finish_idx,
+    ghost_cycle=scenario_avg,
+    results={'scenario_name': selected_scenario},
+)
+render_trunk_angle_separation(computed_data)
 
 
 st.subheader('2. Rhythm Consistency')
 st.markdown(
     'Comparison of SPM and Drive/Recovery ratio across all strokes. A tight cluster indicates professional-grade consistency.'
 )
-plot_ratio_consistency(results)
+rhythm_consistency_component = RhythmConsistencyComponent()
+computed_data = rhythm_consistency_component.compute(results)
+render_rhythm_consistency(computed_data)
 
 st.subheader('3. Handle-Seat Distance')
 st.markdown('Measures compression. Ideally, you want a long reaching distance at the catch without losing core stability.')
-plot_handle_seat_distance(avg_cycle, catch_idx, finish_idx, scenario_data=scenario_avg, scenario_name=selected_scenario)
+handle_distance_component = HandleSeatDistanceComponent()
+computed_data = handle_distance_component.compute(
+    avg_cycle=avg_cycle,
+    catch_idx=catch_idx,
+    finish_idx=finish_idx,
+    ghost_cycle=scenario_avg,
+    results={'scenario_name': selected_scenario},
+)
+render_handle_seat_distance(computed_data)
 
 
 st.subheader('4. Recovery Slide Control')
 st.markdown("Seat velocity during the recovery phase. Look for a controlled 'slow-down' before arriving at the catch.")
-plot_recovery_control(avg_cycle, finish_idx, scenario_name=selected_scenario)
+recovery_control_component = RecoverySlideControlComponent()
+computed_data = recovery_control_component.compute(
+    avg_cycle=avg_cycle,
+    finish_idx=finish_idx,
+    results={'scenario_name': selected_scenario},
+)
+render_recovery_slide_control(computed_data)
 
 st.markdown('---')
 st.subheader('5. Handle Trajectory (Box Plot)')
 st.markdown(
     'The vertical vs. horizontal path of the handle. A rectangular shape indicates consistent blade depth and clean extraction.'
 )
-plot_handle_trajectory(avg_cycle, catch_idx, finish_idx, scenario_data=scenario_avg, scenario_name=selected_scenario)
+trajectory_component = HandleTrajectoryDevComponent()
+computed_data = trajectory_component.compute(
+    avg_cycle=avg_cycle,
+    catch_idx=catch_idx,
+    finish_idx=finish_idx,
+    ghost_cycle=scenario_avg,
+    results={'scenario_name': selected_scenario},
+)
+render_handle_trajectory_dev(computed_data)
 
 
 st.markdown('---')

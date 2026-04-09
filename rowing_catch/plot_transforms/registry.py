@@ -1,16 +1,20 @@
 """Plot component registry - central discovery point for all available plots."""
 
-from rowing_catch.plot_transforms.rhythm import ConsistencyRhythmComponent
-from rowing_catch.plot_transforms.trajectory import HandleTrajectoryComponent
+from rowing_catch.plot_transforms.handle_seat_distance import HandleSeatDistanceComponent
+from rowing_catch.plot_transforms.handle_trajectory_dev import HandleTrajectoryDevComponent
+from rowing_catch.plot_transforms.recovery_slide_control import RecoverySlideControlComponent
+from rowing_catch.plot_transforms.rhythm_consistency import RhythmConsistencyComponent
 from rowing_catch.plot_transforms.trunk_angle import TrunkAngleComponent
-from rowing_catch.plot_transforms.velocity import VelocityCoordinationComponent
+from rowing_catch.plot_transforms.trunk_angle_separation import TrunkAngleSeparationComponent
 
 # Map of component ID → component instance
 COMPONENTS = {
     'trunk_angle': TrunkAngleComponent(),
-    'velocity': VelocityCoordinationComponent(),
-    'trajectory': HandleTrajectoryComponent(),
-    'rhythm': ConsistencyRhythmComponent(),
+    'trunk_angle_separation': TrunkAngleSeparationComponent(),
+    'handle_seat_distance': HandleSeatDistanceComponent(),
+    'rhythm_consistency': RhythmConsistencyComponent(),
+    'recovery_slide_control': RecoverySlideControlComponent(),
+    'handle_trajectory_dev': HandleTrajectoryDevComponent(),
 }
 
 

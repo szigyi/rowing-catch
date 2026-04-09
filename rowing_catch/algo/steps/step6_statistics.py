@@ -54,9 +54,6 @@ def step6_statistics(
     else:
         cv_length = 0.0
 
-    drive_len = finish_idx - catch_idx
-    recovery_len = min_length - drive_len
-
     # 2. Performance volumes from the averaged cycle
     seat_x = avg_cycle['Seat_X_Smooth'].to_numpy(dtype=float)
     times = avg_cycle['Time'].to_numpy(dtype=float) if 'Time' in avg_cycle.columns else None
@@ -68,7 +65,9 @@ def step6_statistics(
     temporal = _compute_temporal_metrics(avg_cycle, catch_idx, finish_idx)
 
     # 4. Per-cycle details for consistency spread
+    # Use per-cycle finish indices for accurate drive/recovery ratios
     cycle_details = []
+    per_cycle_ratios = []
     for i, c in enumerate(cycles):
         detail: dict[str, Any] = {'cycle_idx': i + 1}
         if 'Time' in c.columns and len(c) > 1:
@@ -76,13 +75,30 @@ def step6_statistics(
             dur = t_c[-1] - t_c[0]
             if dur > 0:
                 detail['spm'] = 60.0 / dur
-                # Map finish to this cycle
+                # Map finish to this cycle using per-cycle heuristic
                 f_idx_c = _pick_finish_index(c, catch_idx=0)
                 drive_dur = t_c[f_idx_c] - t_c[0]
                 rec_dur = dur - drive_dur
-                detail['drive_recovery_ratio'] = drive_dur / rec_dur if rec_dur > 0 else None
+                ratio = drive_dur / rec_dur if rec_dur > 0 else None
+                detail['drive_recovery_ratio'] = ratio
+                if ratio is not None:
+                    per_cycle_ratios.append(ratio)
 
         cycle_details.append(detail)
+
+    # Compute average ratio from per-cycle values (not from averaged cycle)
+    avg_drive_recovery_ratio = np.nanmean(per_cycle_ratios) if per_cycle_ratios else np.nan
+
+    # Convert to sample-based metrics for backward compatibility
+    # These are computed from the average ratio, not the averaged cycle's finish
+    if not np.isnan(avg_drive_recovery_ratio):
+        # Inverse calculation: if drive/recovery ≈ R, then drive_fraction ≈ R / (1 + R)
+        drive_fraction = avg_drive_recovery_ratio / (1.0 + avg_drive_recovery_ratio)
+        drive_len = int(round(drive_fraction * min_length))
+        recovery_len = min_length - drive_len
+    else:
+        drive_len = finish_idx - catch_idx
+        recovery_len = min_length - drive_len
 
     return {
         'cv_length': cv_length,
@@ -91,6 +107,7 @@ def step6_statistics(
         'mean_duration': np.mean(stroke_durations),
         'drive_volume_mm_sec': drive_volume_mm_sec,
         'recovery_volume_mm_sec': recovery_volume_mm_sec,
+        'avg_drive_recovery_ratio': avg_drive_recovery_ratio,
         **temporal,
         'cycle_details': cycle_details,
     }

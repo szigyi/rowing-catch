@@ -13,6 +13,10 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== Starting Pre-Commit Pipeline ===${NC}"
+echo -e "${BLUE}Tip: To auto-fix issues, run:${NC}"
+echo -e "${BLUE}  ruff check . --fix && ruff format .  # Fix linting and formatting issues${NC}"
+echo -e "${BLUE}Note: Mypy errors require manual fixes (no auto-fix available)${NC}"
+echo ""
 
 # Source virtual environment if it exists
 if [ -d ".venv" ]; then
@@ -40,8 +44,3 @@ echo -e "\n${BLUE}Step 4: Running Tests (Pytest)${NC}"
 pytest
 
 echo -e "\n${GREEN}✔ All checks passed successfully!${NC}"
-
-# 5. Launch App (Final manual check)
-echo -e "\n${BLUE}Final Step: Launching App for manual verification...${NC}"
-echo -e "${BLUE}(Press Ctrl+C to exit)${NC}"
-streamlit run app.py

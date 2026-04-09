@@ -1,4 +1,6 @@
 import logging
+from collections.abc import Sequence
+from typing import overload
 
 import numpy as np
 import pandas as pd
@@ -390,3 +392,56 @@ def _validate_secondary_for_reversal(idx: int, secondary: np.ndarray | None, min
         logger.debug(msg)
 
     return True
+
+
+@overload
+def calculate_ideal_drive_ratio(spm: float) -> float: ...
+
+
+@overload
+def calculate_ideal_drive_ratio(spm: np.ndarray) -> np.ndarray: ...
+
+
+@overload
+def calculate_ideal_drive_ratio(spm: Sequence[float]) -> np.ndarray: ...
+
+
+def calculate_ideal_drive_ratio(spm: float | np.ndarray | Sequence[float]) -> float | np.ndarray:
+    """
+    Calculate ideal drive:recovery ratio based on stroke rate (SPM).
+
+    Based on "The Biomechanics of Rowing" (2nd revision), page 17, Figure 2.6.
+    This quadratic relationship describes the optimal drive phase duration
+    relative to recovery for efficient propulsion.
+
+    Args:
+        spm: Strokes per minute (scalar float, numpy array, or list).
+             Typical range: 14-50 SPM for recreational to competitive rowing.
+
+    Returns:
+        Ideal drive:recovery ratio as decimal (e.g., 0.33 = 33% drive time).
+        - If input is float, returns float
+        - If input is array or list, returns np.ndarray
+        At 14 SPM: ~0.313 (31.3% drive)
+        At 50 SPM: ~0.549 (54.9% drive)
+
+    Formula:
+        drive_ratio = -0.000202 * spm² + 0.0195 * spm + 0.0793
+
+    References:
+        Coker, J. (2012). The Biomechanics of Rowing (2nd Revised Edition).
+        Figure 2.6, page 17.
+    """
+    # Convert list to numpy array if needed
+    spm_arr = np.asarray(spm)  # type: ignore[no-untyped-call]
+
+    # Quadratic coefficients from biomechanics literature
+    a = -0.000202
+    b = 0.0195
+    c = 0.0793
+
+    # Compute ideal ratio using quadratic formula
+    ratio: float | np.ndarray = a * spm_arr**2 + b * spm_arr + c
+
+    # Return as-is (accepts both scalars, arrays, and lists)
+    return ratio.item() if np.ndim(ratio) == 0 else ratio  # type: ignore[union-attr]

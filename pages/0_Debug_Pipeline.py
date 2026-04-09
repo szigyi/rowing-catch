@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from rowing_catch.algo.constants import PROCESSED_COLUMN_NAMES, REQUIRED_COLUMN_NAMES
+from rowing_catch.algo.helpers import calculate_ideal_drive_ratio
 from rowing_catch.algo.steps.step0_validation import validate_input_df
 from rowing_catch.algo.steps.step1_rename import step1_rename_columns
 from rowing_catch.algo.steps.step2_smoothing import step2_smooth
@@ -24,6 +25,7 @@ from rowing_catch.ui.utils import (
     COLOR_COMPARE,
     COLOR_FINISH,
     COLOR_HANDLE,
+    COLOR_IDEAL_RATIO,
     COLOR_MAIN,
     COLOR_SEAT,
     COLOR_TEXT_SUB,
@@ -738,12 +740,17 @@ with st.expander('Step 6 details', expanded=True):
     cv = stats['cv_length']
     drive_len = stats['drive_len']
     recovery_len = stats['recovery_len']
+    avg_ratio = stats['avg_drive_recovery_ratio']
     drive_pct = drive_len / min_length * 100
     rec_pct = recovery_len / min_length * 100
 
     col_s1, col_s2, col_s3 = st.columns(3)
     col_s1.metric('Consistency CV', f'{cv:.2f}%', help='Lower is better. Target < 2%.')
-    col_s2.metric('Drive / Recovery', f'{drive_pct:.1f}% / {rec_pct:.1f}%')
+    col_s2.metric(
+        'Avg Drive:Recovery Ratio',
+        f'{avg_ratio:.3f}' if not np.isnan(avg_ratio) else 'N/A',
+        help='Averaged across all individual cycles using per-cycle finish detection.',
+    )
     col_s3.metric('Avg cycle duration', f'{stats["mean_duration"]:.0f} samples')
 
     # Stacked bar chart for drive vs recovery
@@ -770,10 +777,32 @@ with st.expander('Step 6 details', expanded=True):
         fontsize=9,
     )
 
-    # Ghost line for ideal 1:2 ratio (Drive = 33.3%)
-    ideal_x = 100 / 3  # 33.33%
-    ax.axvline(ideal_x, color='#444444', linestyle=':', linewidth=2, alpha=0.6, zorder=3)
-    ax.text(ideal_x, 0.4, ' Ideal (1:2)', color='#444444', fontsize=8, fontweight='bold', va='bottom')
+    # Calculate ideal ratio based on the mean SPM of actual cycles.
+    cycle_spms = [
+        60.0 / (c['Time'].to_numpy(dtype=float)[-1] - c['Time'].to_numpy(dtype=float)[0])
+        for c in cycles
+        if 'Time' in c.columns and len(c) > 1 and c['Time'].to_numpy(dtype=float)[-1] > c['Time'].to_numpy(dtype=float)[0]
+    ]
+    mean_spm_val = np.nanmean(cycle_spms) if cycle_spms else np.nan
+    if not np.isnan(mean_spm_val):
+        ideal_ratio = calculate_ideal_drive_ratio(mean_spm_val)
+        ideal_drive_pct = (ideal_ratio / (1.0 + ideal_ratio)) * 100
+    else:
+        ideal_ratio = 0.5
+        mean_spm_val = float('nan')
+        ideal_drive_pct = 100 / 3  # Fallback to 1:2 ratio
+
+    # Reference line for ideal ratio
+    ax.axvline(ideal_drive_pct, color=COLOR_IDEAL_RATIO, linestyle=':', linewidth=2.5, alpha=0.8, zorder=3)
+    ax.text(
+        ideal_drive_pct,
+        0.4,
+        f' Ideal ({ideal_ratio:.2f}:1) @ {mean_spm_val:.0f} SPM' if not np.isnan(mean_spm_val) else ' Ideal (0.50:1) @ N/A SPM',
+        color=COLOR_IDEAL_RATIO,
+        fontsize=8,
+        fontweight='bold',
+        va='bottom',
+    )
 
     ax.set_xlim(0, 100)
     ax.set_xticks([0, 25, 33.3, 50, 75, 100])
@@ -823,6 +852,20 @@ with st.expander('Step 6 details', expanded=True):
         spm_vals = df_spread['SPM'].to_numpy(dtype=float)
         ratio_vals = df_spread['Ratio_DR'].to_numpy(dtype=float)
         cycle_nums = df_spread['Cycle'].to_numpy()
+
+        # Ideal ratio curve from Biometrics of Rowing
+        spm_curve = np.linspace(15, 45, 100)
+        ideal_ratios = calculate_ideal_drive_ratio(spm_curve)
+        ax.plot(
+            spm_curve,
+            ideal_ratios,
+            color=COLOR_IDEAL_RATIO,
+            linewidth=2.5,
+            linestyle='-',
+            alpha=0.8,
+            label='Ideal',
+            zorder=4,
+        )
 
         # Mean crosshair lines
         ax.axvline(float(np.nanmean(spm_vals)), color='#94a3b8', linewidth=1, linestyle='--', alpha=0.7, label='Mean SPM')

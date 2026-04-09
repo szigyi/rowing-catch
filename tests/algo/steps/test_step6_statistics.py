@@ -34,8 +34,11 @@ def test_step6_statistics_basic():
     stats = step6_statistics(cycles, min_length, catch_idx, finish_idx, df)
 
     assert stats['cv_length'] == 0.0  # Identical cycles
-    assert stats['drive_len'] == 25
-    assert stats['recovery_len'] == 26  # 51 - 25 = 26
+    # Note: drive_len is now computed from per-cycle ratios (using time-based ratio),
+    # not from the averaged cycle's finish_idx. For these identical cycles with
+    # continuous time, the ratio is 0.5 (50% drive), so drive_len = round(0.5 * 51) = 26
+    assert stats['drive_len'] == 26
+    assert stats['recovery_len'] == 25  # 51 - 26 = 25
     assert stats['mean_duration'] == 51.0
 
     # Temporal checks (from former Step 7)

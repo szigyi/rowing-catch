@@ -7,8 +7,8 @@ from typing import Any
 
 import streamlit as st
 
-from rowing_catch.plots.setup_plot import setup_premium_plot
 from rowing_catch.plots.theme import COLOR_SEAT
+from rowing_catch.plots.utils import setup_premium_plot
 
 
 def render_recovery_slide_control(computed_data: dict[str, Any]):
@@ -25,7 +25,7 @@ def render_recovery_slide_control(computed_data: dict[str, Any]):
         st.warning('Insufficient data for recovery control analysis.')
         return
 
-    fig, ax = setup_premium_plot(title=metadata['title'], height=6.4)
+    fig, ax = setup_premium_plot(title=metadata['title'], figsize=(10, 6.4))
 
     recovery_progress = data['recovery_progress']
     seat_speed = data['seat_speed']
@@ -41,4 +41,4 @@ def render_recovery_slide_control(computed_data: dict[str, Any]):
     ax.legend(loc='best', framealpha=0.95)
 
     st.pyplot(fig)
-    st.info(f"**Performance Insight:** {coach_tip}")
+    st.info(f'**Performance Insight:** {coach_tip}')

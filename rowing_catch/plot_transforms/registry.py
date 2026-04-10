@@ -2,6 +2,9 @@
 
 from rowing_catch.plot_transforms.handle_seat_distance import HandleSeatDistanceComponent
 from rowing_catch.plot_transforms.handle_trajectory_dev import HandleTrajectoryDevComponent
+from rowing_catch.plot_transforms.kinetic_chain import KineticChainComponent
+from rowing_catch.plot_transforms.performance_metrics import PerformanceMetricsComponent
+from rowing_catch.plot_transforms.power_accumulation import PowerAccumulationComponent
 from rowing_catch.plot_transforms.recovery_slide_control import RecoverySlideControlComponent
 from rowing_catch.plot_transforms.rhythm_consistency import RhythmConsistencyComponent
 from rowing_catch.plot_transforms.trunk_angle import TrunkAngleComponent
@@ -15,6 +18,9 @@ COMPONENTS = {
     'rhythm_consistency': RhythmConsistencyComponent(),
     'recovery_slide_control': RecoverySlideControlComponent(),
     'handle_trajectory_dev': HandleTrajectoryDevComponent(),
+    'power_accumulation': PowerAccumulationComponent(),
+    'kinetic_chain': KineticChainComponent(),
+    'performance_metrics': PerformanceMetricsComponent(),
 }
 
 

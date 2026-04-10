@@ -102,8 +102,8 @@ class TrunkAngleComponent(PlotComponent):
             'ghost_data': ghost_data,
             'metadata': {
                 'title': 'Trunk Angle & Range Analysis',
-                'xlabel': 'Stroke Timeline (Data Points)',
-                'ylabel': 'Degrees from Vertical',
+                'x_label': 'Stroke Timeline (Data Points)',
+                'y_label': 'Degrees from Vertical',
             },
             'coach_tip': (
                 f'You are achieving {abs(finish_lean - catch_lean):.1f}° of range. '

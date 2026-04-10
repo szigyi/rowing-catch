@@ -23,8 +23,8 @@ def render_trunk_angle_separation(computed_data: dict[str, Any]):
 
     fig, ax = setup_premium_plot(
         title=metadata['title'],
-        xlabel=metadata['xlabel'],
-        ylabel=metadata['ylabel'],
+        x_label=metadata['x_label'],
+        y_label=metadata['y_label'],
     )
 
     # Main plot
@@ -42,10 +42,10 @@ def render_trunk_angle_separation(computed_data: dict[str, Any]):
             color=COLOR_COMPARE,
             linestyle='--',
             alpha=0.7,
-            label=f"Comparison: {metadata['scenario_name']}",
+            label=f'Comparison: {metadata["scenario_name"]}',
             zorder=4,
         )
 
     ax.legend()
     st.pyplot(fig)
-    st.info(f"**Developing Advice:** {coach_tip}")
+    st.info(f'**Developing Advice:** {coach_tip}')

@@ -16,11 +16,11 @@ class RecoverySlideControlComponent(PlotComponent):
 
     @property
     def name(self) -> str:
-        return "Recovery Slide Control"
+        return 'Recovery Slide Control'
 
     @property
     def description(self) -> str:
-        return "Seat velocity during recovery phase"
+        return 'Seat velocity during recovery phase'
 
     def compute(
         self,
@@ -62,12 +62,11 @@ class RecoverySlideControlComponent(PlotComponent):
             },
             'metadata': {
                 'title': 'Recovery Slide Control',
-                'xlabel': 'Recovery Progress (%)',
-                'ylabel': 'Seat Velocity',
+                'x_label': 'Recovery Progress (%)',
+                'y_label': 'Seat Velocity',
                 'scenario_name': scenario_name,
             },
             'coach_tip': (
-                "Look for a symmetric 'bell curve' on the slide. "
-                "A sharp peak early in recovery indicates 'rushing' the slide."
+                "Look for a symmetric 'bell curve' on the slide. A sharp peak early in recovery indicates 'rushing' the slide."
             ),
         }

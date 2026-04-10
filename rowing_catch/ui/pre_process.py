@@ -65,7 +65,7 @@ def _load_data_source() -> tuple[pd.DataFrame | None, str]:
     else:
         resource_dir = 'resources'
         example_files = [f for f in os.listdir(resource_dir) if f.endswith('.csv')]
-        default_file = '2023.12.27.Szabi_36strokesPerMinute_trajectory.csv'
+        default_file = '../../resources/2023.12.27.Szabi_36strokesPerMinute_trajectory.csv'
         # Find default file index safely
         try:
             default_idx = example_files.index(default_file)

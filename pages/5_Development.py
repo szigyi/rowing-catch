@@ -1,6 +1,5 @@
 import streamlit as st
 
-from pages.components.shared_ui import render_sidebar_and_process
 from rowing_catch.plot_transforms.handle_seat_distance import HandleSeatDistanceComponent
 from rowing_catch.plot_transforms.handle_trajectory_dev import HandleTrajectoryDevComponent
 from rowing_catch.plot_transforms.recovery_slide_control import RecoverySlideControlComponent
@@ -11,6 +10,7 @@ from rowing_catch.plots.handle_trajectory_dev import render_handle_trajectory_de
 from rowing_catch.plots.recovery_slide_control import render_recovery_slide_control
 from rowing_catch.plots.rhythm_consistency import render_rhythm_consistency
 from rowing_catch.plots.trunk_angle_separation import render_trunk_angle_separation
+from rowing_catch.ui.pre_process import render_sidebar_and_process
 
 st.set_page_config(page_title='Development Analysis', layout='wide')
 
@@ -45,7 +45,12 @@ st.markdown(
     'Comparison of SPM and Drive/Recovery ratio across all strokes. A tight cluster indicates professional-grade consistency.'
 )
 rhythm_consistency_component = RhythmConsistencyComponent()
-computed_data = rhythm_consistency_component.compute(results)
+computed_data = rhythm_consistency_component.compute(
+    avg_cycle=avg_cycle,
+    catch_idx=catch_idx,
+    finish_idx=finish_idx,
+    results=results,
+)
 render_rhythm_consistency(computed_data)
 
 st.subheader('3. Handle-Seat Distance')
@@ -66,6 +71,7 @@ st.markdown("Seat velocity during the recovery phase. Look for a controlled 'slo
 recovery_control_component = RecoverySlideControlComponent()
 computed_data = recovery_control_component.compute(
     avg_cycle=avg_cycle,
+    catch_idx=catch_idx,
     finish_idx=finish_idx,
     results={'scenario_name': selected_scenario},
 )

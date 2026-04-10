@@ -14,13 +14,13 @@ from rowing_catch.plots.theme import (
 )
 
 
-def setup_premium_plot(title='', xlabel='', ylabel='', figsize=(10, 5)):
+def setup_premium_plot(title='', x_label='', y_label='', figsize=(10, 5)):
     """Set up a standard matplotlib figure with the premium UI aesthetic.
 
     Args:
         title: Plot title
-        xlabel: X-axis label
-        ylabel: Y-axis label
+        x_label: X-axis label
+        y_label: Y-axis label
         figsize: Figure size (width, height)
 
     Returns:
@@ -44,10 +44,10 @@ def setup_premium_plot(title='', xlabel='', ylabel='', figsize=(10, 5)):
     # Fonts and labeling
     if title:
         ax.set_title(title, fontsize=14, fontweight='bold', pad=20, color=COLOR_TEXT_MAIN)
-    if xlabel:
-        ax.set_xlabel(xlabel, fontweight='bold', color=COLOR_TEXT_SUB, labelpad=10)
-    if ylabel:
-        ax.set_ylabel(ylabel, fontweight='bold', color=COLOR_TEXT_SUB, labelpad=10)
+    if x_label:
+        ax.set_xlabel(x_label, fontweight='bold', color=COLOR_TEXT_SUB, labelpad=10)
+    if y_label:
+        ax.set_ylabel(y_label, fontweight='bold', color=COLOR_TEXT_SUB, labelpad=10)
 
     ax.tick_params(axis='x', colors=COLOR_TEXT_SUB)
     ax.tick_params(axis='y', colors=COLOR_TEXT_SUB)

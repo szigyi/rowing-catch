@@ -23,8 +23,8 @@ def render_handle_seat_distance(computed_data: dict[str, Any]):
 
     fig, ax = setup_premium_plot(
         title=metadata['title'],
-        xlabel=metadata['xlabel'],
-        ylabel=metadata['ylabel'],
+        x_label=metadata['x_label'],
+        y_label=metadata['y_label'],
     )
 
     # Main plot
@@ -39,7 +39,7 @@ def render_handle_seat_distance(computed_data: dict[str, Any]):
             color=COLOR_COMPARE,
             linestyle=':',
             alpha=0.5,
-            label=f"Comparison: {metadata['scenario_name']}",
+            label=f'Comparison: {metadata["scenario_name"]}',
             zorder=3,
         )
 
@@ -49,4 +49,4 @@ def render_handle_seat_distance(computed_data: dict[str, Any]):
 
     ax.legend()
     st.pyplot(fig)
-    st.info(f"**Developing Advice:** {coach_tip}")
+    st.info(f'**Developing Advice:** {coach_tip}')

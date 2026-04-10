@@ -16,11 +16,11 @@ class HandleTrajectoryDevComponent(PlotComponent):
 
     @property
     def name(self) -> str:
-        return "Handle Trajectory (Development)"
+        return 'Handle Trajectory (Development)'
 
     @property
     def description(self) -> str:
-        return "2D handle path showing vertical vs horizontal progression"
+        return '2D handle path showing vertical vs horizontal progression'
 
     def compute(
         self,
@@ -45,13 +45,13 @@ class HandleTrajectoryDevComponent(PlotComponent):
         scenario_data = ghost_cycle
         scenario_name = results.get('scenario_name', 'None') if results else 'None'
 
-        # Handle position
-        h_x = avg_cycle['Handle_X_Smooth'].values
-        h_y = avg_cycle['Handle_Y_Smooth'].values
+        # Handle position - convert to numpy array for type safety
+        h_x = np.asarray(avg_cycle['Handle_X_Smooth'].values, dtype=np.float64)
+        h_y = np.asarray(avg_cycle['Handle_Y_Smooth'].values, dtype=np.float64)
 
-        # Calculate reference box
-        h_x_min, h_x_max = float(h_x.min()), float(h_x.max())
-        h_y_min, h_y_max = float(h_y.min()), float(h_y.max())
+        # Calculate reference box - use numpy functions for type safety
+        h_x_min, h_x_max = float(np.min(h_x)), float(np.max(h_x))
+        h_y_min, h_y_max = float(np.min(h_y)), float(np.max(h_y))
 
         # Box padding (10% of y range)
         box_padding = (h_y_max - h_y_min) * 0.1
@@ -87,12 +87,11 @@ class HandleTrajectoryDevComponent(PlotComponent):
             },
             'metadata': {
                 'title': 'Handle Trajectory Path',
-                'xlabel': 'Horizontal Position (mm)',
-                'ylabel': 'Vertical Position (mm)',
+                'x_label': 'Horizontal Position (mm)',
+                'y_label': 'Vertical Position (mm)',
                 'scenario_name': scenario_name,
             },
             'coach_tip': (
-                "A 'rectangular' box means you are extracting the blade cleanly "
-                'and depth is stable throughout the drive.'
+                "A 'rectangular' box means you are extracting the blade cleanly and depth is stable throughout the drive."
             ),
         }

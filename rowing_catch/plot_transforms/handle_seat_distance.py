@@ -16,11 +16,11 @@ class HandleSeatDistanceComponent(PlotComponent):
 
     @property
     def name(self) -> str:
-        return "Handle-Seat Distance"
+        return 'Handle-Seat Distance'
 
     @property
     def description(self) -> str:
-        return "Compression measurement during stroke cycle"
+        return 'Compression measurement during stroke cycle'
 
     def compute(
         self,
@@ -45,30 +45,31 @@ class HandleSeatDistanceComponent(PlotComponent):
         scenario_data = ghost_cycle
         scenario_name = results.get('scenario_name', 'None') if results else 'None'
 
-        # Calculate distance
-        dist = np.abs(avg_cycle['Handle_X_Smooth'] - avg_cycle['Seat_X_Smooth'])
+        # Calculate distance - ensure we have numpy array
+        dist_series = np.abs(avg_cycle['Handle_X_Smooth'] - avg_cycle['Seat_X_Smooth'])
+        dist = dist_series.values if hasattr(dist_series, 'values') else dist_series
 
-        scenario_dist = None
+        scenario_dist_values = None
         if scenario_data is not None:
             scenario_dist = np.abs(scenario_data['Handle_X_Smooth'] - scenario_data['Seat_X_Smooth'])
+            scenario_dist_values = scenario_dist if isinstance(scenario_dist, np.ndarray) else scenario_dist.values
 
         return {
             'data': {
                 'x': avg_cycle.index.values,
-                'distance': dist.values,
+                'distance': dist,
                 'catch_idx': catch_idx,
                 'finish_idx': finish_idx,
-                'scenario_distance': scenario_dist.values if scenario_dist is not None else None,
+                'scenario_distance': scenario_dist_values,
                 'scenario_data': scenario_data,
             },
             'metadata': {
                 'title': 'Handle-Seat Separation',
-                'xlabel': 'Stroke Index',
-                'ylabel': 'Distance (mm)',
+                'x_label': 'Stroke Index',
+                'y_label': 'Distance (mm)',
                 'scenario_name': scenario_name,
             },
             'coach_tip': (
-                "Maximizing this distance at the catch (compression) without 'over-reaching' "
-                'is key to a long effective stroke.'
+                "Maximizing this distance at the catch (compression) without 'over-reaching' is key to a long effective stroke."
             ),
         }

@@ -13,4 +13,7 @@ __all__ = [
     'rhythm_consistency',
     'recovery_slide_control',
     'handle_trajectory_dev',
+    'power_accumulation',
+    'kinetic_chain',
+    'performance_metrics',
 ]

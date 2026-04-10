@@ -60,7 +60,7 @@ This document establishes the architectural layers and development rules for the
           # Transform avg_cycle into plot-ready data
           return {
               'data': {...},
-              'metadata': {'title': '...', 'xlabel': '...', 'ylabel': '...'},
+              'metadata': {'title': '...', 'x_label': '...', 'y_label': '...'},
               'coach_tip': 'Advice for rower'
           }
   ```
@@ -153,7 +153,7 @@ class MyPlotComponent(PlotComponent):
         # Your computation here
         return {
             'data': {...},
-            'metadata': {'title': '', 'xlabel': '', 'ylabel': ''},
+            'metadata': {'title': '', 'x_label': '', 'y_label': ''},
             'coach_tip': ''
         }
 ```

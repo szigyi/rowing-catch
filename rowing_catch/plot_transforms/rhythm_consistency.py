@@ -15,11 +15,11 @@ class RhythmConsistencyComponent(PlotComponent):
 
     @property
     def name(self) -> str:
-        return "Rhythm Consistency"
+        return 'Rhythm Consistency'
 
     @property
     def description(self) -> str:
-        return "SPM and drive/recovery ratio consistency across cycles"
+        return 'SPM and drive/recovery ratio consistency across cycles'
 
     def compute(
         self,
@@ -49,11 +49,13 @@ class RhythmConsistencyComponent(PlotComponent):
         df_data = []
         for cycle in cycle_details:
             if 'spm' in cycle and 'drive_recovery_ratio' in cycle:
-                df_data.append({
-                    'cycle_idx': cycle.get('cycle_idx', 0),
-                    'spm': cycle['spm'],
-                    'drive_recovery_ratio': cycle['drive_recovery_ratio'],
-                })
+                df_data.append(
+                    {
+                        'cycle_idx': cycle.get('cycle_idx', 0),
+                        'spm': cycle['spm'],
+                        'drive_recovery_ratio': cycle['drive_recovery_ratio'],
+                    }
+                )
 
         df = pd.DataFrame(df_data).dropna(subset=['spm', 'drive_recovery_ratio']) if df_data else pd.DataFrame()
 

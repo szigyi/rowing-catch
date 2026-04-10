@@ -66,8 +66,8 @@ class PlotComponent(ABC):
                 'ghost_data': {...},     # Optional comparison data
                 'metadata': {            # Plot metadata
                     'title': str,
-                    'xlabel': str,
-                    'ylabel': str,
+                    'x_label': str,
+                    'y_label': str,
                     ...
                 },
                 'coach_tip': str,        # Insight to display to user

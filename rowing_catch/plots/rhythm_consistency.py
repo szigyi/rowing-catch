@@ -53,4 +53,4 @@ def render_rhythm_consistency(computed_data: dict[str, Any]):
     )
 
     st.altair_chart(chart, use_container_width=True)
-    st.info(f"**Performance Insight:** {coach_tip}")
+    st.info(f'**Performance Insight:** {coach_tip}')

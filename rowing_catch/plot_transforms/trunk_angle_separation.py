@@ -3,7 +3,7 @@
 Shows how the body rocks over relative to seat position timing.
 """
 
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -15,11 +15,11 @@ class TrunkAngleSeparationComponent(PlotComponent):
 
     @property
     def name(self) -> str:
-        return "Trunk Angle Separation"
+        return 'Trunk Angle Separation'
 
     @property
     def description(self) -> str:
-        return "Body rocking timing relative to seat position"
+        return 'Body rocking timing relative to seat position'
 
     def compute(
         self,
@@ -50,18 +50,18 @@ class TrunkAngleSeparationComponent(PlotComponent):
                 'trunk_angle': avg_cycle['Trunk_Angle'].values,
                 'catch_idx': catch_idx,
                 'finish_idx': finish_idx,
-                'catch_seat': float(avg_cycle.at[catch_idx, 'Seat_X_Smooth']),
-                'catch_angle': float(avg_cycle.at[catch_idx, 'Trunk_Angle']),
-                'finish_seat': float(avg_cycle.at[finish_idx, 'Seat_X_Smooth']),
-                'finish_angle': float(avg_cycle.at[finish_idx, 'Trunk_Angle']),
+                'catch_seat': cast(float, avg_cycle.at[catch_idx, 'Seat_X_Smooth']),
+                'catch_angle': cast(float, avg_cycle.at[catch_idx, 'Trunk_Angle']),
+                'finish_seat': cast(float, avg_cycle.at[finish_idx, 'Seat_X_Smooth']),
+                'finish_angle': cast(float, avg_cycle.at[finish_idx, 'Trunk_Angle']),
                 'scenario_seat': scenario_data['Seat_X_Smooth'].values if scenario_data is not None else None,
                 'scenario_angle': scenario_data['Trunk_Angle'].values if scenario_data is not None else None,
                 'scenario_data': scenario_data,
             },
             'metadata': {
                 'title': 'Trunk Angle vs Stroke Progress',
-                'xlabel': 'Seat Position (mm)',
-                'ylabel': 'Trunk Angle (deg)',
+                'x_label': 'Seat Position (mm)',
+                'y_label': 'Trunk Angle (deg)',
                 'scenario_name': scenario_name,
             },
             'coach_tip': (

@@ -8,9 +8,9 @@ from typing import Any, cast
 import pandas as pd
 import streamlit as st
 
-from rowing_catch.plots.setup_plot import setup_premium_plot
 from rowing_catch.plots.theme import COLOR_CATCH, COLOR_COMPARE, COLOR_FINISH, COLOR_HANDLE
-from rowing_catch.ui.annotations import DIAGRAM_ANNOTATIONS
+from rowing_catch.plots.utils import setup_premium_plot
+from rowing_catch.ui.annotations_data import DIAGRAM_ANNOTATIONS
 
 
 def _apply_annotations(
@@ -77,14 +77,14 @@ def _calculate_annotation_index(
 def _get_annotation_x_coordinate(ax: Any, ann: dict[str, Any], data: pd.DataFrame, x_idx: int, diagram_key: str) -> float:
     """Get the physical X coordinate for an annotation."""
     if diagram_key == 'handle_trajectory':
-        return data['Handle_X_Smooth'].iloc[x_idx]
-    return x_idx
+        return cast(float, data['Handle_X_Smooth'].iloc[x_idx])
+    return float(x_idx)
 
 
 def _get_annotation_y_coordinate(y_data, x_idx: int | None, y_max: float, y_range: float) -> float:
     """Get the vertical Y coordinate for an annotation."""
     if y_data is not None and x_idx is not None and x_idx < len(y_data):
-        return y_data.iloc[x_idx]
+        return cast(float, y_data.iloc[x_idx])
     return y_max - y_range * 0.1
 
 
@@ -109,14 +109,14 @@ def render_handle_trajectory_dev(computed_data: dict[str, Any]):
     ax.plot(data['handle_x'], data['handle_y'], color=COLOR_HANDLE, linewidth=3, label='Your Data', zorder=3)
 
     # Comparison
-    if data['scenario_handle_x'] is not None:
+    if data['scenario_x'] is not None:
         ax.plot(
-            data['scenario_handle_x'],
-            data['scenario_handle_y'],
+            data['scenario_x'],
+            data['scenario_y'],
             color=COLOR_COMPARE,
             linestyle=':',
             alpha=0.6,
-            label=f"Comparison: {metadata.get('scenario_name', 'Reference')}",
+            label=f'Comparison: {metadata.get("scenario_name", "Reference")}',
             zorder=2,
         )
 

@@ -29,8 +29,6 @@ from rowing_catch.ui.utils import (
     setup_premium_plot,
 )
 
-st.set_page_config(page_title='Debug Trace', layout='wide')
-
 st.title('Debug Trace')
 st.markdown(
     'Use this page to follow the exact pipeline functions, data objects and reuse relationships. '

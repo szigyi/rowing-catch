@@ -12,8 +12,6 @@ from rowing_catch.plots.rhythm_consistency_plot import render_rhythm_consistency
 from rowing_catch.plots.trunk_angle_separation_plot import render_trunk_angle_separation
 from rowing_catch.ui.pre_process import render_sidebar_and_process
 
-st.set_page_config(page_title='Development Analysis', layout='wide')
-
 st.title('Development Analysis')
 
 # Render shared sidebar and process data

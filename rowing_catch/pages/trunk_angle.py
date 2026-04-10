@@ -5,8 +5,6 @@ from rowing_catch.plot_transforms.trunk_angle_transformer import TrunkAngleCompo
 from rowing_catch.plots.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scenarios
 
-st.set_page_config(page_title='Trunk Angle Analysis', layout='wide')
-
 st.title('Trunk Angle & Range Analysis')
 
 # Scenario Loader (Programmatic scenarios for coaching)

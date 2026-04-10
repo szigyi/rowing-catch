@@ -40,8 +40,6 @@ from rowing_catch.plots.signal_smoothing_comparison_plot import render_signal_sm
 from rowing_catch.plots.velocity_profile_plot import render_velocity_profile
 from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scenarios
 
-st.set_page_config(page_title='Debug: Data Pipeline', layout='wide')
-
 st.title('Data Processing Pipeline — Debug View')
 st.markdown(
     'This page runs the analysis pipeline step-by-step and exposes the **intermediate '

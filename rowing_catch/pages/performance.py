@@ -8,8 +8,6 @@ from rowing_catch.plots.performance_metrics_plot import render_performance_metri
 from rowing_catch.plots.power_accumulation_plot import render_power_accumulation
 from rowing_catch.ui.pre_process import render_sidebar_and_process
 
-st.set_page_config(page_title='Performance Analysis', layout='wide')
-
 st.title('Performance Analysis')
 
 # Render shared sidebar and process data

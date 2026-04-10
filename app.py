@@ -11,14 +11,14 @@ st.set_page_config(
 pg = st.navigation(
     {
         'Analysis': [
-            st.Page('rowing_catch/pages/report.py', title='Analysis Report', icon='📊', default=True),
-            st.Page('rowing_catch/pages/trunk_angle.py', title='Trunk Angle', icon='📐'),
-            st.Page('rowing_catch/pages/development.py', title='Development', icon='🏋️'),
-            st.Page('rowing_catch/pages/performance.py', title='Performance', icon='⚡'),
+            st.Page('rowing_catch/page/report.py', title='Analysis Report', icon='📊', default=True),
+            st.Page('rowing_catch/page/trunk_angle.py', title='Trunk Angle', icon='📐'),
+            st.Page('rowing_catch/page/development.py', title='Development', icon='🏋️'),
+            st.Page('rowing_catch/page/performance.py', title='Performance', icon='⚡'),
         ],
         'Debug': [
-            st.Page('rowing_catch/pages/debug_pipeline.py', title='Debug Pipeline', icon='🔬'),
-            st.Page('rowing_catch/pages/debug_trace.py', title='Debug Trace', icon='🔍'),
+            st.Page('rowing_catch/page/debug_pipeline.py', title='Debug Pipeline', icon='🔬'),
+            st.Page('rowing_catch/page/debug_trace.py', title='Debug Trace', icon='🔍'),
         ],
     }
 )

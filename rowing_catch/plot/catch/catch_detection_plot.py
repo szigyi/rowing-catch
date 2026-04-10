@@ -53,7 +53,7 @@ def render_catch_detection(computed_data: dict[str, Any]) -> None:
         )
 
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES)
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     if data['intervals']:
@@ -66,6 +66,6 @@ def render_catch_detection(computed_data: dict[str, Any]) -> None:
                 'Interval (samples)': [r['interval'] for r in data['intervals']],
             }
         )
-        st.dataframe(df_intervals, use_container_width=True, hide_index=True)
+        st.dataframe(df_intervals, width='stretch', hide_index=True)
 
     st.info(coach_tip)

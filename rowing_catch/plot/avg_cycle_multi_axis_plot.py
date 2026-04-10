@@ -134,7 +134,7 @@ def render_avg_cycle_multi_axis(computed_data: dict[str, Any]) -> None:
         edgecolor='#DDDDDD',
     )
 
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     st.info(coach_tip)

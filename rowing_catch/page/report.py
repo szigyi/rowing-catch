@@ -6,9 +6,9 @@ import pandas as pd
 import streamlit as st
 
 from rowing_catch.algo.analysis import process_rowing_data
-from rowing_catch.plot_transformer.trunk.trunk_angle_transformer import TrunkAngleComponent
-from rowing_catch.plot.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
+from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.utils import get_traffic_light
+from rowing_catch.plot_transformer.trunk.trunk_angle_transformer import TrunkAngleComponent
 
 st.title('The Rowing Catch — Rowing Analysis Report')
 st.markdown(

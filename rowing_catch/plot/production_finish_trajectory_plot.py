@@ -43,7 +43,7 @@ def render_production_finish_trajectory(computed_data: dict[str, Any]) -> None:
     ax.scatter(data['finish_indices'], data['finish_values'], color=COLOR_FINISH, marker='X', s=60, zorder=5, label='Finish')
 
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     st.info(coach_tip)

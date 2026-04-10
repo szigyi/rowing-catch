@@ -29,7 +29,7 @@ def render_signal_smoothing_comparison(computed_data: dict[str, Any]) -> None:
         ax.plot(data['index_raw'], data['seat_raw'], color=COLOR_COMPARE, linewidth=0.8, label='Raw')
         ax.plot(data['index_smooth'], data['seat_smooth'], color=COLOR_SEAT, linewidth=1.5, label='Smoothed')
         ax.legend(fontsize=8, facecolor=BG_COLOR_AXES)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     with col_right:
@@ -38,7 +38,7 @@ def render_signal_smoothing_comparison(computed_data: dict[str, Any]) -> None:
         ax.plot(data['index_raw'], data['handle_raw'], color=COLOR_COMPARE, linewidth=0.8, label='Raw')
         ax.plot(data['index_smooth'], data['handle_smooth'], color=COLOR_HANDLE, linewidth=1.5, label='Smoothed')
         ax.legend(fontsize=8, facecolor=BG_COLOR_AXES)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     st.info(coach_tip)

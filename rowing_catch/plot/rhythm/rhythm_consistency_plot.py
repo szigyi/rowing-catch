@@ -69,7 +69,7 @@ def render_rhythm_consistency(computed_data: dict[str, Any]) -> None:
 
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
 
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     st.info(f'**Performance Insight:** {coach_tip}')

@@ -48,7 +48,7 @@ def render_velocity_profile(computed_data: dict[str, Any]) -> None:
     ax.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.2)
     ax.legend(fontsize=8, loc='upper right', facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
 
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     st.info(coach_tip)

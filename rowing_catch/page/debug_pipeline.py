@@ -14,30 +14,30 @@ from rowing_catch.algo.step.step4_segmentation import step4_segment_and_average
 from rowing_catch.algo.step.step5_metrics import step5_compute_metrics
 from rowing_catch.algo.step.step6_statistics import step6_statistics
 from rowing_catch.algo.step.step7_diagnostics import step7_diagnostics
+from rowing_catch.plot.avg_cycle_multi_axis_plot import render_avg_cycle_multi_axis
+from rowing_catch.plot.avg_cycle_trunk_angle_plot import render_avg_cycle_trunk_angle
+from rowing_catch.plot.catch.catch_detection_plot import render_catch_detection
+from rowing_catch.plot.cycle_overlay_mean_std_plot import render_cycle_overlay_mean_std
+from rowing_catch.plot.jerk_comparison_plot import render_jerk_comparison
+from rowing_catch.plot.power_curve.debug_power_curve_plot import render_debug_power_curve
+from rowing_catch.plot.production_finish_trajectory_plot import render_production_finish_trajectory
+from rowing_catch.plot.rhythm.drive_recovery_balance_plot import render_drive_recovery_balance
+from rowing_catch.plot.rhythm.rhythm_consistency_plot import render_rhythm_consistency
+from rowing_catch.plot.signal_smoothing_comparison_plot import render_signal_smoothing_comparison
+from rowing_catch.plot.velocity.relative_velocity_plot import render_relative_velocity
+from rowing_catch.plot.velocity.velocity_profile_plot import render_velocity_profile
 from rowing_catch.plot_transformer.avg_cycle_multi_axis_transformer import AvgCycleMultiAxisComponent
 from rowing_catch.plot_transformer.avg_cycle_trunk_angle_transformer import AvgCycleTrunkAngleComponent
 from rowing_catch.plot_transformer.catch.catch_detection_transformer import CatchDetectionComponent
 from rowing_catch.plot_transformer.cycle_overlay_mean_std_transformer import CycleOverlayMeanStdComponent
-from rowing_catch.plot_transformer.power_curve.debug_power_curve_transformer import DebugPowerCurveComponent
-from rowing_catch.plot_transformer.rhythm.drive_recovery_balance_transformer import DriveRecoveryBalanceComponent
 from rowing_catch.plot_transformer.jerk_comparison_transformer import JerkComparisonComponent
+from rowing_catch.plot_transformer.power_curve.debug_power_curve_transformer import DebugPowerCurveComponent
 from rowing_catch.plot_transformer.production_finish_trajectory_transformer import ProductionFinishTrajectoryComponent
-from rowing_catch.plot_transformer.velocity.relative_velocity_transformer import RelativeVelocityComponent
+from rowing_catch.plot_transformer.rhythm.drive_recovery_balance_transformer import DriveRecoveryBalanceComponent
 from rowing_catch.plot_transformer.rhythm.rhythm_consistency_transformer import RhythmConsistencyComponent
 from rowing_catch.plot_transformer.signal_smoothing_comparison_transformer import SignalSmoothingComparisonComponent
+from rowing_catch.plot_transformer.velocity.relative_velocity_transformer import RelativeVelocityComponent
 from rowing_catch.plot_transformer.velocity.velocity_profile_transformer import VelocityProfileComponent
-from rowing_catch.plot.avg_cycle_multi_axis_plot import render_avg_cycle_multi_axis
-from rowing_catch.plot.avg_cycle_trunk_angle_plot import render_avg_cycle_trunk_angle
-from rowing_catch.plot.catch_detection_plot import render_catch_detection
-from rowing_catch.plot.cycle_overlay_mean_std_plot import render_cycle_overlay_mean_std
-from rowing_catch.plot.debug_power_curve_plot import render_debug_power_curve
-from rowing_catch.plot.drive_recovery_balance_plot import render_drive_recovery_balance
-from rowing_catch.plot.jerk_comparison_plot import render_jerk_comparison
-from rowing_catch.plot.production_finish_trajectory_plot import render_production_finish_trajectory
-from rowing_catch.plot.relative_velocity_plot import render_relative_velocity
-from rowing_catch.plot.rhythm_consistency_plot import render_rhythm_consistency
-from rowing_catch.plot.signal_smoothing_comparison_plot import render_signal_smoothing_comparison
-from rowing_catch.plot.velocity_profile_plot import render_velocity_profile
 from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scenarios
 
 st.title('Data Processing Pipeline — Debug View')
@@ -232,7 +232,7 @@ with st.expander('Step 2 details', expanded=False):
 
     st.markdown('**Smoothed column stats:**')
     smooth_cols = [f'{c}_Smooth' for c in PROCESSED_COLUMN_NAMES if f'{c}_Smooth' in df_step2.columns]
-    st.dataframe(df_step2[smooth_cols].describe().T.round(2), use_container_width=True)
+    st.dataframe(df_step2[smooth_cols].describe().T.round(2), width='stretch')
 
 # ===========================================================================
 # PHASE 3 — Stroke Segmentation
@@ -373,7 +373,7 @@ with st.expander('Step 5 details', expanded=True):
     render_debug_power_curve(computed_power)
 
     with st.expander('Raw averaged cycle DataFrame (all computed columns)'):
-        st.dataframe(avg_cycle_m.round(3), use_container_width=True)
+        st.dataframe(avg_cycle_m.round(3), width='stretch')
 
 # ===========================================================================
 # PHASE 5 — Stroke-Level Statistics

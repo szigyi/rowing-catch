@@ -76,7 +76,7 @@ def render_jerk_comparison(computed_data: dict[str, Any]) -> None:
 
     axes[-1].set_xlabel(metadata['x_label'], fontweight='bold', color=COLOR_TEXT_SUB)
     plt.tight_layout()
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     st.info(coach_tip)

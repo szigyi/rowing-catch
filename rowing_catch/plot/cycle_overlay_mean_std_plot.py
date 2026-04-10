@@ -45,7 +45,7 @@ def render_cycle_overlay_mean_std(computed_data: dict[str, Any]) -> None:
     ax.plot(x_idx, mean_vals, color=COLOR_MAIN, linewidth=2, label='Mean cycle')
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
 
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width='stretch')
     plt.close(fig)
 
     st.info(coach_tip)

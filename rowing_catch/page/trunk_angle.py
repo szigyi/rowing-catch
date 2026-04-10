@@ -1,7 +1,7 @@
 import streamlit as st
 
 from rowing_catch.algo.analysis import process_rowing_data
-from rowing_catch.plot_transformer.trunk_angle_transformer import TrunkAngleComponent
+from rowing_catch.plot_transformer.trunk.trunk_angle_transformer import TrunkAngleComponent
 from rowing_catch.plot.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scenarios
 

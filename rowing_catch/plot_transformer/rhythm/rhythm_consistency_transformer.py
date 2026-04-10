@@ -11,7 +11,7 @@ import pandas as pd
 
 from rowing_catch.algo.helpers import calculate_ideal_drive_ratio
 from rowing_catch.plot_transformer.base import PlotComponent
-from rowing_catch.plot_transformer.drive_recovery_balance_transformer import compute_rhythm_spread
+from rowing_catch.plot_transformer.rhythm.drive_recovery_balance_transformer import compute_rhythm_spread
 
 
 class RhythmConsistencyComponent(PlotComponent):

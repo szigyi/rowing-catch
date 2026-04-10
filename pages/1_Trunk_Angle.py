@@ -1,8 +1,8 @@
 import streamlit as st
 
 from rowing_catch.algo.analysis import process_rowing_data
-from rowing_catch.plot_transforms import get_plot_component
-from rowing_catch.plots.trunk_angle import render_trunk_angle_with_stage_stickfigures
+from rowing_catch.plot_transforms.trunk_angle_transformer import TrunkAngleComponent
+from rowing_catch.plots.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.scenario.scenarios import create_scenario_data, get_trunk_scenarios
 
 st.set_page_config(page_title='Trunk Angle Analysis', layout='wide')
@@ -35,7 +35,7 @@ if selected_scenario:
 
     if results:
         # Get plot component and compute plot-ready data
-        component = get_plot_component('trunk_angle')
+        component = TrunkAngleComponent()
 
         ghost_cycle = None
         if selected_ghost != 'None':

@@ -47,7 +47,7 @@ class TrunkAngleSeparationComponent(PlotComponent):
         return {
             'data': {
                 'seat_position': avg_cycle['Seat_X_Smooth'].values,
-                'trunk_angle': avg_cycle['Trunk_Angle'].values,
+                'trunk_angle_plot': avg_cycle['Trunk_Angle'].values,
                 'catch_idx': catch_idx,
                 'finish_idx': finish_idx,
                 'catch_seat': cast(float, avg_cycle.at[catch_idx, 'Seat_X_Smooth']),

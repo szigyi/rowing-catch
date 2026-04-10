@@ -5,7 +5,7 @@ These annotations only appear when a Global Scenario Overlay is selected.
 
 DIAGRAM_ANNOTATIONS = {
     'Ideal Technique': {
-        'trunk_angle_separation': [
+        'trunk_angle_separation_plot': [
             {
                 'x_type': 'point',
                 'point_name': 'catch',
@@ -29,7 +29,7 @@ DIAGRAM_ANNOTATIONS = {
                 'color': '#EF553B',
             },
         ],
-        'power_accumulation': [
+        'power_accumulation_plot': [
             {
                 'x_type': 'percentage_of_drive',
                 'x': 25,
@@ -47,7 +47,7 @@ DIAGRAM_ANNOTATIONS = {
         ],
     },
     'Slow Hand Away': {
-        'trunk_angle_separation': [
+        'trunk_angle_separation_plot': [
             {
                 'x_type': 'percentage_of_cycle',
                 'x': 70,
@@ -74,7 +74,7 @@ DIAGRAM_ANNOTATIONS = {
         ],
     },
     'Short Catch (Limited Reach)': {
-        'trunk_angle_separation': [
+        'trunk_angle_separation_plot': [
             {
                 'x_type': 'point',
                 'point_name': 'catch',
@@ -84,7 +84,7 @@ DIAGRAM_ANNOTATIONS = {
                 'offset': (-10, 40),
             }
         ],
-        'handle_seat_distance': [
+        'handle_seat_distance_plot': [
             {
                 'x_type': 'point',
                 'point_name': 'catch',
@@ -95,7 +95,7 @@ DIAGRAM_ANNOTATIONS = {
         ],
     },
     'Over-lean at Finish': {
-        'trunk_angle_separation': [
+        'trunk_angle_separation_plot': [
             {
                 'x_type': 'point',
                 'point_name': 'finish',
@@ -106,7 +106,7 @@ DIAGRAM_ANNOTATIONS = {
         ]
     },
     'No Separation': {
-        'trunk_angle_separation': [
+        'trunk_angle_separation_plot': [
             {
                 'x_type': 'percentage_of_drive',
                 'x': 20,
@@ -115,7 +115,7 @@ DIAGRAM_ANNOTATIONS = {
                 'color': 'red',
             }
         ],
-        'power_accumulation': [
+        'power_accumulation_plot': [
             {
                 'x_type': 'percentage_of_drive',
                 'x': 20,
@@ -126,7 +126,7 @@ DIAGRAM_ANNOTATIONS = {
         ],
     },
     'Rigid Trunk': {
-        'trunk_angle_separation': [
+        'trunk_angle_separation_plot': [
             {
                 'x_type': 'percentage_of_cycle',
                 'x': 50,
@@ -207,7 +207,7 @@ DIAGRAM_ANNOTATIONS = {
     },
     # --- Coordination Scenarios ---
     'Ideal Coordination': {
-        'kinetic_chain': [
+        'kinetic_chain_plot': [
             {
                 'x_type': 'percentage_of_drive',
                 'x': 10,
@@ -218,7 +218,7 @@ DIAGRAM_ANNOTATIONS = {
         ]
     },
     'Shooting the Slide': {
-        'kinetic_chain': [
+        'kinetic_chain_plot': [
             {
                 'x_type': 'percentage_of_drive',
                 'x': 20,
@@ -238,7 +238,7 @@ DIAGRAM_ANNOTATIONS = {
         ]
     },
     'Arm-Only Drive': {
-        'kinetic_chain': [
+        'kinetic_chain_plot': [
             {
                 'x_type': 'percentage_of_drive',
                 'x': 20,
@@ -247,7 +247,7 @@ DIAGRAM_ANNOTATIONS = {
                 'color': 'red',
             },
         ],
-        'power_accumulation': [
+        'power_accumulation_plot': [
             {
                 'x_type': 'percentage_of_drive',
                 'x': 30,

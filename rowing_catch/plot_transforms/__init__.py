@@ -4,17 +4,27 @@ Transforms convert analysis results into plot-ready data structures.
 This layer ensures all rendering logic in plots/ can remain pure and testable.
 """
 
+from rowing_catch.plot_transforms.avg_cycle_multi_axis_transformer import AvgCycleMultiAxisComponent
+from rowing_catch.plot_transforms.avg_cycle_trunk_angle_transformer import AvgCycleTrunkAngleComponent
 from rowing_catch.plot_transforms.base import PlotComponent
-from rowing_catch.plot_transforms.handle_seat_distance import HandleSeatDistanceComponent
-from rowing_catch.plot_transforms.handle_trajectory_dev import HandleTrajectoryDevComponent
-from rowing_catch.plot_transforms.kinetic_chain import KineticChainComponent
-from rowing_catch.plot_transforms.performance_metrics import PerformanceMetricsComponent
-from rowing_catch.plot_transforms.power_accumulation import PowerAccumulationComponent
-from rowing_catch.plot_transforms.recovery_slide_control import RecoverySlideControlComponent
-from rowing_catch.plot_transforms.registry import get_all_plots, get_plot_component, list_plot_ids
-from rowing_catch.plot_transforms.rhythm_consistency import RhythmConsistencyComponent
-from rowing_catch.plot_transforms.trunk_angle import TrunkAngleComponent
-from rowing_catch.plot_transforms.trunk_angle_separation import TrunkAngleSeparationComponent
+from rowing_catch.plot_transforms.catch_detection_transformer import CatchDetectionComponent
+from rowing_catch.plot_transforms.cycle_overlay_mean_std_transformer import CycleOverlayMeanStdComponent
+from rowing_catch.plot_transforms.debug_power_curve_transformer import DebugPowerCurveComponent
+from rowing_catch.plot_transforms.drive_recovery_balance_transformer import DriveRecoveryBalanceComponent
+from rowing_catch.plot_transforms.handle_seat_distance_transformer import HandleSeatDistanceComponent
+from rowing_catch.plot_transforms.handle_trajectory_dev_transformer import HandleTrajectoryDevComponent
+from rowing_catch.plot_transforms.jerk_comparison_transformer import JerkComparisonComponent
+from rowing_catch.plot_transforms.kinetic_chain_transformer import KineticChainComponent
+from rowing_catch.plot_transforms.performance_metrics_transformer import PerformanceMetricsComponent
+from rowing_catch.plot_transforms.power_accumulation_transformer import PowerAccumulationComponent
+from rowing_catch.plot_transforms.production_finish_trajectory_transformer import ProductionFinishTrajectoryComponent
+from rowing_catch.plot_transforms.recovery_slide_control_transformer import RecoverySlideControlComponent
+from rowing_catch.plot_transforms.relative_velocity_transformer import RelativeVelocityComponent
+from rowing_catch.plot_transforms.rhythm_consistency_transformer import RhythmConsistencyComponent
+from rowing_catch.plot_transforms.signal_smoothing_comparison_transformer import SignalSmoothingComparisonComponent
+from rowing_catch.plot_transforms.trunk_angle_separation_transformer import TrunkAngleSeparationComponent
+from rowing_catch.plot_transforms.trunk_angle_transformer import TrunkAngleComponent
+from rowing_catch.plot_transforms.velocity_profile_transformer import VelocityProfileComponent
 
 __all__ = [
     'PlotComponent',
@@ -27,7 +37,15 @@ __all__ = [
     'PowerAccumulationComponent',
     'KineticChainComponent',
     'PerformanceMetricsComponent',
-    'get_all_plots',
-    'get_plot_component',
-    'list_plot_ids',
+    'SignalSmoothingComparisonComponent',
+    'CatchDetectionComponent',
+    'CycleOverlayMeanStdComponent',
+    'AvgCycleMultiAxisComponent',
+    'ProductionFinishTrajectoryComponent',
+    'AvgCycleTrunkAngleComponent',
+    'VelocityProfileComponent',
+    'RelativeVelocityComponent',
+    'JerkComparisonComponent',
+    'DebugPowerCurveComponent',
+    'DriveRecoveryBalanceComponent',
 ]

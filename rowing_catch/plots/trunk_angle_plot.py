@@ -31,7 +31,7 @@ def render_trunk_angle_with_stage_stickfigures(computed_data: dict[str, Any]):
     coach_tip = computed_data['coach_tip']
 
     x = data['x']
-    trunk_angle = data['trunk_angle']
+    trunk_angle = data['trunk_angle_plot']
     catch_idx = data['catch_idx']
     finish_idx = data['finish_idx']
     x_min = data['x_min']
@@ -95,7 +95,7 @@ def render_trunk_angle_with_stage_stickfigures(computed_data: dict[str, Any]):
     if ghost_data is not None:
         ax_top.plot(
             ghost_data['x'],
-            ghost_data['trunk_angle'],
+            ghost_data['trunk_angle_plot'],
             color=COLOR_COMPARE,
             linestyle=':',
             linewidth=2,

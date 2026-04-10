@@ -4,8 +4,8 @@ import pandas as pd
 import streamlit as st
 
 from rowing_catch.algo.analysis import process_rowing_data
-from rowing_catch.plot_transforms import get_plot_component
-from rowing_catch.plots.trunk_angle import render_trunk_angle_with_stage_stickfigures
+from rowing_catch.plot_transforms.trunk_angle_transformer import TrunkAngleComponent
+from rowing_catch.plots.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plots.utils import get_traffic_light
 
 st.set_page_config(page_title='The Rowing Catch - Rowing Analysis Report', layout='wide')
@@ -89,7 +89,7 @@ if df is not None:
 
             # Trunk Angle Plot
             st.write('#### Trunk Angle & Range Analysis')
-            component = get_plot_component('trunk_angle')
+            component = TrunkAngleComponent()
             computed = component.compute(
                 avg_cycle=results['avg_cycle'],
                 catch_idx=results['catch_idx'],

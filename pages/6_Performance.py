@@ -1,11 +1,11 @@
 import streamlit as st
 
-from rowing_catch.plot_transforms.kinetic_chain import KineticChainComponent
-from rowing_catch.plot_transforms.performance_metrics import PerformanceMetricsComponent
-from rowing_catch.plot_transforms.power_accumulation import PowerAccumulationComponent
-from rowing_catch.plots.kinetic_chain import render_kinetic_chain
-from rowing_catch.plots.performance_metrics import render_performance_metrics
-from rowing_catch.plots.power_accumulation import render_power_accumulation
+from rowing_catch.plot_transforms.kinetic_chain_transformer import KineticChainComponent
+from rowing_catch.plot_transforms.performance_metrics_transformer import PerformanceMetricsComponent
+from rowing_catch.plot_transforms.power_accumulation_transformer import PowerAccumulationComponent
+from rowing_catch.plots.kinetic_chain_plot import render_kinetic_chain
+from rowing_catch.plots.performance_metrics_plot import render_performance_metrics
+from rowing_catch.plots.power_accumulation_plot import render_power_accumulation
 from rowing_catch.ui.pre_process import render_sidebar_and_process
 
 st.set_page_config(page_title='Performance Analysis', layout='wide')

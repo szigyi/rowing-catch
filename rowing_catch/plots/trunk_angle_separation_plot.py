@@ -28,7 +28,7 @@ def render_trunk_angle_separation(computed_data: dict[str, Any]):
     )
 
     # Main plot
-    ax.plot(data['seat_position'], data['trunk_angle'], color=COLOR_TRUNK, linewidth=3, label='Your Data', zorder=5)
+    ax.plot(data['seat_position'], data['trunk_angle_plot'], color=COLOR_TRUNK, linewidth=3, label='Your Data', zorder=5)
 
     # Mark catch and finish
     ax.scatter(data['catch_seat'], data['catch_angle'], color=COLOR_CATCH, s=100, label='Catch', zorder=6)

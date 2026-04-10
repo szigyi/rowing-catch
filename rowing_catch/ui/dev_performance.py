@@ -105,7 +105,7 @@ def _get_annotation_x_coordinate(ax, ann: dict, data: pd.DataFrame, x_idx: int, 
             return float(base_idx)
 
     # Trunk angle: X is Seat_X
-    if diagram_key == 'trunk_angle_separation' and 'Seat_X_Smooth' in data.columns:
+    if diagram_key == 'trunk_angle_separation_plot' and 'Seat_X_Smooth' in data.columns:
         try:
             return float(data.loc[base_idx, 'Seat_X_Smooth'])
         except Exception:

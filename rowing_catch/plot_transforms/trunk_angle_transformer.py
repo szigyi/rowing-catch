@@ -77,7 +77,7 @@ class TrunkAngleComponent(PlotComponent):
         ghost_data = None
         if ghost_cycle is not None:
             ghost_data = {
-                'trunk_angle': ghost_cycle['Trunk_Angle'].values,
+                'trunk_angle_plot': ghost_cycle['Trunk_Angle'].values,
                 'x': ghost_cycle.index.values,
             }
 
@@ -86,7 +86,7 @@ class TrunkAngleComponent(PlotComponent):
 
         return {
             'data': {
-                'trunk_angle': avg_cycle['Trunk_Angle'].values,
+                'trunk_angle_plot': avg_cycle['Trunk_Angle'].values,
                 'x': avg_cycle.index.values,
                 'catch_idx': catch_idx,
                 'finish_idx': finish_idx,

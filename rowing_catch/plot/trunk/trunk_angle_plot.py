@@ -19,7 +19,7 @@ from rowing_catch.plot.theme import (
     REFERENCE_LINE_COLOR,
     SPINE_COLOR,
 )
-from rowing_catch.plot.utils import apply_annotations, render_annotation_legend_on_figure
+from rowing_catch.plot.utils import apply_annotations
 
 
 def render_trunk_angle_with_stage_stickfigures(
@@ -55,35 +55,25 @@ def render_trunk_angle_with_stage_stickfigures(
     x_max = data['x_max']
     stage_angles = data['stage_angles']
 
-    # Pre-compute which annotations will be active so we know legend row height.
-    # We do a dry-run filter (no drawing) just to count rows.
+    # Pre-compute which annotations will be active — count used for nothing now
+    # (legend is rendered by the page layer, not inside the figure).
     from rowing_catch.plot_transformer.annotations import assign_annotation_colors
 
     _active_anns = [a for a in annotations if a.axis_id == 'top']
     _active_anns = assign_annotation_colors(_active_anns)
     if active_annotations is not None:
         _active_anns = [a for a in _active_anns if a.label in active_annotations]
-    n_legend_rows = len(_active_anns)
 
-    # Height ratios: [trace plot, stick figures, legend]
-    # Legend row is 0 when empty so it collapses cleanly.
-    legend_ratio = max(0.35 * n_legend_rows, 0.0)
-    fig = plt.figure(figsize=(10, 7 + legend_ratio * 0.5), constrained_layout=True)
-    gs = fig.add_gridspec(
-        3,
-        1,
-        height_ratios=[3, 2, legend_ratio] if n_legend_rows > 0 else [3, 2, 0.001],
-        hspace=0.08,
-    )
+    # Single figure with 2-row GridSpec: trace + stick figures.
+    fig = plt.figure(figsize=(10, 7), constrained_layout=True)
+    gs = fig.add_gridspec(2, 1, height_ratios=[3, 2], hspace=0.08)
     ax_top = fig.add_subplot(gs[0])
     ax_bot = fig.add_subplot(gs[1], sharex=ax_top)
-    ax_legend = fig.add_subplot(gs[2])
 
     # Modern Styling
     fig.patch.set_facecolor(BG_COLOR_FIGURE)
     ax_top.set_facecolor('#FFFFFF')
     ax_bot.set_facecolor(BG_COLOR_FIGURE)
-    ax_legend.set_facecolor(BG_COLOR_FIGURE)
 
     # Clean up spines on top plot
     ax_top.spines['top'].set_visible(False)
@@ -200,36 +190,19 @@ def render_trunk_angle_with_stage_stickfigures(
 
     ax_top.legend(loc='center right', frameon=True, facecolor='#FFFFFF', edgecolor=SPINE_COLOR, fontsize=9)
 
-    # --- Apply annotations to top axes and render legend inside figure ---
-    # Color overrides: zone bands use theme colors at reduced alpha (handled by
-    # _draw_band_annotation: fill alpha=0.12, border alpha=0.5) so they are
-    # recognisable but clearly distinct from the solid catch/finish vertical lines.
+    # --- Apply annotations to top axes (on-plot markers only).
+    # The legend table is rendered by the page layer as a Streamlit widget.
     _zone_color_overrides = {
         '[Z1]': COLOR_CATCH,
         '[Z2]': COLOR_FINISH,
     }
-    legend_items = apply_annotations(
+    apply_annotations(
         ax_top,
         annotations,
         active_labels=active_annotations,
         axis_id='top',
         color_overrides=_zone_color_overrides,
     )
-    if legend_items:
-        # Collect colors in legend order, applying the same palette + overrides used above
-        import dataclasses as _dc
-
-        from rowing_catch.plot_transformer.annotations import assign_annotation_colors as _assign
-
-        _auto_colored = _assign([a for a in annotations if a.axis_id == 'top'])
-        _with_overrides = [
-            _dc.replace(a, color=_zone_color_overrides[a.label]) if a.label in _zone_color_overrides else a for a in _auto_colored
-        ]
-        _visible = [a for a in _with_overrides if active_annotations is None or a.label in active_annotations]
-        legend_colors = [a.color or '#555555' for a in _visible]
-        render_annotation_legend_on_figure(fig, ax_legend, legend_items, colors=legend_colors)
-    else:
-        ax_legend.axis('off')
 
     # --- Bottom: anchor axis with stick figures ---
     ax_bot.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.5, alpha=0.2)

@@ -16,17 +16,44 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 # ---------------------------------------------------------------------------
-# Annotation palette — distinct from main theme colors to avoid visual conflict.
-# Used by apply_annotations() to auto-assign colors when color=None.
+# Annotation palettes — one per annotation geometry type.
+# Each type starts its own counter independently per plot, so [P1] and [S1]
+# never compete for the same palette slot.
+# All colours are chosen to contrast against COLOR_MAIN (#636EFA blue-purple),
+# COLOR_CATCH (#00CC96 green), and COLOR_FINISH (#EF553B red).
 # ---------------------------------------------------------------------------
-ANNOTATION_COLORS: list[str] = [
-    '#D946EF',  # Fuchsia — [P_] points (slot 1)
-    '#14B8A6',  # Teal    — [P_] points (slot 2)
-    '#F59E0B',  # Amber   — [S_] segments (slot 3)
-    '#F97316',  # Orange  — [S_] segments (slot 4)
-    '#10B981',  # Emerald — [Z_] zones (slot 5, typically renderer-overridden)
-    '#EC4899',  # Pink    — [Z_] zones (slot 6, typically renderer-overridden)
+
+# Points ([P_]) — callout dots + arrows. Pop clearly off the main line.
+# In practice [P1]/[P2] are often overridden by COLOR_CATCH/COLOR_FINISH.
+ANNOTATION_COLORS_POINT: list[str] = [
+    '#D946EF',  # Fuchsia  — [P1]
+    '#14B8A6',  # Teal     — [P2]
 ]
+
+# Segments ([S_]) — wide semi-transparent backdrops on the main line.
+# Warm/violet tones contrast against the blue-purple main line.
+ANNOTATION_COLORS_SEGMENT: list[str] = [
+    '#F59E0B',  # Amber  — [S1] drive phase
+    '#8B5CF6',  # Violet — [S2] recovery phase (distinct from amber)
+]
+
+# Zones ([Z_]) — horizontal shaded bands (ideal range target zones).
+# Usually overridden by COLOR_CATCH/COLOR_FINISH in renderers.
+ANNOTATION_COLORS_ZONE: list[str] = [
+    '#10B981',  # Emerald — [Z1] (overridden by catch green in practice)
+    '#EC4899',  # Pink    — [Z2] (overridden by finish red in practice)
+]
+
+# Regions ([R_]) — vertical phase spans. Intentionally subtle.
+ANNOTATION_COLORS_REGION: list[str] = [
+    '#94A3B8',  # Slate grey — [R1]
+]
+
+# Legacy flat list kept for backward compatibility with code that imports it.
+# New code should prefer the typed palettes above.
+ANNOTATION_COLORS: list[str] = (
+    ANNOTATION_COLORS_POINT + ANNOTATION_COLORS_SEGMENT + ANNOTATION_COLORS_ZONE + ANNOTATION_COLORS_REGION
+)
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +85,7 @@ class PointAnnotation:
     color: str | None = None
     axis_id: str = 'main'
     coach_tip: str = ''
+    coach_tip_is_ideal: bool = True
 
 
 @dataclass
@@ -88,6 +116,7 @@ class SegmentAnnotation:
     color: str | None = None
     axis_id: str = 'main'
     coach_tip: str = ''
+    coach_tip_is_ideal: bool = True
 
 
 @dataclass
@@ -118,6 +147,7 @@ class BandAnnotation:
     color: str | None = None
     axis_id: str = 'main'
     coach_tip: str = ''
+    coach_tip_is_ideal: bool = True
 
 
 @dataclass
@@ -141,6 +171,7 @@ class PhaseAnnotation:
     color: str | None = None
     axis_id: str = 'main'
     coach_tip: str = ''
+    coach_tip_is_ideal: bool = True
 
 
 # Union type covering all annotation variants
@@ -183,31 +214,68 @@ def assign_annotation_colors(
 ) -> list[AnnotationEntry]:
     """Auto-assign palette colors to annotations that have color=None.
 
-    Annotations with an explicit color are left unchanged. Colors are assigned
-    in palette order — first annotation without a color gets palette[0], etc.
+    When ``palette`` is None (the default), each annotation type draws from its
+    own typed palette so the counters are independent:
+      - PointAnnotation    → ANNOTATION_COLORS_POINT
+      - SegmentAnnotation  → ANNOTATION_COLORS_SEGMENT
+      - BandAnnotation     → ANNOTATION_COLORS_ZONE
+      - PhaseAnnotation    → ANNOTATION_COLORS_REGION
+
+    This ensures [P1] and [S1] never share a slot — a segment backdrop colour
+    is always visually distinct from the point callout colour on the same plot.
+
+    When a custom ``palette`` list is supplied the old behaviour is preserved:
+    all types share that single list and draw from it in order.
+
+    Annotations with an explicit color are always left unchanged.
 
     Args:
         annotations: List of AnnotationEntry objects from compute()
-        palette: Color palette to draw from. Defaults to ANNOTATION_COLORS.
+        palette: Override palette. When None, typed palettes are used.
 
     Returns:
         New list with color fields filled in. Original objects are not mutated.
     """
-    if palette is None:
-        palette = ANNOTATION_COLORS
+    if palette is not None:
+        # Legacy / override path: single shared palette
+        color_iter = iter(palette)
+        result: list[AnnotationEntry] = []
+        for ann in annotations:
+            if ann.color is None:
+                color = next(color_iter, '#888888')
+                ann = dataclasses.replace(ann, color=color)
+            result.append(ann)
+        return result
 
-    color_iter = iter(palette)
-    result: list[AnnotationEntry] = []
+    # Typed palette path: independent counter per annotation geometry type.
+    point_iter = iter(ANNOTATION_COLORS_POINT)
+    segment_iter = iter(ANNOTATION_COLORS_SEGMENT)
+    zone_iter = iter(ANNOTATION_COLORS_ZONE)
+    region_iter = iter(ANNOTATION_COLORS_REGION)
+
+    result = []
     for ann in annotations:
-        if ann.color is None:
-            color = next(color_iter, '#888888')
-            ann = dataclasses.replace(ann, color=color)
-        result.append(ann)
+        if ann.color is not None:
+            result.append(ann)
+            continue
+        if isinstance(ann, PointAnnotation):
+            color = next(point_iter, '#888888')
+        elif isinstance(ann, SegmentAnnotation):
+            color = next(segment_iter, '#888888')
+        elif isinstance(ann, BandAnnotation):
+            color = next(zone_iter, '#888888')
+        else:  # PhaseAnnotation
+            color = next(region_iter, '#888888')
+        result.append(dataclasses.replace(ann, color=color))
     return result
 
 
 __all__ = [
     'ANNOTATION_COLORS',
+    'ANNOTATION_COLORS_POINT',
+    'ANNOTATION_COLORS_SEGMENT',
+    'ANNOTATION_COLORS_ZONE',
+    'ANNOTATION_COLORS_REGION',
     'AnnotationDefinition',
     'AnnotationEntry',
     'BandAnnotation',

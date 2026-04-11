@@ -239,30 +239,38 @@ class TestCatchSeparationTip:
     ZONE = IDEAL_CATCH_ZONE  # (-33.0, -27.0)
 
     def test_too_upright_returns_rock_over_more(self):
-        tip = catch_separation_tip(-20.0, self.ZONE)
+        tip, is_ideal = catch_separation_tip(-20.0, self.ZONE)
         assert 'Rock over more' in tip
         assert '7.0' in tip  # deficit = |-20 - (-27)| = 7.0
         assert 'ideal lean' in tip  # aligned with trunk_angle_tips
+        assert is_ideal is False
 
     def test_over_leaning_returns_reduce_lean(self):
-        tip = catch_separation_tip(-40.0, self.ZONE)
+        tip, is_ideal = catch_separation_tip(-40.0, self.ZONE)
         assert 'Reduce lean' in tip
         assert '7.0' in tip  # excess = |-40 - (-33)| = 7.0
+        assert is_ideal is False
 
     def test_within_zone_returns_ok_message(self):
-        tip = catch_separation_tip(-30.0, self.ZONE)
-        assert 'Catch lean is within ideal range' in tip  # aligned with trunk_angle_tips
+        tip, is_ideal = catch_separation_tip(-30.0, self.ZONE)
+        assert 'Catch lean is within ideal range' in tip
+        assert is_ideal is True
 
     def test_exactly_on_upper_bound_is_ok(self):
-        tip = catch_separation_tip(-27.0, self.ZONE)
+        tip, is_ideal = catch_separation_tip(-27.0, self.ZONE)
         assert 'ideal range' in tip
+        assert is_ideal is True
 
     def test_exactly_on_lower_bound_is_ok(self):
-        tip = catch_separation_tip(-33.0, self.ZONE)
+        tip, is_ideal = catch_separation_tip(-33.0, self.ZONE)
         assert 'ideal range' in tip
+        assert is_ideal is True
 
-    def test_returns_string(self):
-        assert isinstance(catch_separation_tip(-30.0, self.ZONE), str)
+    def test_returns_tuple(self):
+        result = catch_separation_tip(-30.0, self.ZONE)
+        assert isinstance(result, tuple)
+        assert isinstance(result[0], str)
+        assert isinstance(result[1], bool)
 
 
 # ---------------------------------------------------------------------------
@@ -274,30 +282,38 @@ class TestFinishSeparationTip:
     ZONE = IDEAL_FINISH_ZONE  # (12.0, 18.0)
 
     def test_too_little_layback_returns_lay_back_more(self):
-        tip = finish_separation_tip(8.0, self.ZONE)
+        tip, is_ideal = finish_separation_tip(8.0, self.ZONE)
         assert 'Lay back more' in tip
         assert '4.0' in tip  # deficit = |8 - 12| = 4.0
         assert 'ideal finish lean' in tip  # aligned with trunk_angle_tips
+        assert is_ideal is False
 
     def test_over_extended_returns_reduce_layback(self):
-        tip = finish_separation_tip(24.0, self.ZONE)
+        tip, is_ideal = finish_separation_tip(24.0, self.ZONE)
         assert 'Reduce lay-back' in tip
         assert '6.0' in tip  # excess = |24 - 18| = 6.0
+        assert is_ideal is False
 
     def test_within_zone_returns_ok_message(self):
-        tip = finish_separation_tip(15.0, self.ZONE)
-        assert 'Finish lean is within ideal range' in tip  # aligned with trunk_angle_tips; uses ✓ not –
+        tip, is_ideal = finish_separation_tip(15.0, self.ZONE)
+        assert 'Finish lean is within ideal range' in tip
+        assert is_ideal is True
 
     def test_exactly_on_lower_bound_is_ok(self):
-        tip = finish_separation_tip(12.0, self.ZONE)
+        tip, is_ideal = finish_separation_tip(12.0, self.ZONE)
         assert 'ideal range' in tip
+        assert is_ideal is True
 
     def test_exactly_on_upper_bound_is_ok(self):
-        tip = finish_separation_tip(18.0, self.ZONE)
+        tip, is_ideal = finish_separation_tip(18.0, self.ZONE)
         assert 'ideal range' in tip
+        assert is_ideal is True
 
-    def test_returns_string(self):
-        assert isinstance(finish_separation_tip(15.0, self.ZONE), str)
+    def test_returns_tuple(self):
+        result = finish_separation_tip(15.0, self.ZONE)
+        assert isinstance(result, tuple)
+        assert isinstance(result[0], str)
+        assert isinstance(result[1], bool)
 
 
 # ---------------------------------------------------------------------------
@@ -366,45 +382,47 @@ class TestRecoveryReachFraction:
 
 class TestRecoverySeparationTip:
     def test_rushes_over_immediately_returns_warning(self):
-        """reach_frac < 0.10 → trunk rushes forward; check balance."""
-        tip = recovery_separation_tip(0.05)
+        tip, is_ideal = recovery_separation_tip(0.05)
         assert 'immediately' in tip or 'rushes' in tip or 'rush' in tip
+        assert is_ideal is False
 
     def test_ideal_early_returns_positive(self):
-        """reach_frac = 0.30 → good separation."""
-        tip = recovery_separation_tip(0.30)
+        tip, is_ideal = recovery_separation_tip(0.30)
         assert 'Good' in tip or '\u2713' in tip
+        assert is_ideal is True
 
     def test_ideal_boundary_low_is_ok(self):
-        """reach_frac = 0.10 → just inside ideal window."""
-        tip = recovery_separation_tip(0.10)
+        tip, is_ideal = recovery_separation_tip(0.10)
         assert 'Good' in tip or '\u2713' in tip
+        assert is_ideal is True
 
     def test_ideal_boundary_high_is_ok(self):
-        """reach_frac = 0.50 → upper edge of ideal window."""
-        tip = recovery_separation_tip(0.50)
+        tip, is_ideal = recovery_separation_tip(0.50)
         assert 'Good' in tip or '\u2713' in tip
+        assert is_ideal is True
 
     def test_late_returns_warning(self):
-        """reach_frac = 0.70 → late, body still moving when seat arrives."""
-        tip = recovery_separation_tip(0.70)
+        tip, is_ideal = recovery_separation_tip(0.70)
         assert 'Late' in tip or 'late' in tip
+        assert is_ideal is False
 
     def test_very_late_returns_no_separation_warning(self):
-        """reach_frac = 0.95 → no separation at all."""
-        tip = recovery_separation_tip(0.95)
+        tip, is_ideal = recovery_separation_tip(0.95)
         assert 'last moment' in tip or 'no separation' in tip.lower() or 'arrives' in tip
+        assert is_ideal is False
 
     def test_boundary_0_90_is_late(self):
-        """reach_frac = 0.90 → upper edge of late window, still 'Late'."""
-        tip = recovery_separation_tip(0.90)
+        tip, is_ideal = recovery_separation_tip(0.90)
         assert 'Late' in tip or 'late' in tip
+        assert is_ideal is False
 
     def test_boundary_above_0_90_is_very_late(self):
-        """reach_frac = 0.91 → into very-late territory."""
-        tip = recovery_separation_tip(0.91)
+        tip, is_ideal = recovery_separation_tip(0.91)
         assert 'last moment' in tip or 'arrives' in tip or 'no separation' in tip.lower()
+        assert is_ideal is False
 
-    def test_returns_string(self):
-        assert isinstance(recovery_separation_tip(0.50), str)
-
+    def test_returns_tuple(self):
+        result = recovery_separation_tip(0.50)
+        assert isinstance(result, tuple)
+        assert isinstance(result[0], str)
+        assert isinstance(result[1], bool)

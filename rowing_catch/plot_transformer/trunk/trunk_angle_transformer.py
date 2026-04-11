@@ -205,6 +205,7 @@ def _compute_trunk_annotations(
     x_data_end = float(x[-1]) if x_max is None else x_max
 
     # [P1] Catch lean point
+    _p1_tip, _p1_ideal = _catch_lean_coach_tip(catch_lean, catch_zone)
     p1 = PointAnnotation(
         label='[P1]',
         description=f'Catch Lean: {catch_lean:.1f}° (ideal {catch_zone[0]}–{catch_zone[1]}°, {catch_sign}{catch_deviation:.1f}°)',
@@ -212,10 +213,12 @@ def _compute_trunk_annotations(
         y=catch_lean,
         style='callout',
         axis_id='top',
-        coach_tip=_catch_lean_coach_tip(catch_lean, catch_zone),
+        coach_tip=_p1_tip,
+        coach_tip_is_ideal=_p1_ideal,
     )
 
     # [P2] Finish lean point
+    _p2_tip, _p2_ideal = _finish_lean_coach_tip(finish_lean, finish_zone)
     finish_desc = (
         f'Finish Lean: {finish_lean:.1f}° (ideal {finish_zone[0]}–{finish_zone[1]}°, {finish_sign}{finish_deviation:.1f}°)'
     )
@@ -226,12 +229,14 @@ def _compute_trunk_annotations(
         y=finish_lean,
         style='callout',
         axis_id='top',
-        coach_tip=_finish_lean_coach_tip(finish_lean, finish_zone),
+        coach_tip=_p2_tip,
+        coach_tip_is_ideal=_p2_ideal,
     )
 
     # [S1] Drive segment (backdrop)
     drive_x = [float(v) for v in x[catch_idx : finish_idx + 1]]
     drive_y = [float(v) for v in trunk_angle[catch_idx : finish_idx + 1]]
+    _s1_tip, _s1_ideal = _drive_trunk_opening_coach_tip(drive_y)
     s1 = SegmentAnnotation(
         label='[S1]',
         description=f'Drive phase: {catch_lean:.1f}° → {finish_lean:.1f}° ({abs(finish_lean - catch_lean):.1f}° range)',
@@ -241,7 +246,8 @@ def _compute_trunk_annotations(
         y=drive_y,
         style='glow',
         axis_id='top',
-        coach_tip=_drive_trunk_opening_coach_tip(drive_y),
+        coach_tip=_s1_tip,
+        coach_tip_is_ideal=_s1_ideal,
     )
 
     # [S2] Recovery segment (backdrop) — finish to next catch
@@ -250,6 +256,7 @@ def _compute_trunk_annotations(
     next_catch_lean = float(trunk_angle[rec_end_idx])
     rec_x = [float(v) for v in x[finish_idx : rec_end_idx + 1]]
     rec_y = [float(v) for v in trunk_angle[finish_idx : rec_end_idx + 1]]
+    _s2_tip, _s2_ideal = _recovery_rock_over_coach_tip(rec_y, catch_zone)
     s2 = SegmentAnnotation(
         label='[S2]',
         description=(
@@ -261,7 +268,8 @@ def _compute_trunk_annotations(
         y=rec_y,
         style='glow',
         axis_id='top',
-        coach_tip=_recovery_rock_over_coach_tip(rec_y, catch_zone),
+        coach_tip=_s2_tip,
+        coach_tip_is_ideal=_s2_ideal,
     )
 
     # [Z1] Ideal catch zone band — color supplied by renderer via color_overrides

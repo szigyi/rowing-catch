@@ -8,18 +8,20 @@
 
 ## 1. Executive Summary
 
-**Recommended stack: pure matplotlib — no new interactive library.**
+**Recommended stack: pure matplotlib for on-plot markers; Streamlit widgets for the reference table.**
 
-The app already renders everything via `setup_premium_plot()` (matplotlib), and a PDF-printable output is a hard requirement. Adding Plotly or Bokeh creates a parallel rendering stack with no clean home in the 4-layer architecture — two figure objects, two export paths, two styling systems. Matplotlib alone is entirely capable of delivering the required visual styles:
+The app renders figures via `setup_premium_plot()` (matplotlib). matplotlib's `Table` artist was used in the pilot to embed the Ref | Description | Coach Tip table inside the figure, but this caused **text clipping on long descriptions** because matplotlib does not reflow or wrap cell text. The legend table has therefore been moved to the Streamlit layer.
 
-- **Segment backdrop**: Wide semi-transparent backing line behind the data trace (vector-safe, PDF-perfect)
-- **Shaded band**: `ax.fill_between()` (used in FastF1, Strava dashboards)
-- **Callout boxes**: `ax.annotate()` with `arrowprops` (standard matplotlib)
-- **Reference labels**: `[P1]` text on plot + `matplotlib.table` legend beneath
+**Revised architecture:**
 
-The annotation system will be a new **Layer 2 module** (`plot_transformer/annotations.py`) of typed dataclasses produced by transformers and consumed by a shared renderer utility in `plot/utils.py`. Streamlit toggles live in the page layer and pass an `active_annotations: set[str]` filter down to renderers. PDF export works because all annotations are baked into the matplotlib `Figure` object.
+- **On-plot markers**: Segment backdrop, shaded band, callout arrows, badge labels — all still rendered by matplotlib inside `apply_annotations()`. These are vector-safe and PDF-compatible.
+- **Reference table**: Rendered by the page layer as a Streamlit expander using `render_annotation_toggles()` from `rowing_catch/ui/annotation_toggles.py`. This merges the toggle checkboxes and the description/coach-tip columns into a single integrated widget. No matplotlib table involved.
+- **PDF export**: On-plot markers are baked into the `Figure`. For PDF, the page layer is responsible for rendering a separate legend page (Phase 4).
 
----
+The `render_annotation_legend_on_figure()` function in `plot/utils.py` is **retained** for the PDF export path (Phase 4) but is **no longer called** by any Streamlit renderer.
+
+**Key design constraint:** `render_annotation_toggles()` lives in `rowing_catch/ui/` (Layer 4), not in `rowing_catch/plot/` (Layer 3), because it imports `streamlit`. Renderers must never import from `ui/`.
+
 
 ## 2. Library Comparison
 
@@ -334,7 +336,9 @@ def apply_annotations(
 
     Returns:
         List of (label, description, coach_tip) 3-tuples for the visible
-        annotations. Pass this to render_annotation_legend_on_figure().
+        annotations. Return value is now used only by PDF export; Streamlit
+        renderers ignore it (the page layer builds the table via
+        render_annotation_toggles() instead).
     """
 
 
@@ -347,8 +351,9 @@ def render_annotation_legend_on_figure(
 ) -> None:
     """Render a 3-column legend table (Ref | Description | Coach Tip) in ax_legend.
 
-    The Coach Tip column is omitted entirely when all tips are empty,
-    keeping the table compact for unannotated plots.
+    ⚠️ NOT called by any Streamlit renderer — reserved for PDF export (Phase 4).
+    The matplotlib Table artist clips long text and is unsuitable for Streamlit display.
+    For Streamlit, use render_annotation_toggles() from rowing_catch/ui/annotation_toggles.py.
     """
 
 
@@ -362,6 +367,47 @@ def draw_segment_backdrop(
 ) -> None:
     """Draw a wide semi-transparent backing line behind the original data line."""
 ```
+
+### 4.3b Streamlit toggle + table widget in `rowing_catch/ui/annotation_toggles.py`
+
+```python
+def render_annotation_toggles(
+    annotations: list[AnnotationEntry],
+    color_overrides: dict[str, str] | None = None,
+    expander_label: str = 'Annotations',
+    key_prefix: str = 'ann',
+    expanded: bool = False,
+) -> set[str] | None:
+    """Render an annotation toggle expander with an integrated reference table.
+
+    Each row has three columns:
+      1. Checkbox (description) — controls visibility on the plot
+      2. Coloured [Px] pill badge — annotation type colour, same as on-plot marker
+      3. Coach tip pill — green background when is_ideal=True, red when is_ideal=False
+
+    A master "Show all" checkbox controls all rows at once.
+
+    Returns:
+        set[str] of active labels, or None when annotations is empty (meaning
+        "show all" to the renderer).
+    """
+```
+
+**Layer rule:** `render_annotation_toggles()` imports `streamlit` and therefore lives in `rowing_catch/ui/` (Layer 4). Renderers (`rowing_catch/plot/`) must never import it.
+
+**Page usage pattern:**
+
+```python
+# Page layer — correct
+active = render_annotation_toggles(
+    annotations=computed.get('annotations', []),
+    color_overrides={'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH},
+    expander_label='Annotations — My Plot',
+    key_prefix='ann_myplot',
+)
+render_my_plot(computed, active_annotations=active)
+```
+
 
 ### 4.4 Toggle Wiring — Page Layer Pattern
 
@@ -663,6 +709,53 @@ def render_annotation_legend_on_figure(
 
 ---
 
+### 8.12 ✅ RESOLVED — matplotlib `Table` Artist Clips Long Annotation Text
+
+**What was planned:** `render_annotation_legend_on_figure()` draws a `matplotlib.table` inside a dedicated `GridSpec` legend row at the bottom of the figure. This was the Phase 2 pilot implementation.
+
+**What actually happened:** matplotlib's `Table` artist does not reflow or wrap cell text. Descriptions longer than ~50 characters (typical for the `[P1]` / `[P2]` annotations which include angle values, ideal ranges, and deviation) were silently clipped at the cell boundary. The figure's constrained layout also made the legend row height unreliable — too small and text overlapped, too large and it wasted vertical space.
+
+**Resolution:** The matplotlib legend table has been **removed from all renderers**. The reference table is now rendered by the **page layer** as a Streamlit widget using `render_annotation_toggles()` from `rowing_catch/ui/annotation_toggles.py`. This function merges the toggle checkboxes, description text, and coach tips into a single expander row per annotation, using native HTML for italic coach tips.
+
+**Impact on the figure:**
+- Renderers use a simple `plt.subplots()` (or 2-row GridSpec for stick figure plot) — no legend row.
+- `apply_annotations()` still draws on-plot markers (backdrops, callout arrows, badge labels) and still returns `list[tuple[str, str, str]]` — its return value is ignored by Streamlit renderers but preserved for the PDF export path (Phase 4).
+- `render_annotation_legend_on_figure()` is **kept** in `plot/utils.py` and documented as PDF-only.
+
+**File layout update:**
+
+```
+rowing_catch/
+└── ui/
+    └── annotation_toggles.py   # NEW — render_annotation_toggles() Streamlit widget
+```
+
+**Rule for rollout:** Every new plot that uses annotations must call `render_annotation_toggles()` **before** calling the renderer, and pass the returned `active` set to `active_annotations`. Never put a matplotlib table back inside the figure for Streamlit display.
+
+---
+
+### 8.13 ✅ RESOLVED — Coach Tip Colour Signalling (ideal vs needs improvement)
+
+**Decision:** Each annotation carries `coach_tip_is_ideal: bool = True` alongside `coach_tip: str`. The boolean drives the background colour of the coach-tip pill in `render_annotation_toggles()`:
+
+| `coach_tip_is_ideal` | Background | Text | Meaning |
+|---|---|---|---|
+| `True` | `#D1FAE5` (light green) | `#065F46` (dark green) | Rower is within ideal range |
+| `False` | `#FEE2E2` (light red) | `#991B1B` (dark red) | Improvement is needed |
+
+**How it flows end-to-end:**
+
+1. Tip functions return `tuple[str, bool]` — `(cue_text, is_ideal)`.
+2. Transformer unpacks: `tip, is_ideal = my_tip_function(...)` and passes both to the annotation constructor.
+3. `render_annotation_toggles()` reads `ann.coach_tip_is_ideal` to choose the pill colour.
+
+**Rule for rollout:**
+- All tip functions must return `tuple[str, bool]`. Never return bare `str`.
+- `is_ideal=True` only when the rower is strictly within the ideal zone. All other scenarios (too early, too late, gradual, over/under) return `False`.
+- Annotations with `coach_tip=''` (e.g. `[S1]` drive segment, zone bands) set `coach_tip_is_ideal=True` as the neutral default — the tip cell is simply blank.
+
+---
+
 ### 8.10 NEW GOTCHA — `Sequence` Import Must Come from `collections.abc`, Not `typing`
 
 Python 3.9+ deprecates `typing.Sequence` in favour of `collections.abc.Sequence`. ruff rule `UP035` flags `from typing import Sequence` as a fixable error. All `Sequence` uses in this codebase must use:
@@ -776,13 +869,13 @@ The goal is to replace all ad-hoc annotations with the typed system so they beco
 | Annotation home | `plot_transformer/annotations.py` (Layer 2) | ✅ Implemented as planned |
 | Toggle mechanism | `set[str]` passed from page → renderer | ✅ Implemented as planned |
 | Color assignment | Auto from palette in `apply_annotations()` | ✅ Auto for new annotations; **explicit module-level constants for semantic replacements** |
-| Legend table | matplotlib `Table` artist on a sub-axes | ✅ **Implemented as planned** — `render_annotation_legend_on_figure(fig, ax_legend, ...)` draws a styled `matplotlib.table` inside a dedicated `GridSpec` row (`ax_legend`). Fully in-figure, PDF-safe. `render_annotation_legend()` (Streamlit fallback) kept for future simpler plots. |
+| Legend table | matplotlib `Table` artist on a sub-axes | ⚠️ **Changed**: matplotlib table clips long text. **Moved to Streamlit layer** — `render_annotation_toggles()` in `rowing_catch/ui/annotation_toggles.py` renders an expander with colour dot + toggle + description + coach tip per row. `render_annotation_legend_on_figure()` kept for PDF export (Phase 4) only. |
 | PDF export | `matplotlib.backends.backend_pdf.PdfPages` | 🔜 Phase 4 — not yet implemented |
 | Highlight style default | `glow` on dark segments | ✅ **Changed**: replaced neon glow (layered alpha) with `draw_segment_backdrop` — single wide semi-transparent line (`linewidth × 5`, `alpha=0.25`, `zorder=4`) behind the main trace. Cleaner on white axes. |
 | `BandAnnotation` | `label` + `description` only | ⚠️ **Extended**: added `display_name` field for in-plot text |
 | `BandAnnotation` x bounds | `None` → resolves via `ax.get_xlim()` | ⚠️ **Changed**: always set explicit `x_start`/`x_end` in shared-axis plots |
 | Figure layout (multi-axis) | `plt.subplots()` with 2 rows | ⚠️ **Changed**: 3-row `GridSpec` with dynamic `ax_legend` row sized as `0.35 × n_active_annotations`; collapses to `0.001` when no annotations active |
-| `coach_tip` on annotations | Not in original plan | ✅ **Added**: `coach_tip: str = ''` on **all four** annotation types. Generic, data-driven, computed in transformer via pure `_*_coach_tip()` functions. Legend shows **Ref \| Description \| Coach Tip**; column collapses when all empty. |
+| `coach_tip` on annotations | Not in original plan | ✅ **Added**: `coach_tip: str = ''` + `coach_tip_is_ideal: bool = True` on **all four** annotation types. Tip functions return `tuple[str, bool]`. The boolean drives a green/red pill background in `render_annotation_toggles()`. |
 | Annotation reference labels | `[A1]`–`[An]` sequential | ✅ **Changed**: type-prefixed — `[P_]` points, `[S_]` segments, `[Z_]` zones, `[R_]` regions. Counters reset per plot. Trunk angle: `[P1]`, `[P2]`, `[S1]`, `[Z1]`, `[Z2]`, `[S2]`. |
 | `apply_annotations()` return type | `list[tuple[str, str]]` | ⚠️ **Changed**: `list[tuple[str, str, str]]` — `(label, description, coach_tip)` |
 | `Sequence` import | `typing.Sequence` | ⚠️ **Changed**: must use `collections.abc.Sequence` (ruff UP035) |

@@ -3,6 +3,7 @@
 from rowing_catch.plot_transformer.annotations import (
     ANNOTATION_COLORS,
     AnnotationDefinition,
+    AnnotationEntry,
     BandAnnotation,
     PhaseAnnotation,
     PointAnnotation,
@@ -160,18 +161,44 @@ class TestAssignAnnotationColors:
         assert result[1].color == '#222222'
 
     def test_mixed_types(self):
-        """assign_annotation_colors handles all AnnotationEntry types."""
-        from rowing_catch.plot_transformer.annotations import AnnotationEntry
+        """assign_annotation_colors dispatches each type to its own palette."""
+        from rowing_catch.plot_transformer.annotations import (
+            ANNOTATION_COLORS_POINT,
+            ANNOTATION_COLORS_REGION,
+            ANNOTATION_COLORS_SEGMENT,
+            ANNOTATION_COLORS_ZONE,
+        )
 
         anns: list[AnnotationEntry] = [
-            PointAnnotation(label='[A1]', description='', x=0.0, y=0.0),
+            PointAnnotation(label='[P1]', description='', x=0.0, y=0.0),
             SegmentAnnotation(label='[S1]', description='', x_start=0.0, x_end=1.0),
             BandAnnotation(label='[Z1]', description='', y_low=0.0, y_high=1.0),
-            PhaseAnnotation(label='[Ph1]', description='', x_start=0.0, x_end=1.0),
+            PhaseAnnotation(label='[R1]', description='', x_start=0.0, x_end=1.0),
         ]
         result = assign_annotation_colors(anns)
-        for i, r in enumerate(result):
-            assert r.color == ANNOTATION_COLORS[i]
+        assert result[0].color == ANNOTATION_COLORS_POINT[0]  # [P1] → point palette
+        assert result[1].color == ANNOTATION_COLORS_SEGMENT[0]  # [S1] → segment palette
+        assert result[2].color == ANNOTATION_COLORS_ZONE[0]  # [Z1] → zone palette
+        assert result[3].color == ANNOTATION_COLORS_REGION[0]  # [R1] → region palette
+
+    def test_mixed_types_second_slot(self):
+        """Second annotation of each type gets palette slot 1."""
+        from rowing_catch.plot_transformer.annotations import (
+            ANNOTATION_COLORS_POINT,
+            ANNOTATION_COLORS_SEGMENT,
+        )
+
+        anns: list[AnnotationEntry] = [
+            PointAnnotation(label='[P1]', description='', x=0.0, y=0.0),
+            PointAnnotation(label='[P2]', description='', x=1.0, y=0.0),
+            SegmentAnnotation(label='[S1]', description='', x_start=0.0, x_end=1.0),
+            SegmentAnnotation(label='[S2]', description='', x_start=1.0, x_end=2.0),
+        ]
+        result = assign_annotation_colors(anns)
+        assert result[0].color == ANNOTATION_COLORS_POINT[0]
+        assert result[1].color == ANNOTATION_COLORS_POINT[1]
+        assert result[2].color == ANNOTATION_COLORS_SEGMENT[0]
+        assert result[3].color == ANNOTATION_COLORS_SEGMENT[1]
 
     def test_empty_list(self):
         assert assign_annotation_colors([]) == []

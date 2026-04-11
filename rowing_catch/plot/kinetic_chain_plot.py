@@ -7,7 +7,7 @@ from typing import Any
 
 import streamlit as st
 
-from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH, COLOR_HANDLE, COLOR_SEAT
+from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH, MAIN_COLORS
 from rowing_catch.plot.utils import setup_premium_plot
 
 
@@ -30,9 +30,9 @@ def render_kinetic_chain(computed_data: dict[str, Any]):
     catch_idx = data['catch_idx']
     finish_idx = data['finish_idx']
 
-    # Main axis: velocities
-    ax.plot(stroke_index, handle_x_vel, color=COLOR_HANDLE, label='Handle Vel', linewidth=2.5)
-    ax.plot(stroke_index, seat_x_vel, color=COLOR_SEAT, label='Seat Vel', linewidth=2)
+    # Main axis: velocities — use MAIN_COLORS palette in order
+    ax.plot(stroke_index, handle_x_vel, color=MAIN_COLORS[0], label='Handle Vel', linewidth=2.5)
+    ax.plot(stroke_index, seat_x_vel, color=MAIN_COLORS[1], label='Seat Vel', linewidth=2)
 
     # Secondary axis for Acceleration
     ax2 = ax.twinx()

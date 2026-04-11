@@ -172,6 +172,7 @@ def _compute_separation_annotations(
     finish_sign = '+' if finish_dev >= 0 else ''
 
     # [P1] Catch body position
+    _p1_tip, _p1_ideal = catch_separation_tip(catch_angle, catch_zone)
     p1 = PointAnnotation(
         label='[P1]',
         description=(
@@ -181,10 +182,12 @@ def _compute_separation_annotations(
         x=float(catch_seat),
         y=float(catch_angle),
         style='callout',
-        coach_tip=catch_separation_tip(catch_angle, catch_zone),
+        coach_tip=_p1_tip,
+        coach_tip_is_ideal=_p1_ideal,
     )
 
     # [P2] Finish body position
+    _p2_tip, _p2_ideal = finish_separation_tip(finish_angle, finish_zone)
     p2 = PointAnnotation(
         label='[P2]',
         description=(
@@ -194,7 +197,8 @@ def _compute_separation_annotations(
         x=float(finish_seat),
         y=float(finish_angle),
         style='callout',
-        coach_tip=finish_separation_tip(finish_angle, finish_zone),
+        coach_tip=_p2_tip,
+        coach_tip_is_ideal=_p2_ideal,
     )
 
     # [S1] Drive trajectory (catch → finish): seat moves forward (X increases)
@@ -214,11 +218,10 @@ def _compute_separation_annotations(
         y=drive_y,
         style='glow',
         coach_tip='',
+        coach_tip_is_ideal=True,
     )
 
     # [S2] Recovery trajectory (finish → next catch): seat moves backward (X decreases).
-    # Compute when the trunk first reaches the catch zone midpoint, expressed as a
-    # fraction of total recovery seat travel (0.0 = just left finish, 1.0 = back at catch).
     rec_end_idx = n - 1
     rec_x = [float(v) for v in seat_values[finish_idx : rec_end_idx + 1]]
     rec_y = [float(v) for v in angle_values[finish_idx : rec_end_idx + 1]]
@@ -228,6 +231,7 @@ def _compute_separation_annotations(
     total_seat_travel = abs(float(seat_values[finish_idx]) - float(seat_values[rec_end_idx]))
     reach_frac = _recovery_reach_fraction(rec_y, catch_zone, rec_x, total_seat_travel)
 
+    _s2_tip, _s2_ideal = recovery_separation_tip(reach_frac)
     s2 = SegmentAnnotation(
         label='[S2]',
         description=(
@@ -240,7 +244,8 @@ def _compute_separation_annotations(
         x=rec_x,
         y=rec_y,
         style='glow',
-        coach_tip=recovery_separation_tip(reach_frac),
+        coach_tip=_s2_tip,
+        coach_tip_is_ideal=_s2_ideal,
     )
 
     return [p1, p2, s1, s2]

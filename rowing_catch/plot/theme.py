@@ -1,24 +1,38 @@
 """Centralized theme and styling constants for all plots."""
 
-from rowing_catch.plot_transformer.annotations import ANNOTATION_COLORS
+from rowing_catch.plot_transformer.annotations import (
+    ANNOTATION_COLORS,
+    ANNOTATION_COLORS_POINT,
+    ANNOTATION_COLORS_REGION,
+    ANNOTATION_COLORS_SEGMENT,
+    ANNOTATION_COLORS_ZONE,
+)
 
 # --- Annotation Colors ---
-# The palette lives in plot_transformer/annotations.py (Layer 2) so transformers
-# can use it without importing from plot/. Re-exported here for reference.
-# Individual slot meanings (matched to annotation return order):
-#   slot 1 → [P_] points   slot 3 → [S_] segments   slot 5 → [Z_] zones
-#   slot 2 → [P_] points   slot 4 → [S_] segments   slot 6 → [Z_] zones
+# The palettes live in plot_transformer/annotations.py (Layer 2) so transformers
+# can use them without importing from plot/. Re-exported here for convenience.
 ANNOTATION_LABEL_BG = '#FFFFFF'  # White badge background
 
-# --- Colors ---
-COLOR_MAIN = '#636EFA'  # Blue-purple (primary)
-COLOR_LEGS = '#636EFA'
-COLOR_TRUNK = '#EF553B'
-COLOR_ARMS = '#00CC96'
-COLOR_HANDLE = '#AB63FA'
-COLOR_SEAT = '#FFA15A'  # Orange
-COLOR_CATCH = '#00CC96'  # Green
-COLOR_FINISH = '#EF553B'  # Red
+# --- Main line palette (multi-series plots) ---
+# Ordered list for renderers that draw multiple named series on one axes.
+# Usage: zip(series_list, MAIN_COLORS)
+# Colours chosen to be mutually distinct and clear of COLOR_CATCH / COLOR_FINISH.
+MAIN_COLORS: list[str] = [
+    '#636EFA',  # 1. Blue-purple  — primary / handle velocity
+    '#F59E0B',  # 2. Amber        — secondary / seat velocity
+    '#8B5CF6',  # 3. Violet       — tertiary / shoulder / arms
+    '#06B6D4',  # 4. Cyan         — quaternary / composite / rower velocity
+]
+
+# --- Semantic single-line colors ---
+COLOR_MAIN = '#636EFA'  # Blue-purple (primary) — single main line for all plots
+COLOR_LEGS = '#636EFA'  # Kinetic chain: legs (alias of main)
+COLOR_TRUNK = '#636EFA'  # Was #EF553B — unified to main
+COLOR_ARMS = '#8B5CF6'  # Kinetic chain: arms — violet, distinct from main and catch
+COLOR_HANDLE = '#636EFA'  # Was #AB63FA — unified to main
+COLOR_SEAT = '#636EFA'  # Was #FFA15A — unified to main
+COLOR_CATCH = '#00CC96'  # Green — catch event marker
+COLOR_FINISH = '#EF553B'  # Red   — finish event marker
 COLOR_COMPARE = '#A8B2C1'  # Gray (Ideal/Compare/Ghost)
 COLOR_IDEAL_RATIO = '#FDB833'  # Gold — biomechanically ideal ratio
 COLOR_TEXT_MAIN = '#444444'
@@ -37,10 +51,14 @@ REFERENCE_LINE_COLOR = '#888888'
 CATCH_ZONE_ALPHA = 0.08
 FINISH_ZONE_ALPHA = 0.08
 
-# Export commonly used sets
 __all__ = [
     'ANNOTATION_COLORS',
+    'ANNOTATION_COLORS_POINT',
+    'ANNOTATION_COLORS_SEGMENT',
+    'ANNOTATION_COLORS_ZONE',
+    'ANNOTATION_COLORS_REGION',
     'ANNOTATION_LABEL_BG',
+    'MAIN_COLORS',
     'COLOR_MAIN',
     'COLOR_LEGS',
     'COLOR_TRUNK',

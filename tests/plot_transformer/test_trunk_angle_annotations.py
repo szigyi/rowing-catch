@@ -222,30 +222,38 @@ class TestCatchLeanCoachTip:
 
     def test_too_upright_returns_rock_over_message(self):
         """Catch angle less negative than zone high → rower too upright."""
-        tip = _catch_lean_coach_tip(-20.0, self.ZONE)
+        tip, is_ideal = _catch_lean_coach_tip(-20.0, self.ZONE)
         assert 'Rock over more' in tip
         assert '7.0' in tip  # deficit = |-20 - (-27)| = 7.0
+        assert is_ideal is False
 
     def test_over_leaning_returns_reduce_lean_message(self):
         """Catch angle more negative than zone low → hips may lag."""
-        tip = _catch_lean_coach_tip(-40.0, self.ZONE)
+        tip, is_ideal = _catch_lean_coach_tip(-40.0, self.ZONE)
         assert 'Reduce lean' in tip
         assert '7.0' in tip  # excess = |-40 - (-33)| = 7.0
+        assert is_ideal is False
 
     def test_within_zone_returns_ok_message(self):
-        tip = _catch_lean_coach_tip(-30.0, self.ZONE)
+        tip, is_ideal = _catch_lean_coach_tip(-30.0, self.ZONE)
         assert 'ideal range' in tip
+        assert is_ideal is True
 
     def test_exactly_on_upper_bound_is_ok(self):
-        tip = _catch_lean_coach_tip(-27.0, self.ZONE)
+        tip, is_ideal = _catch_lean_coach_tip(-27.0, self.ZONE)
         assert 'ideal range' in tip
+        assert is_ideal is True
 
     def test_exactly_on_lower_bound_is_ok(self):
-        tip = _catch_lean_coach_tip(-33.0, self.ZONE)
+        tip, is_ideal = _catch_lean_coach_tip(-33.0, self.ZONE)
         assert 'ideal range' in tip
+        assert is_ideal is True
 
-    def test_returns_string(self):
-        assert isinstance(_catch_lean_coach_tip(-30.0, self.ZONE), str)
+    def test_returns_tuple(self):
+        result = _catch_lean_coach_tip(-30.0, self.ZONE)
+        assert isinstance(result, tuple)
+        assert isinstance(result[0], str)
+        assert isinstance(result[1], bool)
 
 
 # ---------------------------------------------------------------------------
@@ -258,30 +266,38 @@ class TestFinishLeanCoachTip:
 
     def test_too_little_layback_returns_lay_back_more(self):
         """Finish angle below zone low → not enough lay-back."""
-        tip = _finish_lean_coach_tip(8.0, self.ZONE)
+        tip, is_ideal = _finish_lean_coach_tip(8.0, self.ZONE)
         assert 'Lay back more' in tip
         assert '4.0' in tip  # deficit = |8 - 12| = 4.0
+        assert is_ideal is False
 
     def test_over_extended_returns_reduce_layback(self):
         """Finish angle above zone high → over-extension risk."""
-        tip = _finish_lean_coach_tip(24.0, self.ZONE)
+        tip, is_ideal = _finish_lean_coach_tip(24.0, self.ZONE)
         assert 'Reduce lay-back' in tip
         assert '6.0' in tip  # excess = |24 - 18| = 6.0
+        assert is_ideal is False
 
     def test_within_zone_returns_ok_message(self):
-        tip = _finish_lean_coach_tip(15.0, self.ZONE)
+        tip, is_ideal = _finish_lean_coach_tip(15.0, self.ZONE)
         assert 'ideal range' in tip
+        assert is_ideal is True
 
     def test_exactly_on_lower_bound_is_ok(self):
-        tip = _finish_lean_coach_tip(12.0, self.ZONE)
+        tip, is_ideal = _finish_lean_coach_tip(12.0, self.ZONE)
         assert 'ideal range' in tip
+        assert is_ideal is True
 
     def test_exactly_on_upper_bound_is_ok(self):
-        tip = _finish_lean_coach_tip(18.0, self.ZONE)
+        tip, is_ideal = _finish_lean_coach_tip(18.0, self.ZONE)
         assert 'ideal range' in tip
+        assert is_ideal is True
 
-    def test_returns_string(self):
-        assert isinstance(_finish_lean_coach_tip(15.0, self.ZONE), str)
+    def test_returns_tuple(self):
+        result = _finish_lean_coach_tip(15.0, self.ZONE)
+        assert isinstance(result, tuple)
+        assert isinstance(result[0], str)
+        assert isinstance(result[1], bool)
 
 
 # ---------------------------------------------------------------------------
@@ -318,53 +334,48 @@ def _make_drive_y(n: int, open_start_frac: float, steepness_window: float) -> li
 
 class TestDriveTrunkOpeningCoachTip:
     def test_opens_too_early_returns_sequence_legs_first(self):
-        """open_start_frac < 0.20 → trunk swings before legs are loaded."""
-        # Start opening at 10% of drive
         drive_y = _make_drive_y(n=100, open_start_frac=0.10, steepness_window=0.30)
-        tip = _drive_trunk_opening_coach_tip(drive_y)
+        tip, is_ideal = _drive_trunk_opening_coach_tip(drive_y)
         assert 'too early' in tip
         assert 'legs first' in tip
+        assert is_ideal is False
 
     def test_opens_too_late_returns_begin_swing_earlier(self):
-        """open_start_frac > 0.45 → trunk held too long."""
         drive_y = _make_drive_y(n=100, open_start_frac=0.60, steepness_window=0.30)
-        tip = _drive_trunk_opening_coach_tip(drive_y)
+        tip, is_ideal = _drive_trunk_opening_coach_tip(drive_y)
         assert 'too late' in tip
         assert 'earlier' in tip
+        assert is_ideal is False
 
     def test_opens_slowly_returns_accelerate_burst(self):
-        """A perfectly linear ramp across the full drive (no hold, no burst) has a
-        steepness_window of 0.65 (15%→80% on a linear signal), which exceeds 0.45.
-        The opening start fraction is also ~0.15 (first crossing), which falls below
-        0.20 — so this actually hits the 'too early' branch.
-
-        Instead use a trace that starts opening at 25% (within ideal window) but
-        ramps slowly to the end: give it a gentle S-curve by using a very long ramp
-        that starts at 25% and ends at 100% (steepness_window = ~0.55).
-        """
-        # Build a trace: flat for 25 steps, then linear ramp for remaining 75 steps
         start, end = -30.0, 15.0
         y = [-30.0] * 25 + [start + (end - start) * (i / 74) for i in range(75)]
-        tip = _drive_trunk_opening_coach_tip(y)
+        tip, is_ideal = _drive_trunk_opening_coach_tip(y)
         assert 'slowly' in tip or 'accelerate' in tip
+        assert is_ideal is False
 
     def test_ideal_pattern_returns_positive_feedback(self):
-        """Hold for ~30% then swing quickly in ~25%."""
         drive_y = _make_drive_y(n=100, open_start_frac=0.30, steepness_window=0.25)
-        tip = _drive_trunk_opening_coach_tip(drive_y)
+        tip, is_ideal = _drive_trunk_opening_coach_tip(drive_y)
         assert 'sequencing' in tip or '\u2713' in tip
+        assert is_ideal is True
 
     def test_too_short_returns_fallback(self):
-        tip = _drive_trunk_opening_coach_tip([0.0, 1.0, 2.0])
+        tip, is_ideal = _drive_trunk_opening_coach_tip([0.0, 1.0, 2.0])
         assert 'short' in tip
+        assert is_ideal is False
 
     def test_minimal_rotation_returns_fallback(self):
-        tip = _drive_trunk_opening_coach_tip([10.0] * 50)
+        tip, is_ideal = _drive_trunk_opening_coach_tip([10.0] * 50)
         assert 'Minimal' in tip
+        assert is_ideal is False
 
-    def test_returns_string(self):
+    def test_returns_tuple(self):
         drive_y = _make_drive_y(n=80, open_start_frac=0.30, steepness_window=0.25)
-        assert isinstance(_drive_trunk_opening_coach_tip(drive_y), str)
+        result = _drive_trunk_opening_coach_tip(drive_y)
+        assert isinstance(result, tuple)
+        assert isinstance(result[0], str)
+        assert isinstance(result[1], bool)
 
 
 # ---------------------------------------------------------------------------
@@ -408,51 +419,47 @@ def _make_recovery_y(
 
 class TestRecoveryRockOverCoachTip:
     def test_rocks_over_too_early_returns_rushing_warning(self):
-        """Catch zone midpoint reached at 20% of recovery — too rushed."""
         rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.20)
-        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
         assert 'early' in tip or 'rushing' in tip
+        assert is_ideal is False
 
     def test_ideal_reach_returns_positive_feedback(self):
-        """Catch zone midpoint reached at 60% of recovery — settled with time to spare."""
         rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.60)
-        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
         assert '\u2713' in tip or 'Good' in tip
+        assert is_ideal is True
 
     def test_late_rock_over_returns_whiplash_warning(self):
-        """Catch zone midpoint reached at 88% of recovery — barely settled."""
         rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.88)
-        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
         assert 'late' in tip.lower() or 'whiplash' in tip.lower()
+        assert is_ideal is False
 
     def test_last_moment_arrival_returns_overreach_risk(self):
-        """Trunk reaches catch angle only at the very last index."""
         rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.99)
-        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
         assert 'whiplash' in tip.lower() or 'overreach' in tip.lower() or 'last moment' in tip.lower()
+        assert is_ideal is False
 
     def test_gradual_swing_in_ideal_window_returns_accelerate(self):
-        """Reach fraction is ok but the swing is very gradual throughout (slow drift)."""
-        # A perfectly linear ramp from +15 to -30 over 100 points is gradual
-        # It reaches -30 (catch zone mid) at ~100%, which falls in the last-moment bucket.
-        # Use a trace that reaches the zone at ~75% but via a very slow linear path
-        # that crosses 15% of range early → steepness_window will be large.
         rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.75, gradual=True)
-        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
-        # gradual=True makes a linear ramp; reach_frac=0.75 means end=-30 at index 75
-        # but gradual ignores reach_frac and ramps all the way to n-1
-        # The linear ramp will hit catch_zone_mid (-30) at the very end → last-moment tip
-        # OR it will detect a slow/gradual swing if reach_frac lands in 0.40-0.80
+        tip, _ = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
         assert any(word in tip.lower() for word in ['gradual', 'accelerate', 'rock-over', 'late', 'whiplash', 'good'])
 
     def test_too_short_returns_fallback(self):
-        tip = _recovery_rock_over_coach_tip([15.0, 10.0, 5.0], _CATCH_ZONE)
+        tip, is_ideal = _recovery_rock_over_coach_tip([15.0, 10.0, 5.0], _CATCH_ZONE)
         assert 'short' in tip
+        assert is_ideal is False
 
     def test_minimal_movement_returns_rock_over_more(self):
-        tip = _recovery_rock_over_coach_tip([15.0] * 50, _CATCH_ZONE)
+        tip, is_ideal = _recovery_rock_over_coach_tip([15.0] * 50, _CATCH_ZONE)
         assert 'rock over' in tip.lower() or 'barely' in tip.lower()
+        assert is_ideal is False
 
-    def test_returns_string(self):
+    def test_returns_tuple(self):
         rec_y = _make_recovery_y(n=80, start=15.0, end=-30.0, reach_frac=0.60)
-        assert isinstance(_recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE), str)
+        result = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        assert isinstance(result, tuple)
+        assert isinstance(result[0], str)
+        assert isinstance(result[1], bool)

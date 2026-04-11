@@ -72,13 +72,27 @@ def step6_statistics(
         detail: dict[str, Any] = {'cycle_idx': i + 1}
         if 'Time' in c.columns and len(c) > 1:
             t_c = c['Time'].to_numpy(dtype=float)
-            dur = t_c[-1] - t_c[0]
-            if dur > 0:
-                detail['spm'] = 60.0 / dur
+            # Locate the catch within this cycle — it is NOT at index 0 because
+            # each cycle includes a pre_catch_window of samples before the catch.
+            # Search only the first 35% of the cycle: the catch always lives there
+            # (step4 slices from catch_i-pre_window to catch_next, so the current
+            # catch is near the start). A global argmin would wrongly find the
+            # *next* catch at the end of the cycle, which is also a seat minimum.
+            if 'Seat_X_Smooth' in c.columns:
+                seat_c = c['Seat_X_Smooth'].to_numpy(dtype=float)
+                search_end = max(1, int(len(seat_c) * 0.35))
+                catch_in_c = int(np.argmin(seat_c[:search_end]))
+            else:
+                catch_in_c = 0
+            t_catch = t_c[catch_in_c]
+            t_next_catch = t_c[-1]
+            stroke_dur = t_next_catch - t_catch
+            if stroke_dur > 0:
+                detail['spm'] = 60.0 / stroke_dur
                 # Map finish to this cycle using per-cycle heuristic
-                f_idx_c = _pick_finish_index(c, catch_idx=0)
-                drive_dur = t_c[f_idx_c] - t_c[0]
-                rec_dur = dur - drive_dur
+                f_idx_c = _pick_finish_index(c, catch_idx=catch_in_c)
+                drive_dur = t_c[f_idx_c] - t_catch
+                rec_dur = t_next_catch - t_c[f_idx_c]
                 ratio = drive_dur / rec_dur if rec_dur > 0 else None
                 detail['drive_recovery_ratio'] = ratio
                 if ratio is not None:

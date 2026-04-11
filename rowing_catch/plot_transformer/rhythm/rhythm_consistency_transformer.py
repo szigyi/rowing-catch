@@ -1,6 +1,6 @@
 """Rhythm Consistency transform.
 
-Shows SPM vs Drive/Recovery ratio consistency across cycles, with ideal ratio curve.
+Shows SPM vs drive phase percentage consistency across cycles, with ideal curve.
 This is the authoritative version (migrated from the debug pipeline).
 """
 
@@ -15,7 +15,7 @@ from rowing_catch.plot_transformer.rhythm.drive_recovery_balance_transformer imp
 
 
 class RhythmConsistencyComponent(PlotComponent):
-    """Rhythm consistency (SPM vs ratio) component."""
+    """Rhythm consistency (SPM vs drive%) component."""
 
     @property
     def name(self) -> str:
@@ -23,7 +23,7 @@ class RhythmConsistencyComponent(PlotComponent):
 
     @property
     def description(self) -> str:
-        return 'SPM and drive/recovery ratio consistency across cycles with biomechanical ideal curve'
+        return 'SPM and drive phase % consistency across cycles with biomechanical ideal curve'
 
     def compute(
         self,
@@ -52,41 +52,42 @@ class RhythmConsistencyComponent(PlotComponent):
 
         if not df.empty:
             spm_vals = df['SPM'].to_numpy(dtype=float)
-            ratio_vals = df['Ratio_DR'].to_numpy(dtype=float)
+            drive_pct_vals = df['Drive_Pct'].to_numpy(dtype=float)
             cycle_nums = df['Cycle'].tolist()
             mean_spm = float(np.nanmean(spm_vals))
-            mean_ratio = float(np.nanmean(ratio_vals))
+            mean_drive_pct = float(np.nanmean(drive_pct_vals))
         else:
             spm_vals = np.array([], dtype=float)
-            ratio_vals = np.array([], dtype=float)
+            drive_pct_vals = np.array([], dtype=float)
             cycle_nums = []
             mean_spm = float('nan')
-            mean_ratio = float('nan')
+            mean_drive_pct = float('nan')
 
-        # Ideal ratio curve (15–45 SPM)
+        # Ideal drive% curve (15–45 SPM): convert ratio → percentage
         spm_curve = np.linspace(15, 45, 100)
         ideal_ratios = np.asarray(calculate_ideal_drive_ratio(spm_curve), dtype=float)
+        ideal_drive_pct_curve = ideal_ratios / (1.0 + ideal_ratios) * 100
 
         return {
             'data': {
                 'spm_vals': spm_vals.tolist(),
-                'ratio_vals': ratio_vals.tolist(),
+                'drive_pct_vals': drive_pct_vals.tolist(),
                 'cycle_nums': cycle_nums,
                 'mean_spm': mean_spm,
-                'mean_ratio': mean_ratio,
+                'mean_drive_pct': mean_drive_pct,
                 'ideal_curve_spm': spm_curve.tolist(),
-                'ideal_curve_ratio': ideal_ratios.tolist(),
+                'ideal_curve_drive_pct': ideal_drive_pct_curve.tolist(),
                 'has_data': len(cycle_data) > 0,
                 'dataframe': df,
             },
             'metadata': {
                 'title': 'Stroke-by-Stroke Rhythm Consistency',
                 'x_label': 'Strokes Per Minute (SPM)',
-                'y_label': 'Drive:Recovery Ratio',
+                'y_label': 'Drive Phase (% of stroke)',
             },
             'coach_tip': (
                 'Elite rowers maintain a tight cluster near the ideal curve. '
-                'A vertical spread means inconsistent ratio at the same rate. '
-                'A horizontal spread means the rate changes too much stroke-to-stroke.'
+                'A vertical spread means inconsistent drive % at the same stroke rate. '
+                'A horizontal spread means the stroke rate changes too much stroke-to-stroke.'
             ),
         }

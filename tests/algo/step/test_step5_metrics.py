@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from rowing_catch.algo.step.step5_metrics import step5_compute_metrics
+from rowing_catch.algo.step.step5_metrics import _pick_finish_index, step5_compute_metrics
 
 
 def test_step5_compute_metrics_basic():
@@ -204,3 +204,74 @@ def test_step5_finish_selection_with_multiple_candidates():
 
     # It should have picked the handle peak at 80
     assert finish_idx == 80
+
+
+# ---------------------------------------------------------------------------
+# Tests for _pick_finish_index with pre-catch window
+# ---------------------------------------------------------------------------
+
+
+class TestPickFinishIndexWithPreCatchWindow:
+    """_pick_finish_index must ignore Handle_X values in the pre-catch window.
+
+    Each per-cycle DataFrame has high Handle_X at the start (tail of the previous
+    draw).  The old implementation computed np.gradient over the full array, so
+    that pre-catch decline could create a spurious zero-crossing that was picked
+    as the finish.  The fix computes the gradient only on the post-catch slice.
+    """
+
+    def _make_cycle_df(
+        self,
+        pre_catch: int = 10,
+        drive: int = 20,
+        recovery: int = 40,
+    ) -> tuple[pd.DataFrame, int, int]:
+        """Return (df, catch_idx, expected_finish_idx)."""
+        n = pre_catch + drive + recovery + 1
+        seat_x = np.empty(n)
+        seat_x[:pre_catch] = np.linspace(50.0, 5.0, pre_catch)
+        seat_x[pre_catch] = 0.0
+        seat_x[pre_catch : pre_catch + drive] = np.linspace(0.0, 80.0, drive)
+        seat_x[pre_catch + drive :] = np.linspace(80.0, 0.0, recovery + 1)
+
+        finish_pos = pre_catch + drive
+        handle_x = np.empty(n)
+        handle_x[:pre_catch] = np.linspace(200.0, 50.0, pre_catch)  # pre-catch: HIGH → declining
+        handle_x[pre_catch] = 10.0  # catch minimum
+        handle_x[pre_catch:finish_pos] = np.linspace(10.0, 250.0, drive)  # draw
+        handle_x[finish_pos:] = np.linspace(250.0, 10.0, recovery + 1)  # recovery
+
+        df = pd.DataFrame({'Seat_X_Smooth': seat_x, 'Handle_X_Smooth': handle_x})
+        return df, pre_catch, finish_pos
+
+    def test_finish_is_at_handle_peak_not_in_pre_catch_window(self):
+        df, catch_idx, expected_finish = self._make_cycle_df(pre_catch=10, drive=20, recovery=40)
+        finish = _pick_finish_index(df, catch_idx=catch_idx)
+        # Must be at or very near the handle peak, not in the pre-catch region
+        assert finish >= catch_idx, f'Finish {finish} is before catch {catch_idx}'
+        assert finish > catch_idx, 'Finish must be strictly after catch'
+        # The true peak is at expected_finish; allow ±2 samples
+        assert abs(finish - expected_finish) <= 2, f'finish={finish}, expected≈{expected_finish} (±2)'
+
+    def test_finish_is_not_in_pre_catch_window(self):
+        """Regression: old code (gradient over full array) could return a finish
+        index inside the pre-catch window when Handle_X was declining there."""
+        df, catch_idx, _ = self._make_cycle_df(pre_catch=10, drive=20, recovery=40)
+        finish = _pick_finish_index(df, catch_idx=catch_idx)
+        assert finish >= catch_idx, (
+            f'finish={finish} is inside pre-catch window (catch at {catch_idx}) — gradient-over-full-array bug may be back'
+        )
+
+    def test_finish_within_drive_phase(self):
+        """The finish must fall within the drive phase (between catch and end of drive)."""
+        df, catch_idx, expected_finish = self._make_cycle_df(pre_catch=10, drive=25, recovery=50)
+        finish = _pick_finish_index(df, catch_idx=catch_idx)
+        # Must be after catch and at most a few samples past the true peak
+        assert catch_idx < finish <= expected_finish + 3
+
+    def test_no_pre_catch_window(self):
+        """With no pre-catch window (catch at 0), behaviour must be unchanged."""
+        df, catch_idx, expected_finish = self._make_cycle_df(pre_catch=0, drive=20, recovery=40)
+        assert catch_idx == 0
+        finish = _pick_finish_index(df, catch_idx=0)
+        assert abs(finish - expected_finish) <= 2

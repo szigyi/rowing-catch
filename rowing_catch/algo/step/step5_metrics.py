@@ -122,15 +122,18 @@ def _pick_finish_index(avg_cycle: pd.DataFrame, catch_idx: int) -> int:
     if n == 0:
         return int(catch_idx)
 
-    catch_idx = int(np.clip(int(catch_idx), 0, n - 1))
+    # Compute the gradient only on the post-catch slice so that Handle_X values
+    # from any pre-catch window (tail of the previous draw) do not pollute the
+    # velocity signal and produce spurious zero-crossings before the true finish.
+    post_handle = handle[catch_idx:]
+    hvel_post = np.gradient(post_handle)
 
-    post = slice(catch_idx, n)
-    hvel = np.gradient(handle)
-    handle_peak = catch_idx + int(np.nanargmax(handle[post]))
+    handle_peak = catch_idx + int(np.nanargmax(post_handle))
 
-    # Look for the velocity zero-crossing (positive to negative) after catch
-    rev = np.where((hvel[:-1] > 0) & (hvel[1:] <= 0))[0] + 1
-    rev = rev[rev > catch_idx]
+    # Look for the velocity zero-crossing (positive to negative) in post-catch region
+    rev_local = np.where((hvel_post[:-1] > 0) & (hvel_post[1:] <= 0))[0] + 1
+    # Convert local (post-catch) indices back to full-array indices
+    rev = rev_local + catch_idx
     rev_after_peak = rev[rev >= handle_peak - 5]  # Allow slightly before peak for edge cases
 
     handle_target = handle_peak

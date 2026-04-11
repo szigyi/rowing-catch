@@ -4,7 +4,9 @@ from rowing_catch.plot.handle_seat_distance_plot import render_handle_seat_dista
 from rowing_catch.plot.handle_trajectory_dev_plot import render_handle_trajectory_dev
 from rowing_catch.plot.recovery_slide_control_plot import render_recovery_slide_control
 from rowing_catch.plot.rhythm.rhythm_consistency_plot import render_rhythm_consistency
+from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.trunk.trunk_angle_separation_plot import render_trunk_angle_separation
+from rowing_catch.plot_transformer import TrunkAngleComponent
 from rowing_catch.plot_transformer.handle_seat_distance_transformer import HandleSeatDistanceComponent
 from rowing_catch.plot_transformer.handle_trajectory_dev_transformer import HandleTrajectoryDevComponent
 from rowing_catch.plot_transformer.recovery_slide_control_transformer import RecoverySlideControlComponent
@@ -37,6 +39,17 @@ computed_data = trunk_angle_sep_component.compute(
 )
 render_trunk_angle_separation(computed_data)
 
+component = TrunkAngleComponent()
+computed_data = component.compute(
+    avg_cycle=results['avg_cycle'],
+    catch_idx=results['catch_idx'],
+    finish_idx=results['finish_idx'],
+    ghost_cycle=scenario_avg,
+    results=results,
+)
+
+# Render plot
+render_trunk_angle_with_stage_stickfigures(computed_data)
 
 st.subheader('2. Rhythm Consistency')
 st.markdown(

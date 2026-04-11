@@ -1,6 +1,6 @@
 """Drive Recovery Balance renderer.
 
-Renders a stacked horizontal bar showing drive vs recovery split with ideal ratio reference.
+Renders a stacked horizontal bar showing drive vs recovery split with ideal drive% reference.
 """
 
 from typing import Any
@@ -24,7 +24,6 @@ def render_drive_recovery_balance(computed_data: dict[str, Any]) -> None:
     drive_pct = data['drive_pct']
     rec_pct = data['rec_pct']
     mean_spm = data['mean_spm']
-    ideal_ratio = data['ideal_ratio']
     ideal_drive_pct = data['ideal_drive_pct']
 
     fig, ax = plt.subplots(figsize=(6, 1.5))
@@ -32,8 +31,8 @@ def render_drive_recovery_balance(computed_data: dict[str, Any]) -> None:
     ax.set_facecolor(BG_COLOR_AXES)
 
     h = 0.5
-    ax.barh(['Ratio'], [drive_pct], color=COLOR_MAIN, height=h, label='Drive')
-    ax.barh(['Ratio'], [rec_pct], left=[drive_pct], color=COLOR_CATCH, height=h, label='Recovery')
+    ax.barh(['Drive %'], [drive_pct], color=COLOR_MAIN, height=h, label='Drive')
+    ax.barh(['Drive %'], [rec_pct], left=[drive_pct], color=COLOR_CATCH, height=h, label='Recovery')
 
     ax.text(drive_pct / 2, 0, f'Drive\n{drive_pct:.1f}%', ha='center', va='center', color='white', fontweight='bold', fontsize=9)
     ax.text(
@@ -49,9 +48,9 @@ def render_drive_recovery_balance(computed_data: dict[str, Any]) -> None:
 
     ax.axvline(ideal_drive_pct, color=COLOR_IDEAL_RATIO, linestyle=':', linewidth=2.5, alpha=0.8, zorder=3)
     if not np.isnan(mean_spm):
-        label = f' Ideal ({ideal_ratio:.2f}:1) @ {mean_spm:.0f} SPM'
+        label = f' Ideal ({ideal_drive_pct:.1f}%) @ {mean_spm:.0f} SPM'
     else:
-        label = ' Ideal (0.50:1) @ N/A SPM'
+        label = f' Ideal ({ideal_drive_pct:.1f}%)'
     ax.text(ideal_drive_pct, 0.4, label, color=COLOR_IDEAL_RATIO, fontsize=8, fontweight='bold', va='bottom')
 
     ax.set_xlim(0, 100)

@@ -12,17 +12,17 @@ This project follows a strict 4-layer architecture. **All code changes must resp
    - Pure data processing, no UI concerns
    - No dependencies on plots or pages
 
-2. **Layer 2: Transforms** (`rowing_catch/plot_transforms/`)
+2. **Layer 2: Transforms** (`rowing_catch/plot_transformer/`)
    - Each plot = one transform class inheriting `PlotComponent`
    - Must implement `compute(avg_cycle, catch_idx, finish_idx, ...) → dict[str, Any]`
    - Returns: `{'data': {...}, 'metadata': {...}, 'coach_tip': '...'}`
-   - **Cannot** import from `plots/` or `pages/`
+   - **Cannot** import from `plot/` or `page/`
 
-3. **Layer 3: Renderers** (`rowing_catch/plots/`)
+3. **Layer 3: Renderers** (`rowing_catch/plot/`)
    - Pure visualization functions: `render_myplot(computed_data)`
-   - Use `setup_premium_plot()` from `plots/utils.py`
-   - Use colors from `plots/theme.py`
-   - **Cannot** compute or import from `pages/`
+   - Use `setup_premium_plot()` from `plot/utils.py`
+   - Use colors from `plot/theme.py`
+   - **Cannot** compute or import from `page/`
 
 4. **Layer 4: Pages** (`pages/`)
    - Minimal orchestration: `component.compute() → renderer.render()`
@@ -31,11 +31,11 @@ This project follows a strict 4-layer architecture. **All code changes must resp
 ### Import Rule (Strict)
 
 ```
-pages/           ← imports from (plot_transforms, plots)
+page/           ← imports from (plot_transformer, plot)
     ↑
-plots/           ← imports from (plot_transforms, algo)
+plot/           ← imports from (plot_transformer, algo)
     ↑
-plot_transforms/ ← imports from (algo, scenario)
+plot_transformer/ ← imports from (algo, scenario)
     ↑
 algo/, scenario/ ← imports from each other only
 ```
@@ -46,10 +46,10 @@ algo/, scenario/ ← imports from each other only
 
 All files follow a strict suffix convention that makes the layer immediately obvious from the filename:
 
-| Layer | Location | Suffix | Example |
-|---|---|---|---|
-| Transform | `rowing_catch/plot_transforms/` | `_transformer.py` | `trunk_angle_transformer.py` |
-| Renderer | `rowing_catch/plots/` | `_plot.py` | `trunk_angle_plot.py` |
+| Layer      | Location                         | Suffix            | Example                      |
+|------------|----------------------------------|-------------------|------------------------------|
+| Transform  | `rowing_catch/plot_transformer/` | `_transformer.py` | `trunk_angle_transformer.py` |
+| Renderer   | `rowing_catch/plot/`             | `_plot.py`        | `trunk_angle_plot.py`        |
 
 **No exceptions.** `theme.py`, `utils.py`, `base.py`, and `registry.py` are infrastructure files and are exempt.
 
@@ -57,10 +57,10 @@ All files follow a strict suffix convention that makes the layer immediately obv
 
 When adding a new plot, follow this exact pattern:
 
-1. ✅ Create `rowing_catch/plot_transforms/myplot_transformer.py` with `MyPlotComponent` class
-2. ✅ Create `rowing_catch/plots/myplot_plot.py` with `render_myplot()` function
-3. ✅ Export from `rowing_catch/plot_transforms/__init__.py`
-4. ✅ Export from `rowing_catch/plots/__init__.py`
+1. ✅ Create `rowing_catch/plot_transformer/myplot_transformer.py` with `MyPlotComponent` class
+2. ✅ Create `rowing_catch/plot/myplot_plot.py` with `render_myplot()` function
+3. ✅ Export from `rowing_catch/plot_transformer/__init__.py`
+4. ✅ Export from `rowing_catch/plot/__init__.py`
 5. ✅ Import and use in page directly
 
 **Do not deviate from this pattern.**

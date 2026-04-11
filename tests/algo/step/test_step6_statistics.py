@@ -3,6 +3,56 @@ import pandas as pd
 
 from rowing_catch.algo.step.step6_statistics import _compute_phase_volume, step6_statistics
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_realistic_cycle(
+    pre_catch_samples: int = 10,
+    drive_samples: int = 20,
+    recovery_samples: int = 40,
+    sample_rate_hz: float = 25.0,
+) -> pd.DataFrame:
+    """Build a synthetic cycle with a pre-catch window, mirroring step4 output.
+
+    Seat_X is at its global minimum at index `pre_catch_samples` (the real catch).
+    Handle_X is high at the start (tail of the previous draw), low at the catch,
+    peaks at the finish, and returns forward during recovery.
+
+    This is the shape that exposed the catch_idx=0 bug: the old code would look
+    for the Handle_X peak starting from index 0 and find the high pre-catch handle
+    values as the "finish", inflating drive_dur and collapsing rec_dur.
+    """
+    dt = 1.0 / sample_rate_hz
+    n = pre_catch_samples + drive_samples + recovery_samples + 1
+
+    t = np.arange(n) * dt
+    catch_pos = pre_catch_samples
+
+    # Seat_X: global minimum at catch_pos
+    seat_x = np.empty(n)
+    seat_x[:catch_pos] = np.linspace(50.0, 5.0, catch_pos)
+    seat_x[catch_pos] = 0.0
+    seat_x[catch_pos : catch_pos + drive_samples] = np.linspace(0.0, 80.0, drive_samples)
+    seat_x[catch_pos + drive_samples :] = np.linspace(80.0, 0.0, recovery_samples + 1)
+
+    # Handle_X: high pre-catch (tail of previous draw), peaks at finish
+    finish_pos = catch_pos + drive_samples
+    handle_x = np.empty(n)
+    handle_x[:catch_pos] = np.linspace(200.0, 50.0, catch_pos)  # previous draw tail
+    handle_x[catch_pos] = 10.0
+    handle_x[catch_pos:finish_pos] = np.linspace(10.0, 250.0, drive_samples)
+    handle_x[finish_pos:] = np.linspace(250.0, 10.0, recovery_samples + 1)
+
+    return pd.DataFrame(
+        {
+            'Time': t,
+            'Seat_X_Smooth': seat_x,
+            'Handle_X_Smooth': handle_x,
+        }
+    )
+
 
 def test_step6_statistics_basic():
     """Test statistics computation with 3 identical clean cycles."""
@@ -87,3 +137,91 @@ def test_compute_phase_volume():
     # Without times (defaults to dt=1)
     vol_no_times = _compute_phase_volume(pos, None, 0, 4)
     assert vol_no_times == 30.0
+
+
+# ---------------------------------------------------------------------------
+# Tests for the pre-catch-window bug (catch_idx=0 regression)
+# ---------------------------------------------------------------------------
+
+
+class TestStep6StatisticsWithPreCatchWindow:
+    """The existing test_step6_statistics_basic accidentally avoided the bug because
+    its synthetic Seat_X minimum is at index 0 (no pre-catch window).  These tests
+    use cycles that include a pre-catch window, which is what step4 always produces
+    in practice.  Under the OLD code (catch_idx=0 hardcoded), every test here would
+    fail because drive_dur ≈ full cycle and ratio >> 1.
+    """
+
+    def _build_cycles_and_avg(
+        self,
+        pre: int = 10,
+        drive: int = 20,
+        recovery: int = 40,
+        hz: float = 25.0,
+        n_cycles: int = 3,
+    ):
+        """Return (cycles, avg_cycle, catch_idx_on_avg, finish_idx_on_avg, min_length)."""
+        cycles = [_make_realistic_cycle(pre, drive, recovery, hz) for _ in range(n_cycles)]
+        min_length = min(len(c) for c in cycles)
+        # avg_cycle: same shape as any cycle (they're identical here)
+        avg_cycle = cycles[0].copy()
+        # On the avg cycle the catch is also at 'pre' and finish at 'pre + drive'
+        catch_idx_avg = pre
+        finish_idx_avg = pre + drive
+        return cycles, avg_cycle, catch_idx_avg, finish_idx_avg, min_length
+
+    def test_per_cycle_ratio_is_below_one(self):
+        """drive:recovery ratio must be < 1 (drive is always shorter than recovery)."""
+        cycles, avg, ci, fi, ml = self._build_cycles_and_avg(pre=10, drive=20, recovery=40)
+        stats = step6_statistics(cycles, ml, ci, fi, avg)
+        ratio = stats['avg_drive_recovery_ratio']
+        assert ratio < 1.0, f'ratio={ratio:.3f} ≥ 1 — old catch_idx=0 bug may be back'
+        assert ratio > 0.0
+
+    def test_per_cycle_ratio_regression_old_bug_would_give_ratio_above_one(self):
+        """Explicit regression: with pre_catch=10, drive=20, recovery=40,
+        the old code (catch_idx=0) would compute:
+            drive_dur ≈ t[finish] - t[0]  (includes pre-catch window)
+            rec_dur   ≈ t[-1] - t[finish] (only true recovery)
+        which gives ratio >> 1.  The fix must produce ratio < 1.
+        """
+        cycles, avg, ci, fi, ml = self._build_cycles_and_avg(pre=10, drive=20, recovery=40, hz=25.0)
+        stats = step6_statistics(cycles, ml, ci, fi, avg)
+        assert stats['avg_drive_recovery_ratio'] < 1.0
+
+    def test_cycle_details_spm_is_correct(self):
+        """SPM in cycle_details should reflect catch-to-next-catch, not full cycle."""
+        pre, drive, recovery, hz = 10, 20, 40, 25.0
+        expected_stroke_period = (drive + recovery) / hz  # seconds, catch-to-next-catch
+        expected_spm = 60.0 / expected_stroke_period
+
+        cycles, avg, ci, fi, ml = self._build_cycles_and_avg(pre, drive, recovery, hz)
+        stats = step6_statistics(cycles, ml, ci, fi, avg)
+
+        for detail in stats['cycle_details']:
+            if 'spm' in detail:
+                assert abs(detail['spm'] - expected_spm) < 1.0, f'SPM={detail["spm"]:.1f} far from expected {expected_spm:.1f}'
+
+    def test_cycle_details_ratio_stored_per_cycle(self):
+        """All cycle_details entries should have a drive_recovery_ratio < 1."""
+        cycles, avg, ci, fi, ml = self._build_cycles_and_avg(pre=10, drive=15, recovery=45)
+        stats = step6_statistics(cycles, ml, ci, fi, avg)
+        ratios = [d['drive_recovery_ratio'] for d in stats['cycle_details'] if 'drive_recovery_ratio' in d]
+        assert len(ratios) > 0, 'No per-cycle ratios recorded'
+        for r in ratios:
+            assert r < 1.0, f'Per-cycle ratio={r:.3f} ≥ 1'
+
+    def test_drive_len_plus_recovery_len_equals_min_length(self):
+        """drive_len + recovery_len must always equal min_length."""
+        cycles, avg, ci, fi, ml = self._build_cycles_and_avg()
+        stats = step6_statistics(cycles, ml, ci, fi, avg)
+        assert stats['drive_len'] + stats['recovery_len'] == ml
+
+    def test_no_pre_catch_window_is_unchanged(self):
+        """With pre=0 (catch at index 0), the fix must give the same answer as the
+        old code — catching that the argmin path still works correctly."""
+        cycles, avg, ci, fi, ml = self._build_cycles_and_avg(pre=0, drive=20, recovery=40)
+        stats = step6_statistics(cycles, ml, ci, fi, avg)
+        ratio = stats['avg_drive_recovery_ratio']
+        expected = 20 / 40  # drive/recovery = 0.5
+        assert abs(ratio - expected) < 0.1, f'ratio={ratio:.3f}, expected≈{expected:.3f}'

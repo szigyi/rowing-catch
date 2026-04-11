@@ -1,6 +1,6 @@
-import streamlit as st
-
 import dataclasses
+
+import streamlit as st
 
 from rowing_catch.plot.handle_seat_distance_plot import render_handle_seat_distance
 from rowing_catch.plot.handle_trajectory_dev_plot import render_handle_trajectory_dev
@@ -34,14 +34,57 @@ st.markdown(
     "Ideal technique requires the body to be 'set' before the knees rise."
 )
 trunk_angle_sep_component = TrunkAngleSeparationComponent()
-computed_data = trunk_angle_sep_component.compute(
+computed_sep = trunk_angle_sep_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
     finish_idx=finish_idx,
     ghost_cycle=scenario_avg,
     results={'scenario_name': selected_scenario},
 )
-render_trunk_angle_separation(computed_data)
+
+# Annotation toggles for 1a — same pattern as 1b
+_sep_annotations = computed_sep.get('annotations', [])
+active_sep_annotations: set[str] | None = None
+
+if _sep_annotations:
+    # Resolve colors: P1 → catch green, P2 → finish red, S1 → auto palette
+    _sep_overrides = {'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH}
+    _sep_colored = assign_annotation_colors(list(_sep_annotations))
+    _sep_colored = [
+        dataclasses.replace(a, color=_sep_overrides[a.label]) if a.label in _sep_overrides else a for a in _sep_colored
+    ]
+
+    with st.expander('Trunk Angle Separation Annotations - Toggle individual annotations on or off', expanded=False):
+        sep_show_all = st.checkbox(
+            'Show all annotations',
+            value=True,
+            key='ann_sep_show_all',
+        )
+        st.markdown('<hr style="margin:4px 0 8px 0; border-color:#E8E8E8">', unsafe_allow_html=True)
+
+        active_sep_annotations = set()
+        for ann in _sep_colored:
+            color = ann.color or '#888888'
+            col_dot, col_cb = st.columns([0.04, 0.96])
+            with col_dot:
+                st.markdown(
+                    f'<div style="width:12px;height:12px;border-radius:50%;background:{color};margin-top:6px"></div>',
+                    unsafe_allow_html=True,
+                )
+            with col_cb:
+                checked = st.checkbox(
+                    f'{ann.label} \u2014 {ann.description}',
+                    value=sep_show_all,
+                    key=f'ann_sep_{ann.label}',
+                    disabled=not sep_show_all,
+                )
+            if checked and sep_show_all:
+                active_sep_annotations.add(ann.label)
+
+        if not sep_show_all:
+            active_sep_annotations = set()
+
+render_trunk_angle_separation(computed_sep, active_annotations=active_sep_annotations)
 
 # --- Trunk Angle & Range ---
 trunk_component = TrunkAngleComponent()
@@ -65,9 +108,7 @@ if trunk_annotations:
     _zone_overrides = {'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH}
     _colored_anns = assign_annotation_colors(trunk_annotations)
     _colored_anns = [
-        dataclasses.replace(a, color=_zone_overrides[a.label])
-        if a.label in _zone_overrides else a
-        for a in _colored_anns
+        dataclasses.replace(a, color=_zone_overrides[a.label]) if a.label in _zone_overrides else a for a in _colored_anns
     ]
 
     with st.expander('Trunk Angle Annotations - Toggle individual annotations on or off', expanded=False):
@@ -84,8 +125,7 @@ if trunk_annotations:
             col_dot, col_cb = st.columns([0.04, 0.96])
             with col_dot:
                 st.markdown(
-                    f'<div style="width:12px;height:12px;border-radius:50%;'
-                    f'background:{color};margin-top:6px"></div>',
+                    f'<div style="width:12px;height:12px;border-radius:50%;background:{color};margin-top:6px"></div>',
                     unsafe_allow_html=True,
                 )
             with col_cb:

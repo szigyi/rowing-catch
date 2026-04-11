@@ -1,12 +1,16 @@
 import streamlit as st
 
+import dataclasses
+
 from rowing_catch.plot.handle_seat_distance_plot import render_handle_seat_distance
 from rowing_catch.plot.handle_trajectory_dev_plot import render_handle_trajectory_dev
 from rowing_catch.plot.recovery_slide_control_plot import render_recovery_slide_control
 from rowing_catch.plot.rhythm.rhythm_consistency_plot import render_rhythm_consistency
+from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH
 from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.trunk.trunk_angle_separation_plot import render_trunk_angle_separation
 from rowing_catch.plot_transformer import TrunkAngleComponent
+from rowing_catch.plot_transformer.annotations import assign_annotation_colors
 from rowing_catch.plot_transformer.handle_seat_distance_transformer import HandleSeatDistanceComponent
 from rowing_catch.plot_transformer.handle_trajectory_dev_transformer import HandleTrajectoryDevComponent
 from rowing_catch.plot_transformer.recovery_slide_control_transformer import RecoverySlideControlComponent
@@ -24,7 +28,7 @@ catch_idx = results['catch_idx']
 finish_idx = results['finish_idx']
 
 # --- Main Content ---
-st.subheader('1. Trunk Angle Separation')
+st.subheader('1a. Trunk Angle Separation')
 st.markdown(
     'Shows how the body rocks over relative to seat position. '
     "Ideal technique requires the body to be 'set' before the knees rise."
@@ -49,22 +53,53 @@ trunk_computed = trunk_component.compute(
     results=results,
 )
 
+
+st.subheader('1b. Trunk Angle with Stick figures')
 # Annotation toggles — one checkbox per annotation, collapsible
 # Toggles must be rendered BEFORE the plot so the selected state is passed in.
 trunk_annotations = trunk_computed.get('annotations', [])
 active_trunk_annotations: set[str] | None = None
 
 if trunk_annotations:
+    # Resolve the same colors the renderer uses: auto-palette + zone overrides.
+    _zone_overrides = {'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH}
+    _colored_anns = assign_annotation_colors(trunk_annotations)
+    _colored_anns = [
+        dataclasses.replace(a, color=_zone_overrides[a.label])
+        if a.label in _zone_overrides else a
+        for a in _colored_anns
+    ]
+
     with st.expander('Trunk Angle Annotations - Toggle individual annotations on or off', expanded=False):
-        active_trunk_annotations = {
-            ann.label
-            for ann in trunk_annotations
-            if st.checkbox(
-                f'{ann.label} — {ann.description}',
-                value=True,
-                key=f'ann_trunk_{ann.label}',
-            )
-        }
+        show_all = st.checkbox(
+            'Show all annotations',
+            value=True,
+            key='ann_trunk_show_all',
+        )
+        st.markdown('<hr style="margin:4px 0 8px 0; border-color:#E8E8E8">', unsafe_allow_html=True)
+
+        active_trunk_annotations = set()
+        for ann in _colored_anns:
+            color = ann.color or '#888888'
+            col_dot, col_cb = st.columns([0.04, 0.96])
+            with col_dot:
+                st.markdown(
+                    f'<div style="width:12px;height:12px;border-radius:50%;'
+                    f'background:{color};margin-top:6px"></div>',
+                    unsafe_allow_html=True,
+                )
+            with col_cb:
+                checked = st.checkbox(
+                    f'{ann.label} — {ann.description}',
+                    value=show_all,
+                    key=f'ann_trunk_{ann.label}',
+                    disabled=not show_all,
+                )
+            if checked and show_all:
+                active_trunk_annotations.add(ann.label)
+
+        if not show_all:
+            active_trunk_annotations = set()  # hide all
 
 render_trunk_angle_with_stage_stickfigures(
     trunk_computed,

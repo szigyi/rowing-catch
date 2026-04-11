@@ -183,12 +183,6 @@ def recovery_rock_over_coach_tip(
 
     catch_zone_mid = (catch_zone[0] + catch_zone[1]) / 2
 
-    # --- Scenario 1: never reaches catch zone at all ---
-    # The final angle stays above (less negative than) the catch zone upper bound
-    if recovery_y[-1] > catch_zone[1]:
-        shortfall = abs(recovery_y[-1] - catch_zone[1])
-        return f'Never reaches catch angle — {shortfall:.1f}° short; rock over more'
-
     # Fraction of total range covered at each point
     fractions = [(v - recovery_y[0]) / total for v in recovery_y]
 
@@ -232,4 +226,3 @@ __all__ = [
     'drive_trunk_opening_coach_tip',
     'recovery_rock_over_coach_tip',
 ]
-

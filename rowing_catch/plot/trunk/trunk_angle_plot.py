@@ -58,6 +58,7 @@ def render_trunk_angle_with_stage_stickfigures(
     # Pre-compute which annotations will be active so we know legend row height.
     # We do a dry-run filter (no drawing) just to count rows.
     from rowing_catch.plot_transformer.annotations import assign_annotation_colors
+
     _active_anns = [a for a in annotations if a.axis_id == 'top']
     _active_anns = assign_annotation_colors(_active_anns)
     if active_annotations is not None:
@@ -69,7 +70,8 @@ def render_trunk_angle_with_stage_stickfigures(
     legend_ratio = max(0.35 * n_legend_rows, 0.0)
     fig = plt.figure(figsize=(10, 7 + legend_ratio * 0.5), constrained_layout=True)
     gs = fig.add_gridspec(
-        3, 1,
+        3,
+        1,
         height_ratios=[3, 2, legend_ratio] if n_legend_rows > 0 else [3, 2, 0.001],
         hspace=0.08,
     )
@@ -218,14 +220,12 @@ def render_trunk_angle_with_stage_stickfigures(
         import dataclasses as _dc
 
         from rowing_catch.plot_transformer.annotations import assign_annotation_colors as _assign
+
         _auto_colored = _assign([a for a in annotations if a.axis_id == 'top'])
         _with_overrides = [
-            _dc.replace(a, color=_zone_color_overrides[a.label])
-            if a.label in _zone_color_overrides else a
-            for a in _auto_colored
+            _dc.replace(a, color=_zone_color_overrides[a.label]) if a.label in _zone_color_overrides else a for a in _auto_colored
         ]
-        _visible = [a for a in _with_overrides
-                    if active_annotations is None or a.label in active_annotations]
+        _visible = [a for a in _with_overrides if active_annotations is None or a.label in active_annotations]
         legend_colors = [a.color or '#555555' for a in _visible]
         render_annotation_legend_on_figure(fig, ax_legend, legend_items, colors=legend_colors)
     else:

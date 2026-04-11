@@ -1,13 +1,13 @@
 """Centralized theme and styling constants for all plots."""
 
+from rowing_catch.plot_transformer.annotations import ANNOTATION_COLORS
+
 # --- Annotation Colors ---
-# A palette distinct from the main data colors, used for annotation overlays.
-# Assigned automatically by apply_annotations() when color=None on an annotation.
-ANNOTATION_COLOR_1 = '#F59E0B'  # Amber
-ANNOTATION_COLOR_2 = '#10B981'  # Emerald
-ANNOTATION_COLOR_3 = '#D946EF'  # Fuchsia (replaces Indigo #6366F1 — too close to COLOR_MAIN #636EFA)
-ANNOTATION_COLOR_4 = '#EC4899'  # Pink
-ANNOTATION_COLOR_5 = '#14B8A6'  # Teal
+# The palette lives in plot_transformer/annotations.py (Layer 2) so transformers
+# can use it without importing from plot/. Re-exported here for reference.
+# Individual slot meanings (matched to annotation return order):
+#   slot 1 → [P_] points   slot 3 → [S_] segments   slot 5 → [Z_] zones
+#   slot 2 → [P_] points   slot 4 → [S_] segments   slot 6 → [Z_] zones
 ANNOTATION_LABEL_BG = '#FFFFFF'  # White badge background
 
 # --- Colors ---
@@ -39,11 +39,7 @@ FINISH_ZONE_ALPHA = 0.08
 
 # Export commonly used sets
 __all__ = [
-    'ANNOTATION_COLOR_1',
-    'ANNOTATION_COLOR_2',
-    'ANNOTATION_COLOR_3',
-    'ANNOTATION_COLOR_4',
-    'ANNOTATION_COLOR_5',
+    'ANNOTATION_COLORS',
     'ANNOTATION_LABEL_BG',
     'COLOR_MAIN',
     'COLOR_LEGS',

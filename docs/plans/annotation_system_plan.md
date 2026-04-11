@@ -373,22 +373,42 @@ annotations = computed.get('annotations', [])
 
 # Render toggles below the plot header
 if annotations:
-    with st.expander("🔍 Annotations", expanded=True):
-        active = {
-            ann.label
-            for ann in annotations
-            if st.checkbox(
-                f"{ann.label} — {ann.description}",
-                value=True,
-                key=f"ann_{component.name}_{ann.label}",
-            )
-        }
+    with st.expander("🔍 Annotations", expanded=False):
+        # Master toggle — show/hide all annotations with one click
+        show_all = st.checkbox('Show all annotations', value=True, key=f'ann_{component.name}_show_all')
+        st.divider()
+        if show_all:
+            # Individual toggles — only active when master is on
+            active = {
+                ann.label
+                for ann in annotations
+                if st.checkbox(
+                    f"{ann.label} — {ann.description}",
+                    value=True,
+                    key=f"ann_{component.name}_{ann.label}",
+                )
+            }
+        else:
+            # Render individual checkboxes as disabled for discoverability
+            for ann in annotations:
+                st.checkbox(
+                    f"{ann.label} — {ann.description}",
+                    value=False,
+                    key=f"ann_{component.name}_{ann.label}",
+                    disabled=True,
+                )
+            active = set()  # hide all
 else:
     active = set()
 
 # Render with active filter
 render_trunk_angle(computed, active_annotations=active)
 ```
+
+**Master toggle behaviour:**
+- **On** (default): individual checkboxes are live — each annotation can be toggled independently.
+- **Off**: all individual checkboxes are rendered as disabled (so the user can still see what annotations exist) and `active_annotations=set()` is passed → all annotations hidden.
+- Passing `set()` (empty set) hides all annotations. Passing `None` shows all (backward-compatible default).
 
 ### 4.5 Renderer Signature Extension
 

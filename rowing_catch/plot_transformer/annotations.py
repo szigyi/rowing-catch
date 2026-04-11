@@ -20,12 +20,12 @@ from typing import Literal
 # Used by apply_annotations() to auto-assign colors when color=None.
 # ---------------------------------------------------------------------------
 ANNOTATION_COLORS: list[str] = [
-    '#F59E0B',  # Amber   — first annotation
-    '#10B981',  # Emerald — second
-    '#D946EF',  # Fuchsia — third  (replaces Indigo #6366F1 which was too close to COLOR_MAIN #636EFA)
-    '#EC4899',  # Pink    — fourth
-    '#14B8A6',  # Teal    — fifth
-    '#F97316',  # Orange  — sixth
+    '#D946EF',  # Fuchsia — [P_] points (slot 1)
+    '#14B8A6',  # Teal    — [P_] points (slot 2)
+    '#F59E0B',  # Amber   — [S_] segments (slot 3)
+    '#F97316',  # Orange  — [S_] segments (slot 4)
+    '#10B981',  # Emerald — [Z_] zones (slot 5, typically renderer-overridden)
+    '#EC4899',  # Pink    — [Z_] zones (slot 6, typically renderer-overridden)
 ]
 
 
@@ -216,4 +216,3 @@ __all__ = [
     'SegmentAnnotation',
     'assign_annotation_colors',
 ]
-

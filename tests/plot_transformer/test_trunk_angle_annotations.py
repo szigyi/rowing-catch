@@ -65,50 +65,62 @@ class TestComputeTrunkAnnotations:
         result = self._run()
         assert len(result) == 6
 
-    def test_a1_is_point_annotation_at_catch(self):
+    def test_p1_is_point_annotation_at_catch(self):
         result = self._run()
-        a1 = result[0]
-        assert isinstance(a1, PointAnnotation)
-        assert a1.label == '[P1]'
-        assert a1.axis_id == 'top'
-        assert a1.y == pytest.approx(self.catch_lean, abs=1e-6)
+        p1 = result[0]
+        assert isinstance(p1, PointAnnotation)
+        assert p1.label == '[P1]'
+        assert p1.axis_id == 'top'
+        assert p1.y == pytest.approx(self.catch_lean, abs=1e-6)
 
-    def test_a2_is_point_annotation_at_finish(self):
+    def test_p2_is_point_annotation_at_finish(self):
         result = self._run()
-        a2 = result[1]
-        assert isinstance(a2, PointAnnotation)
-        assert a2.label == '[P2]'
-        assert a2.axis_id == 'top'
-        assert a2.y == pytest.approx(self.finish_lean, abs=1e-6)
+        p2 = result[1]
+        assert isinstance(p2, PointAnnotation)
+        assert p2.label == '[P2]'
+        assert p2.axis_id == 'top'
+        assert p2.y == pytest.approx(self.finish_lean, abs=1e-6)
 
-    def test_a3_is_segment_annotation_covering_drive(self):
+    def test_s1_is_segment_annotation_covering_drive(self):
         result = self._run()
-        a3 = result[2]
-        assert isinstance(a3, SegmentAnnotation)
-        assert a3.label == '[S1]'
-        assert a3.style == 'glow'
-        assert len(a3.x) == self.finish_idx - self.catch_idx + 1
-        assert len(a3.y) == len(a3.x)
-        assert a3.x[0] == pytest.approx(float(self.x[self.catch_idx]))
-        assert a3.x[-1] == pytest.approx(float(self.x[self.finish_idx]))
+        s1 = result[2]
+        assert isinstance(s1, SegmentAnnotation)
+        assert s1.label == '[S1]'
+        assert s1.style == 'glow'
+        assert len(s1.x) == self.finish_idx - self.catch_idx + 1
+        assert len(s1.y) == len(s1.x)
+        assert s1.x[0] == pytest.approx(float(self.x[self.catch_idx]))
+        assert s1.x[-1] == pytest.approx(float(self.x[self.finish_idx]))
 
-    def test_a4_is_band_annotation_for_catch_zone(self):
+    def test_s2_is_segment_annotation_covering_recovery(self):
         result = self._run()
-        a4 = result[3]
-        assert isinstance(a4, BandAnnotation)
-        assert a4.label == '[Z1]'
-        assert a4.y_low == self.catch_zone[0]
-        assert a4.y_high == self.catch_zone[1]
-        assert a4.axis_id == 'top'
+        s2 = result[3]
+        assert isinstance(s2, SegmentAnnotation)
+        assert s2.label == '[S2]'
+        assert s2.style == 'glow'
+        assert s2.axis_id == 'top'
+        # Recovery goes from finish_idx to end of x
+        assert len(s2.x) == self.n - self.finish_idx
+        assert s2.x[0] == pytest.approx(float(self.x[self.finish_idx]))
+        assert s2.x[-1] == pytest.approx(float(self.x[-1]))
 
-    def test_a5_is_band_annotation_for_finish_zone(self):
+    def test_z1_is_band_annotation_for_catch_zone(self):
         result = self._run()
-        a5 = result[4]
-        assert isinstance(a5, BandAnnotation)
-        assert a5.label == '[Z2]'
-        assert a5.y_low == self.finish_zone[0]
-        assert a5.y_high == self.finish_zone[1]
-        assert a5.axis_id == 'top'
+        z1 = result[4]
+        assert isinstance(z1, BandAnnotation)
+        assert z1.label == '[Z1]'
+        assert z1.y_low == self.catch_zone[0]
+        assert z1.y_high == self.catch_zone[1]
+        assert z1.axis_id == 'top'
+
+    def test_z2_is_band_annotation_for_finish_zone(self):
+        result = self._run()
+        z2 = result[5]
+        assert isinstance(z2, BandAnnotation)
+        assert z2.label == '[Z2]'
+        assert z2.y_low == self.finish_zone[0]
+        assert z2.y_high == self.finish_zone[1]
+        assert z2.axis_id == 'top'
 
     def test_description_contains_deviation(self):
         """Descriptions must include deviation from ideal."""
@@ -120,34 +132,38 @@ class TestComputeTrunkAnnotations:
 
     def test_a6_is_segment_annotation_covering_recovery(self):
         result = self._run()
-        a6 = result[5]
-        assert isinstance(a6, SegmentAnnotation)
-        assert a6.label == '[S2]'
-        assert a6.style == 'glow'
-        assert a6.axis_id == 'top'
+        s2 = result[3]
+        assert isinstance(s2, SegmentAnnotation)
+        assert s2.label == '[S2]'
+        assert s2.style == 'glow'
+        assert s2.axis_id == 'top'
         # Recovery goes from finish_idx to end of x
-        assert len(a6.x) == self.n - self.finish_idx
-        assert a6.x[0] == pytest.approx(float(self.x[self.finish_idx]))
-        assert a6.x[-1] == pytest.approx(float(self.x[-1]))
+        assert len(s2.x) == self.n - self.finish_idx
+        assert s2.x[0] == pytest.approx(float(self.x[self.finish_idx]))
+        assert s2.x[-1] == pytest.approx(float(self.x[-1]))
 
     def test_a1_a2_a3_a6_have_non_empty_coach_tips(self):
-        """Point and segment annotations must carry computed coach tips."""
+        """Point and segment annotations ([P1], [P2], [S1], [S2]) must carry computed coach tips."""
         result = self._run()
-        for ann in [result[0], result[1], result[2], result[5]]:
+        # [P1], [P2], [S1], [S2] are at indices 0, 1, 2, 3
+        for ann in [result[0], result[1], result[2], result[3]]:
             assert ann.coach_tip, f'{ann.label} coach_tip must not be empty'
 
     def test_a4_a5_have_empty_coach_tips(self):
-        """Band annotations (zones) carry no coach tip — the zone speaks for itself."""
+        """Band annotations ([Z1], [Z2]) carry no coach tip — the zone speaks for itself."""
         result = self._run()
-        for ann in result[3:5]:
+        # [Z1], [Z2] are at indices 4, 5
+        for ann in result[4:6]:
             assert ann.coach_tip == '', f'{ann.label} coach_tip should be empty'
 
     def test_colors_none_for_all_annotations(self):
-        """All transformer annotations must have color=None.
-
-        Colors for zone bands ([A4], [A5]) are supplied by the renderer via
-        color_overrides in apply_annotations() — keeping theme colors out of
-        the transformer layer.
+        """All transformer annotations have color=None — colors are assigned implicitly
+        by assign_annotation_colors() from the palette, which is ordered so that:
+          slot 1 (Fuchsia)  → [P1], slot 2 (Teal)   → [P2],
+          slot 3 (Amber)    → [S1], slot 4 (Orange)  → [S2],
+          slot 5/6          → [Z1]/[Z2] (renderer-overridden anyway).
+        Zone bands ([Z1], [Z2]) colors are further overridden by the renderer via
+        color_overrides in apply_annotations().
         """
         result = self._run()
         for ann in result:
@@ -155,9 +171,9 @@ class TestComputeTrunkAnnotations:
 
     def test_segment_y_values_match_trunk_angle_slice(self):
         result = self._run()
-        a3 = result[2]
+        s1 = result[2]
         expected_y = [float(v) for v in self.trunk[self.catch_idx : self.finish_idx + 1]]
-        assert a3.y == pytest.approx(expected_y, abs=1e-6)
+        assert s1.y == pytest.approx(expected_y, abs=1e-6)
 
 
 # ---------------------------------------------------------------------------
@@ -301,7 +317,6 @@ def _make_drive_y(n: int, open_start_frac: float, steepness_window: float) -> li
 
 
 class TestDriveTrunkOpeningCoachTip:
-
     def test_opens_too_early_returns_sequence_legs_first(self):
         """open_start_frac < 0.20 → trunk swings before legs are loaded."""
         # Start opening at 10% of drive
@@ -392,14 +407,6 @@ def _make_recovery_y(
 
 
 class TestRecoveryRockOverCoachTip:
-
-    def test_never_reaches_catch_zone_returns_rock_over_more(self):
-        """Trunk ends at -10°, never gets close to catch zone upper bound (-27°)."""
-        # stays between +15 and -10, never reaches -27
-        rec_y = [15.0 - 25.0 * (i / 99) for i in range(100)]  # ends at -10
-        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
-        assert 'rock over more' in tip.lower() or 'short' in tip.lower()
-
     def test_rocks_over_too_early_returns_rushing_warning(self):
         """Catch zone midpoint reached at 20% of recovery — too rushed."""
         rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.20)
@@ -449,5 +456,3 @@ class TestRecoveryRockOverCoachTip:
     def test_returns_string(self):
         rec_y = _make_recovery_y(n=80, start=15.0, end=-30.0, reach_frac=0.60)
         assert isinstance(_recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE), str)
-
-

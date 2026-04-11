@@ -166,10 +166,9 @@ def apply_annotations(
     # Apply renderer-supplied color overrides (e.g. theme colors from plot layer)
     if color_overrides:
         import dataclasses as _dc
+
         axis_annotations = [
-            _dc.replace(a, color=color_overrides[a.label])
-            if a.label in color_overrides else a
-            for a in axis_annotations
+            _dc.replace(a, color=color_overrides[a.label]) if a.label in color_overrides else a for a in axis_annotations
         ]
 
     # Filter by toggle state

@@ -13,4 +13,3 @@ __all__ = [
     'drive_trunk_opening_coach_tip',
     'recovery_rock_over_coach_tip',
 ]
-

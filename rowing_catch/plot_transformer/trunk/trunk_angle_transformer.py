@@ -159,7 +159,6 @@ class TrunkAngleComponent(PlotComponent):
         }
 
 
-
 # ---------------------------------------------------------------------------
 # Main annotation builder — pure function, independently testable
 # ---------------------------------------------------------------------------
@@ -254,8 +253,7 @@ def _compute_trunk_annotations(
     s2 = SegmentAnnotation(
         label='[S2]',
         description=(
-            f'Recovery: {finish_lean:.1f}° \u2192 {next_catch_lean:.1f}° '
-            f'({abs(next_catch_lean - finish_lean):.1f}° rock-over)'
+            f'Recovery: {finish_lean:.1f}° \u2192 {next_catch_lean:.1f}° ({abs(next_catch_lean - finish_lean):.1f}° rock-over)'
         ),
         x_start=float(x[finish_idx]),
         x_end=float(x[rec_end_idx]),

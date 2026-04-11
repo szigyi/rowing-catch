@@ -1,5 +1,15 @@
 """Centralized theme and styling constants for all plots."""
 
+# --- Annotation Colors ---
+# A palette distinct from the main data colors, used for annotation overlays.
+# Assigned automatically by apply_annotations() when color=None on an annotation.
+ANNOTATION_COLOR_1 = '#F59E0B'  # Amber
+ANNOTATION_COLOR_2 = '#10B981'  # Emerald
+ANNOTATION_COLOR_3 = '#D946EF'  # Fuchsia (replaces Indigo #6366F1 — too close to COLOR_MAIN #636EFA)
+ANNOTATION_COLOR_4 = '#EC4899'  # Pink
+ANNOTATION_COLOR_5 = '#14B8A6'  # Teal
+ANNOTATION_LABEL_BG = '#FFFFFF'  # White badge background
+
 # --- Colors ---
 COLOR_MAIN = '#636EFA'  # Blue-purple (primary)
 COLOR_LEGS = '#636EFA'
@@ -29,6 +39,12 @@ FINISH_ZONE_ALPHA = 0.08
 
 # Export commonly used sets
 __all__ = [
+    'ANNOTATION_COLOR_1',
+    'ANNOTATION_COLOR_2',
+    'ANNOTATION_COLOR_3',
+    'ANNOTATION_COLOR_4',
+    'ANNOTATION_COLOR_5',
+    'ANNOTATION_LABEL_BG',
     'COLOR_MAIN',
     'COLOR_LEGS',
     'COLOR_TRUNK',

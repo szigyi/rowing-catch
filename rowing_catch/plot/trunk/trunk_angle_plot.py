@@ -5,6 +5,7 @@ Renders trunk angle trace with anatomical stick figures at key stages.
 
 from typing import Any, cast
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
@@ -18,17 +19,33 @@ from rowing_catch.plot.theme import (
     REFERENCE_LINE_COLOR,
     SPINE_COLOR,
 )
+from rowing_catch.plot.utils import apply_annotations, render_annotation_legend_on_figure
 
 
-def render_trunk_angle_with_stage_stickfigures(computed_data: dict[str, Any]):
+def render_trunk_angle_with_stage_stickfigures(
+    computed_data: dict[str, Any],
+    active_annotations: set[str] | None = None,
+    return_fig: bool = False,
+) -> matplotlib.figure.Figure | None:
     """Render trunk angle with stage stick figures.
 
     Args:
         computed_data: Output from TrunkAngleComponent.compute()
+        active_annotations: Set of annotation labels to show (e.g. {'[A1]', '[A3]'}).
+                            None means show all annotations. Empty set means hide all.
+        return_fig: If True, skip st.pyplot() and return the Figure for PDF export.
+
+    Returns:
+        matplotlib Figure if return_fig=True, else None.
+
+    Axis IDs:
+        'top' — the main trunk angle trace axes
+        'bot' — the stick figure axes (no annotations applied here)
     """
     data = computed_data['data']
     ghost_data = computed_data.get('ghost_data')
     coach_tip = computed_data['coach_tip']
+    annotations = computed_data.get('annotations', [])
 
     x = data['x']
     trunk_angle = data['trunk_angle_plot']
@@ -37,23 +54,34 @@ def render_trunk_angle_with_stage_stickfigures(computed_data: dict[str, Any]):
     x_min = data['x_min']
     x_max = data['x_max']
     stage_angles = data['stage_angles']
-    catch_zone = data['catch_zone']
-    finish_zone = data['finish_zone']
 
-    # Create figure with 2 subplots
-    fig, (ax_top, ax_bot) = plt.subplots(
-        2,
-        1,
-        figsize=(10, 7),
-        sharex=True,
-        gridspec_kw={'height_ratios': [3, 2]},
-        constrained_layout=True,
+    # Pre-compute which annotations will be active so we know legend row height.
+    # We do a dry-run filter (no drawing) just to count rows.
+    from rowing_catch.plot_transformer.annotations import assign_annotation_colors
+    _active_anns = [a for a in annotations if a.axis_id == 'top']
+    _active_anns = assign_annotation_colors(_active_anns)
+    if active_annotations is not None:
+        _active_anns = [a for a in _active_anns if a.label in active_annotations]
+    n_legend_rows = len(_active_anns)
+
+    # Height ratios: [trace plot, stick figures, legend]
+    # Legend row is 0 when empty so it collapses cleanly.
+    legend_ratio = max(0.35 * n_legend_rows, 0.0)
+    fig = plt.figure(figsize=(10, 7 + legend_ratio * 0.5), constrained_layout=True)
+    gs = fig.add_gridspec(
+        3, 1,
+        height_ratios=[3, 2, legend_ratio] if n_legend_rows > 0 else [3, 2, 0.001],
+        hspace=0.08,
     )
+    ax_top = fig.add_subplot(gs[0])
+    ax_bot = fig.add_subplot(gs[1], sharex=ax_top)
+    ax_legend = fig.add_subplot(gs[2])
 
     # Modern Styling
     fig.patch.set_facecolor(BG_COLOR_FIGURE)
     ax_top.set_facecolor('#FFFFFF')
     ax_bot.set_facecolor(BG_COLOR_FIGURE)
+    ax_legend.set_facecolor(BG_COLOR_FIGURE)
 
     # Clean up spines on top plot
     ax_top.spines['top'].set_visible(False)
@@ -124,10 +152,6 @@ def render_trunk_angle_with_stage_stickfigures(computed_data: dict[str, Any]):
     ax_top.axvline(finish_idx, color=COLOR_FINISH, linestyle='--', linewidth=1.5, zorder=2)
     ax_top.axvline(x_max, color=COLOR_CATCH, linestyle='--', linewidth=1.5, zorder=2)
 
-    # Ideal zones
-    ax_top.axhspan(catch_zone[0], catch_zone[1], color=COLOR_CATCH, alpha=0.08, zorder=1)
-    ax_top.axhspan(finish_zone[0], finish_zone[1], color=COLOR_FINISH, alpha=0.08, zorder=1)
-
     ax_top.set_ylabel('Degrees from Vertical', color='#444444', fontweight='bold', labelpad=10)
     ax_top.tick_params(axis='y', colors='#666666')
 
@@ -149,7 +173,7 @@ def render_trunk_angle_with_stage_stickfigures(computed_data: dict[str, Any]):
     )
     ax_top.text(
         finish_idx,
-        y_label,
+        y_min,
         'Finish',
         color=COLOR_FINISH,
         ha='center',
@@ -172,34 +196,40 @@ def render_trunk_angle_with_stage_stickfigures(computed_data: dict[str, Any]):
         zorder=6,
     )
 
-    # Zone labels
-    x_right = (x.min() + x.max()) * 0.85
-    ax_top.text(
-        x_right,
-        sum(catch_zone) / 2,
-        'Ideal Catch',
-        color=COLOR_CATCH,
-        ha='center',
-        va='center',
-        fontsize=9,
-        fontweight='medium',
-        bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.7, pad=1.5),
-        zorder=6,
-    )
-    ax_top.text(
-        x_right,
-        sum(finish_zone) / 2,
-        'Ideal Finish',
-        color=COLOR_FINISH,
-        ha='center',
-        va='center',
-        fontsize=9,
-        fontweight='medium',
-        bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.7, pad=1.5),
-        zorder=6,
-    )
-
     ax_top.legend(loc='center right', frameon=True, facecolor='#FFFFFF', edgecolor=SPINE_COLOR, fontsize=9)
+
+    # --- Apply annotations to top axes and render legend inside figure ---
+    # Color overrides: zone bands use theme colors at reduced alpha (handled by
+    # _draw_band_annotation: fill alpha=0.12, border alpha=0.5) so they are
+    # recognisable but clearly distinct from the solid catch/finish vertical lines.
+    _zone_color_overrides = {
+        '[Z1]': COLOR_CATCH,
+        '[Z2]': COLOR_FINISH,
+    }
+    legend_items = apply_annotations(
+        ax_top,
+        annotations,
+        active_labels=active_annotations,
+        axis_id='top',
+        color_overrides=_zone_color_overrides,
+    )
+    if legend_items:
+        # Collect colors in legend order, applying the same palette + overrides used above
+        import dataclasses as _dc
+
+        from rowing_catch.plot_transformer.annotations import assign_annotation_colors as _assign
+        _auto_colored = _assign([a for a in annotations if a.axis_id == 'top'])
+        _with_overrides = [
+            _dc.replace(a, color=_zone_color_overrides[a.label])
+            if a.label in _zone_color_overrides else a
+            for a in _auto_colored
+        ]
+        _visible = [a for a in _with_overrides
+                    if active_annotations is None or a.label in active_annotations]
+        legend_colors = [a.color or '#555555' for a in _visible]
+        render_annotation_legend_on_figure(fig, ax_legend, legend_items, colors=legend_colors)
+    else:
+        ax_legend.axis('off')
 
     # --- Bottom: anchor axis with stick figures ---
     ax_bot.axvline(catch_idx, color=COLOR_CATCH, linestyle='--', linewidth=1.5, alpha=0.2)
@@ -248,7 +278,7 @@ def render_trunk_angle_with_stage_stickfigures(computed_data: dict[str, Any]):
         x0 = float(np.clip(frac_safe - inset_w / 2, edge_margin, (1.0 - edge_margin) - inset_w))
         stage_inside = float(np.clip(frac - x0, 0.0, inset_w))
 
-        inset = ax_bot.inset_axes([x0, inset_y0, inset_w, inset_h], transform=ax_bot.transAxes)
+        inset = ax_bot.inset_axes((x0, inset_y0, inset_w, inset_h), transform=ax_bot.transAxes)
         inset.set_aspect('equal', adjustable='box')
         inset.axis('off')
         inset.set_clip_on(False)
@@ -286,8 +316,12 @@ def render_trunk_angle_with_stage_stickfigures(computed_data: dict[str, Any]):
             clip_on=False,
         )
 
+    if return_fig:
+        return fig
+
     st.pyplot(fig)
     st.info(f"**Coach's Tip:** {coach_tip}")
+    return None
 
 
 __all__ = ['render_trunk_angle_with_stage_stickfigures']

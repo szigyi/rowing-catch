@@ -71,6 +71,14 @@ class PlotComponent(ABC):
                     ...
                 },
                 'coach_tip': str,        # Insight to display to user
+                'annotations': [...],    # Optional list[AnnotationEntry] — [] if none.
+                                         # Each entry is a PointAnnotation, SegmentAnnotation,
+                                         # BandAnnotation, or PhaseAnnotation from
+                                         # plot_transformer.annotations. Renderers call
+                                         # apply_annotations(ax, computed['annotations'])
+                                         # from plot.utils to draw them.
+                'annotation_defs': [...] # Optional list[AnnotationDefinition] — metadata
+                                         # for pre-compute toggle UI generation.
             }
 
         Example:

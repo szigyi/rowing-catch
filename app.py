@@ -12,7 +12,6 @@ pg = st.navigation(
     {
         'Analysis': [
             st.Page('rowing_catch/page/report.py', title='Analysis Report', icon='📊', default=True),
-            st.Page('rowing_catch/page/trunk_angle.py', title='Trunk Angle', icon='📐'),
             st.Page('rowing_catch/page/development.py', title='Development', icon='🏋️'),
             st.Page('rowing_catch/page/performance.py', title='Performance', icon='⚡'),
         ],

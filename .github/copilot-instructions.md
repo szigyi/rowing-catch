@@ -24,20 +24,20 @@ This project follows a strict 4-layer architecture. **All code changes must resp
    - Use colors from `plot/theme.py`
    - **Cannot** compute or import from `page/`
 
-4. **Layer 4: Pages** (`pages/`)
+4. **Layer 4: Pages** (`rowing_catch/page/`)
    - Minimal orchestration: `component.compute() → renderer.render()`
    - Can import from components and plots only
 
 ### Import Rule (Strict)
 
 ```
-page/           ← imports from (plot_transformer, plot)
+rowing_catch/page/           ← imports from (plot_transformer, plot)
     ↑
-plot/           ← imports from (plot_transformer, algo)
+rowing_catch/plot/           ← imports from (plot_transformer, algo)
     ↑
-plot_transformer/ ← imports from (algo, scenario)
+rowing_catch/plot_transformer/ ← imports from (algo, scenario)
     ↑
-algo/, scenario/ ← imports from each other only
+rowing_catch/algo/, rowing_catch/scenario/ ← imports from each other only
 ```
 
 **No circular imports. No upward dependencies.**
@@ -188,11 +188,11 @@ def render_myplot(computed_data: dict[str, Any]):
 
 ## Common Mistakes (DO NOT DO)
 
-- ❌ Import `plots/` in `plot_transforms/` → Violates layer dependency
-- ❌ Import `pages/` anywhere → Violates layering
+- ❌ Import `plot/` in `plot_transformer/` → Violates layer dependency
+- ❌ Import `page/` anywhere → Violates layering
 - ❌ Mix computation and rendering → Breaks separation of concerns
 - ❌ Add coach_tip directly in renderer → Belongs in transform
-- ❌ Hardcode colors → Use `plots/theme.py`
+- ❌ Hardcode colors → Use `plot/theme.py`
 - ❌ Skip type annotations → mypy will fail
 - ❌ Use `float(value)` on pandas scalars without `cast()` → mypy error
 
@@ -201,7 +201,7 @@ def render_myplot(computed_data: dict[str, Any]):
 ### Rules
 
 - **All pure functions must have tests.** If a function takes inputs and returns outputs with no side effects, it must be covered by `pytest` tests.
-- **Keep business logic out of UI code.** Calculations, data transformations, and coaching logic must live in `algo/`, `scenario/`, or `plot_transforms/` — never inline in a page or renderer. This makes them independently testable.
+- **Keep business logic out of UI code.** Calculations, data transformations, and coaching logic must live in `algo/`, `scenario/`, or `plot_transformer/` — never inline in a page or renderer. This makes them independently testable.
 - **Renderers are not tested directly.** Streamlit/matplotlib rendering is UI — test the `compute()` output instead.
 
 ### What to test
@@ -210,9 +210,9 @@ def render_myplot(computed_data: dict[str, Any]):
 |---|---|
 | `algo/` | All helper functions, signal processing, index detection |
 | `scenario/` | Scenario logic, data loading, transformations |
-| `plot_transforms/` | `compute()` output shape, values, coach tips |
-| `plots/` | Not tested directly (rendering) |
-| `pages/` | Not tested directly (UI orchestration) |
+| `plot_transformer/` | `compute()` output shape, values, coach tips |
+| `plot/` | Not tested directly (rendering) |
+| `page/` | Not tested directly (UI orchestration) |
 
 ### Test structure
 
@@ -225,7 +225,7 @@ tests/
         test_analysis.py
     scenario/
         test_*.py
-    plot_transforms/
+    plot_transformer/
         test_trunk_angle.py
         test_kinetic_chain.py
         ...
@@ -235,14 +235,14 @@ tests/
 
 **❌ Bad — logic buried in page, untestable:**
 ```python
-# page/1_Trunk_Angle.py
+# rowing_catch/page/development.py
 drive_angle = avg_cycle['trunk_angle'].iloc[catch_idx] - avg_cycle['trunk_angle'].iloc[finish_idx]
 st.metric("Drive angle", f"{drive_angle:.1f}°")
 ```
 
 **✅ Good — logic in transform, tested separately:**
 ```python
-# rowing_catch/plot_transformer/trunk_angle.py
+# rowing_catch/plot_transformer/trunk/trunk_angle_transformer.py
 def compute_drive_angle(avg_cycle: pd.DataFrame, catch_idx: int, finish_idx: int) -> float:
     return float(avg_cycle['trunk_angle'].iloc[catch_idx] - avg_cycle['trunk_angle'].iloc[finish_idx])
 
@@ -275,9 +275,9 @@ python -m pytest tests/ -v
 ## Reference Documentation
 
 - Full architecture details: See [ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- Transform base class: [rowing_catch/plot_transforms/base.py](rowing_catch/plot_transforms/base.py)
-- Theme colors: [rowing_catch/plots/theme.py](rowing_catch/plots/theme.py)
-- Plot utilities: [rowing_catch/plots/utils.py](rowing_catch/plots/utils.py)
+- Transform base class: [rowing_catch/plot_transformer/base.py](rowing_catch/plot_transformer/base.py)
+- Theme colors: [rowing_catch/plot/theme.py](rowing_catch/plot/theme.py)
+- Plot utilities: [rowing_catch/plot/utils.py](rowing_catch/plot/utils.py)
 
 ## Key Insight
 

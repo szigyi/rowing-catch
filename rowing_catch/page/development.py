@@ -39,8 +39,9 @@ computed_data = trunk_angle_sep_component.compute(
 )
 render_trunk_angle_separation(computed_data)
 
-component = TrunkAngleComponent()
-computed_data = component.compute(
+# --- Trunk Angle & Range ---
+trunk_component = TrunkAngleComponent()
+trunk_computed = trunk_component.compute(
     avg_cycle=results['avg_cycle'],
     catch_idx=results['catch_idx'],
     finish_idx=results['finish_idx'],
@@ -48,8 +49,27 @@ computed_data = component.compute(
     results=results,
 )
 
-# Render plot
-render_trunk_angle_with_stage_stickfigures(computed_data)
+# Annotation toggles — one checkbox per annotation, collapsible
+# Toggles must be rendered BEFORE the plot so the selected state is passed in.
+trunk_annotations = trunk_computed.get('annotations', [])
+active_trunk_annotations: set[str] | None = None
+
+if trunk_annotations:
+    with st.expander('Trunk Angle Annotations - Toggle individual annotations on or off', expanded=False):
+        active_trunk_annotations = {
+            ann.label
+            for ann in trunk_annotations
+            if st.checkbox(
+                f'{ann.label} — {ann.description}',
+                value=True,
+                key=f'ann_trunk_{ann.label}',
+            )
+        }
+
+render_trunk_angle_with_stage_stickfigures(
+    trunk_computed,
+    active_annotations=active_trunk_annotations,
+)
 
 st.subheader('2. Rhythm Consistency')
 st.markdown(

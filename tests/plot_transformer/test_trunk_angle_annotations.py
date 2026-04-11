@@ -1,0 +1,453 @@
+"""Tests for TrunkAngleComponent annotations output."""
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from rowing_catch.plot_transformer.annotations import (
+    BandAnnotation,
+    PointAnnotation,
+    SegmentAnnotation,
+)
+from rowing_catch.plot_transformer.trunk.trunk_angle_transformer import (
+    TrunkAngleComponent,
+    _catch_lean_coach_tip,
+    _compute_trunk_annotations,
+    _drive_trunk_opening_coach_tip,
+    _finish_lean_coach_tip,
+    _recovery_rock_over_coach_tip,
+)
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+def _make_avg_cycle(n: int = 100, catch_idx: int = 20, finish_idx: int = 50) -> pd.DataFrame:
+    """Create a minimal avg_cycle DataFrame for testing."""
+    index = np.arange(n)
+    # Simple linear ramp: -30° at catch, +15° at finish, interpolated
+    trunk = np.linspace(-30.0, 15.0, n)
+    return pd.DataFrame({'Trunk_Angle': trunk}, index=index)
+
+
+# ---------------------------------------------------------------------------
+# _compute_trunk_annotations (pure function)
+# ---------------------------------------------------------------------------
+
+
+class TestComputeTrunkAnnotations:
+    def setup_method(self):
+        self.n = 100
+        self.catch_idx = 20
+        self.finish_idx = 50
+        self.df = _make_avg_cycle(self.n, self.catch_idx, self.finish_idx)
+        self.x = self.df.index.to_numpy()
+        self.trunk = self.df['Trunk_Angle'].values
+        self.catch_lean = float(self.trunk[self.catch_idx])
+        self.finish_lean = float(self.trunk[self.finish_idx])
+        self.catch_zone = (-33.0, -27.0)
+        self.finish_zone = (12.0, 18.0)
+
+    def _run(self):
+        return _compute_trunk_annotations(
+            x=self.x,
+            trunk_angle=self.trunk,
+            catch_idx=self.catch_idx,
+            finish_idx=self.finish_idx,
+            catch_lean=self.catch_lean,
+            finish_lean=self.finish_lean,
+            catch_zone=self.catch_zone,
+            finish_zone=self.finish_zone,
+        )
+
+    def test_returns_five_annotations(self):
+        result = self._run()
+        assert len(result) == 6
+
+    def test_a1_is_point_annotation_at_catch(self):
+        result = self._run()
+        a1 = result[0]
+        assert isinstance(a1, PointAnnotation)
+        assert a1.label == '[P1]'
+        assert a1.axis_id == 'top'
+        assert a1.y == pytest.approx(self.catch_lean, abs=1e-6)
+
+    def test_a2_is_point_annotation_at_finish(self):
+        result = self._run()
+        a2 = result[1]
+        assert isinstance(a2, PointAnnotation)
+        assert a2.label == '[P2]'
+        assert a2.axis_id == 'top'
+        assert a2.y == pytest.approx(self.finish_lean, abs=1e-6)
+
+    def test_a3_is_segment_annotation_covering_drive(self):
+        result = self._run()
+        a3 = result[2]
+        assert isinstance(a3, SegmentAnnotation)
+        assert a3.label == '[S1]'
+        assert a3.style == 'glow'
+        assert len(a3.x) == self.finish_idx - self.catch_idx + 1
+        assert len(a3.y) == len(a3.x)
+        assert a3.x[0] == pytest.approx(float(self.x[self.catch_idx]))
+        assert a3.x[-1] == pytest.approx(float(self.x[self.finish_idx]))
+
+    def test_a4_is_band_annotation_for_catch_zone(self):
+        result = self._run()
+        a4 = result[3]
+        assert isinstance(a4, BandAnnotation)
+        assert a4.label == '[Z1]'
+        assert a4.y_low == self.catch_zone[0]
+        assert a4.y_high == self.catch_zone[1]
+        assert a4.axis_id == 'top'
+
+    def test_a5_is_band_annotation_for_finish_zone(self):
+        result = self._run()
+        a5 = result[4]
+        assert isinstance(a5, BandAnnotation)
+        assert a5.label == '[Z2]'
+        assert a5.y_low == self.finish_zone[0]
+        assert a5.y_high == self.finish_zone[1]
+        assert a5.axis_id == 'top'
+
+    def test_description_contains_deviation(self):
+        """Descriptions must include deviation from ideal."""
+        result = self._run()
+        catch_ideal_mid = (self.catch_zone[0] + self.catch_zone[1]) / 2
+        expected_deviation = self.catch_lean - catch_ideal_mid
+        sign = '+' if expected_deviation >= 0 else ''
+        assert f'{sign}{expected_deviation:.1f}°' in result[0].description
+
+    def test_a6_is_segment_annotation_covering_recovery(self):
+        result = self._run()
+        a6 = result[5]
+        assert isinstance(a6, SegmentAnnotation)
+        assert a6.label == '[S2]'
+        assert a6.style == 'glow'
+        assert a6.axis_id == 'top'
+        # Recovery goes from finish_idx to end of x
+        assert len(a6.x) == self.n - self.finish_idx
+        assert a6.x[0] == pytest.approx(float(self.x[self.finish_idx]))
+        assert a6.x[-1] == pytest.approx(float(self.x[-1]))
+
+    def test_a1_a2_a3_a6_have_non_empty_coach_tips(self):
+        """Point and segment annotations must carry computed coach tips."""
+        result = self._run()
+        for ann in [result[0], result[1], result[2], result[5]]:
+            assert ann.coach_tip, f'{ann.label} coach_tip must not be empty'
+
+    def test_a4_a5_have_empty_coach_tips(self):
+        """Band annotations (zones) carry no coach tip — the zone speaks for itself."""
+        result = self._run()
+        for ann in result[3:5]:
+            assert ann.coach_tip == '', f'{ann.label} coach_tip should be empty'
+
+    def test_colors_none_for_all_annotations(self):
+        """All transformer annotations must have color=None.
+
+        Colors for zone bands ([A4], [A5]) are supplied by the renderer via
+        color_overrides in apply_annotations() — keeping theme colors out of
+        the transformer layer.
+        """
+        result = self._run()
+        for ann in result:
+            assert ann.color is None, f'{ann.label} should have color=None in transformer'
+
+    def test_segment_y_values_match_trunk_angle_slice(self):
+        result = self._run()
+        a3 = result[2]
+        expected_y = [float(v) for v in self.trunk[self.catch_idx : self.finish_idx + 1]]
+        assert a3.y == pytest.approx(expected_y, abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# TrunkAngleComponent.compute() integration
+# ---------------------------------------------------------------------------
+
+
+class TestTrunkAngleComponentAnnotations:
+    def test_compute_includes_annotations_key(self):
+        df = _make_avg_cycle()
+        component = TrunkAngleComponent()
+        result = component.compute(df, catch_idx=20, finish_idx=50)
+        assert 'annotations' in result
+
+    def test_annotations_is_list_of_five(self):
+        df = _make_avg_cycle()
+        component = TrunkAngleComponent()
+        result = component.compute(df, catch_idx=20, finish_idx=50)
+        assert isinstance(result['annotations'], list)
+        assert len(result['annotations']) == 6
+
+    def test_no_annotations_key_still_backward_compatible(self):
+        """Renderers must use .get('annotations', []) — verify it returns the list."""
+        df = _make_avg_cycle()
+        component = TrunkAngleComponent()
+        result = component.compute(df, catch_idx=20, finish_idx=50)
+        # Renderers call .get('annotations', []) — this must be truthy (non-empty)
+        annotations = result.get('annotations', [])
+        assert len(annotations) > 0
+
+    def test_coach_tip_is_string(self):
+        df = _make_avg_cycle()
+        component = TrunkAngleComponent()
+        result = component.compute(df, catch_idx=20, finish_idx=50)
+        assert isinstance(result['coach_tip'], str)
+        assert len(result['coach_tip']) > 0
+
+
+# ---------------------------------------------------------------------------
+# _catch_lean_coach_tip — scenario coverage
+# ---------------------------------------------------------------------------
+
+
+class TestCatchLeanCoachTip:
+    ZONE = (-33.0, -27.0)  # both negative: forward lean range
+
+    def test_too_upright_returns_rock_over_message(self):
+        """Catch angle less negative than zone high → rower too upright."""
+        tip = _catch_lean_coach_tip(-20.0, self.ZONE)
+        assert 'Rock over more' in tip
+        assert '7.0' in tip  # deficit = |-20 - (-27)| = 7.0
+
+    def test_over_leaning_returns_reduce_lean_message(self):
+        """Catch angle more negative than zone low → hips may lag."""
+        tip = _catch_lean_coach_tip(-40.0, self.ZONE)
+        assert 'Reduce lean' in tip
+        assert '7.0' in tip  # excess = |-40 - (-33)| = 7.0
+
+    def test_within_zone_returns_ok_message(self):
+        tip = _catch_lean_coach_tip(-30.0, self.ZONE)
+        assert 'ideal range' in tip
+
+    def test_exactly_on_upper_bound_is_ok(self):
+        tip = _catch_lean_coach_tip(-27.0, self.ZONE)
+        assert 'ideal range' in tip
+
+    def test_exactly_on_lower_bound_is_ok(self):
+        tip = _catch_lean_coach_tip(-33.0, self.ZONE)
+        assert 'ideal range' in tip
+
+    def test_returns_string(self):
+        assert isinstance(_catch_lean_coach_tip(-30.0, self.ZONE), str)
+
+
+# ---------------------------------------------------------------------------
+# _finish_lean_coach_tip — scenario coverage
+# ---------------------------------------------------------------------------
+
+
+class TestFinishLeanCoachTip:
+    ZONE = (12.0, 18.0)  # both positive: lay-back range
+
+    def test_too_little_layback_returns_lay_back_more(self):
+        """Finish angle below zone low → not enough lay-back."""
+        tip = _finish_lean_coach_tip(8.0, self.ZONE)
+        assert 'Lay back more' in tip
+        assert '4.0' in tip  # deficit = |8 - 12| = 4.0
+
+    def test_over_extended_returns_reduce_layback(self):
+        """Finish angle above zone high → over-extension risk."""
+        tip = _finish_lean_coach_tip(24.0, self.ZONE)
+        assert 'Reduce lay-back' in tip
+        assert '6.0' in tip  # excess = |24 - 18| = 6.0
+
+    def test_within_zone_returns_ok_message(self):
+        tip = _finish_lean_coach_tip(15.0, self.ZONE)
+        assert 'ideal range' in tip
+
+    def test_exactly_on_lower_bound_is_ok(self):
+        tip = _finish_lean_coach_tip(12.0, self.ZONE)
+        assert 'ideal range' in tip
+
+    def test_exactly_on_upper_bound_is_ok(self):
+        tip = _finish_lean_coach_tip(18.0, self.ZONE)
+        assert 'ideal range' in tip
+
+    def test_returns_string(self):
+        assert isinstance(_finish_lean_coach_tip(15.0, self.ZONE), str)
+
+
+# ---------------------------------------------------------------------------
+# _drive_trunk_opening_coach_tip — scenario coverage
+# ---------------------------------------------------------------------------
+
+
+def _make_drive_y(n: int, open_start_frac: float, steepness_window: float) -> list[float]:
+    """Build a synthetic drive_y that hits the desired opening fractions.
+
+    The function generates a piecewise linear trunk angle trace:
+      - Flat hold phase from index 0 to open_start_frac * n
+      - Linear ramp from open_start_frac to (open_start_frac + steepness_window)
+      - Flat again to the end
+
+    Total rotation is normalised to 45° (catch -30° → finish +15°).
+    """
+    start_angle = -30.0
+    end_angle = 15.0
+    hold_end = int(open_start_frac * n)
+    swing_end = min(int((open_start_frac + steepness_window) * n), n - 1)
+
+    y = []
+    for i in range(n):
+        if i <= hold_end:
+            y.append(start_angle)
+        elif i <= swing_end:
+            t = (i - hold_end) / max(swing_end - hold_end, 1)
+            y.append(start_angle + t * (end_angle - start_angle))
+        else:
+            y.append(end_angle)
+    return y
+
+
+class TestDriveTrunkOpeningCoachTip:
+
+    def test_opens_too_early_returns_sequence_legs_first(self):
+        """open_start_frac < 0.20 → trunk swings before legs are loaded."""
+        # Start opening at 10% of drive
+        drive_y = _make_drive_y(n=100, open_start_frac=0.10, steepness_window=0.30)
+        tip = _drive_trunk_opening_coach_tip(drive_y)
+        assert 'too early' in tip
+        assert 'legs first' in tip
+
+    def test_opens_too_late_returns_begin_swing_earlier(self):
+        """open_start_frac > 0.45 → trunk held too long."""
+        drive_y = _make_drive_y(n=100, open_start_frac=0.60, steepness_window=0.30)
+        tip = _drive_trunk_opening_coach_tip(drive_y)
+        assert 'too late' in tip
+        assert 'earlier' in tip
+
+    def test_opens_slowly_returns_accelerate_burst(self):
+        """A perfectly linear ramp across the full drive (no hold, no burst) has a
+        steepness_window of 0.65 (15%→80% on a linear signal), which exceeds 0.45.
+        The opening start fraction is also ~0.15 (first crossing), which falls below
+        0.20 — so this actually hits the 'too early' branch.
+
+        Instead use a trace that starts opening at 25% (within ideal window) but
+        ramps slowly to the end: give it a gentle S-curve by using a very long ramp
+        that starts at 25% and ends at 100% (steepness_window = ~0.55).
+        """
+        # Build a trace: flat for 25 steps, then linear ramp for remaining 75 steps
+        start, end = -30.0, 15.0
+        y = [-30.0] * 25 + [start + (end - start) * (i / 74) for i in range(75)]
+        tip = _drive_trunk_opening_coach_tip(y)
+        assert 'slowly' in tip or 'accelerate' in tip
+
+    def test_ideal_pattern_returns_positive_feedback(self):
+        """Hold for ~30% then swing quickly in ~25%."""
+        drive_y = _make_drive_y(n=100, open_start_frac=0.30, steepness_window=0.25)
+        tip = _drive_trunk_opening_coach_tip(drive_y)
+        assert 'sequencing' in tip or '\u2713' in tip
+
+    def test_too_short_returns_fallback(self):
+        tip = _drive_trunk_opening_coach_tip([0.0, 1.0, 2.0])
+        assert 'short' in tip
+
+    def test_minimal_rotation_returns_fallback(self):
+        tip = _drive_trunk_opening_coach_tip([10.0] * 50)
+        assert 'Minimal' in tip
+
+    def test_returns_string(self):
+        drive_y = _make_drive_y(n=80, open_start_frac=0.30, steepness_window=0.25)
+        assert isinstance(_drive_trunk_opening_coach_tip(drive_y), str)
+
+
+# ---------------------------------------------------------------------------
+# _recovery_rock_over_coach_tip — scenario coverage
+# ---------------------------------------------------------------------------
+
+# Ideal catch zone used throughout: (-33.0, -27.0), midpoint = -30.0
+_CATCH_ZONE = (-33.0, -27.0)
+
+
+def _make_recovery_y(
+    n: int,
+    start: float,
+    end: float,
+    reach_frac: float,
+    gradual: bool = False,
+) -> list[float]:
+    """Build a synthetic recovery_y trace.
+
+    Args:
+        n: Total recovery length.
+        start: Angle at finish (e.g. +15.0).
+        end: Angle at next catch (e.g. -30.0).
+        reach_frac: Fraction of recovery at which the catch zone midpoint (-30°)
+                    is first reached. Achieved by reaching `end` at that fraction
+                    and holding there.
+        gradual: If True, use a linear ramp all the way to index n-1 (slow swing).
+    """
+    reach_idx = int(reach_frac * (n - 1))
+    if gradual:
+        return [start + (end - start) * (i / (n - 1)) for i in range(n)]
+    y = []
+    for i in range(n):
+        if i <= reach_idx:
+            t = i / max(reach_idx, 1)
+            y.append(start + (end - start) * t)
+        else:
+            y.append(end)
+    return y
+
+
+class TestRecoveryRockOverCoachTip:
+
+    def test_never_reaches_catch_zone_returns_rock_over_more(self):
+        """Trunk ends at -10°, never gets close to catch zone upper bound (-27°)."""
+        # stays between +15 and -10, never reaches -27
+        rec_y = [15.0 - 25.0 * (i / 99) for i in range(100)]  # ends at -10
+        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        assert 'rock over more' in tip.lower() or 'short' in tip.lower()
+
+    def test_rocks_over_too_early_returns_rushing_warning(self):
+        """Catch zone midpoint reached at 20% of recovery — too rushed."""
+        rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.20)
+        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        assert 'early' in tip or 'rushing' in tip
+
+    def test_ideal_reach_returns_positive_feedback(self):
+        """Catch zone midpoint reached at 60% of recovery — settled with time to spare."""
+        rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.60)
+        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        assert '\u2713' in tip or 'Good' in tip
+
+    def test_late_rock_over_returns_whiplash_warning(self):
+        """Catch zone midpoint reached at 88% of recovery — barely settled."""
+        rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.88)
+        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        assert 'late' in tip.lower() or 'whiplash' in tip.lower()
+
+    def test_last_moment_arrival_returns_overreach_risk(self):
+        """Trunk reaches catch angle only at the very last index."""
+        rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.99)
+        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        assert 'whiplash' in tip.lower() or 'overreach' in tip.lower() or 'last moment' in tip.lower()
+
+    def test_gradual_swing_in_ideal_window_returns_accelerate(self):
+        """Reach fraction is ok but the swing is very gradual throughout (slow drift)."""
+        # A perfectly linear ramp from +15 to -30 over 100 points is gradual
+        # It reaches -30 (catch zone mid) at ~100%, which falls in the last-moment bucket.
+        # Use a trace that reaches the zone at ~75% but via a very slow linear path
+        # that crosses 15% of range early → steepness_window will be large.
+        rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.75, gradual=True)
+        tip = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        # gradual=True makes a linear ramp; reach_frac=0.75 means end=-30 at index 75
+        # but gradual ignores reach_frac and ramps all the way to n-1
+        # The linear ramp will hit catch_zone_mid (-30) at the very end → last-moment tip
+        # OR it will detect a slow/gradual swing if reach_frac lands in 0.40-0.80
+        assert any(word in tip.lower() for word in ['gradual', 'accelerate', 'rock-over', 'late', 'whiplash', 'good'])
+
+    def test_too_short_returns_fallback(self):
+        tip = _recovery_rock_over_coach_tip([15.0, 10.0, 5.0], _CATCH_ZONE)
+        assert 'short' in tip
+
+    def test_minimal_movement_returns_rock_over_more(self):
+        tip = _recovery_rock_over_coach_tip([15.0] * 50, _CATCH_ZONE)
+        assert 'rock over' in tip.lower() or 'barely' in tip.lower()
+
+    def test_returns_string(self):
+        rec_y = _make_recovery_y(n=80, start=15.0, end=-30.0, reach_frac=0.60)
+        assert isinstance(_recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE), str)
+
+

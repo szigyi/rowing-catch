@@ -4,6 +4,15 @@ Transforms convert analysis results into plot-ready data structures.
 This layer ensures all rendering logic in plot/ can remain pure and testable.
 """
 
+from rowing_catch.plot_transformer.annotations import (
+    AnnotationDefinition,
+    AnnotationEntry,
+    BandAnnotation,
+    PhaseAnnotation,
+    PointAnnotation,
+    SegmentAnnotation,
+    assign_annotation_colors,
+)
 from rowing_catch.plot_transformer.avg_cycle_multi_axis_transformer import AvgCycleMultiAxisComponent
 from rowing_catch.plot_transformer.avg_cycle_trunk_angle_transformer import AvgCycleTrunkAngleComponent
 from rowing_catch.plot_transformer.base import PlotComponent
@@ -28,6 +37,15 @@ from rowing_catch.plot_transformer.velocity.velocity_profile_transformer import 
 
 __all__ = [
     'PlotComponent',
+    # Annotation system
+    'AnnotationDefinition',
+    'AnnotationEntry',
+    'BandAnnotation',
+    'PhaseAnnotation',
+    'PointAnnotation',
+    'SegmentAnnotation',
+    'assign_annotation_colors',
+    # Components
     'TrunkAngleComponent',
     'TrunkAngleSeparationComponent',
     'HandleSeatDistanceComponent',

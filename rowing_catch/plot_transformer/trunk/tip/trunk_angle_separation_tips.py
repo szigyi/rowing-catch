@@ -94,19 +94,13 @@ def recovery_separation_tip(
     """
     if reach_frac < ideal_low:
         pct = round(reach_frac * 100)
-        return (
-            f'Body rocks over immediately ({pct}% of seat travel done) — trunk rushes forward; check balance'
-        ), False
+        return (f'Body rocks over immediately ({pct}% of seat travel done) — trunk rushes forward; check balance'), False
     if reach_frac <= ideal_high:
         pct = round(reach_frac * 100)
-        return (
-            f'Good separation: body settled at {pct}% of seat travel — seat returns freely ✓'
-        ), True
+        return (f'Good separation: body settled at {pct}% of seat travel — seat returns freely ✓'), True
     if reach_frac <= very_late_threshold:
         pct = round(reach_frac * 100)
-        return (
-            f'Late rock-over: body still moving at {pct}% of seat travel — trunk arrives with the seat, not before it'
-        ), False
+        return (f'Late rock-over: body still moving at {pct}% of seat travel — trunk arrives with the seat, not before it'), False
     return ('Body reaches catch angle as seat arrives — no separation; whiplash/overreach risk'), False
 
 

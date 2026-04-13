@@ -124,6 +124,8 @@ def render_trunk_angle_separation(
     _zone_overrides = {
         '[P1]': COLOR_CATCH,
         '[P2]': COLOR_FINISH,
+        '[Z1]': COLOR_CATCH,
+        '[Z2]': COLOR_FINISH,
     }
     apply_annotations(
         ax,

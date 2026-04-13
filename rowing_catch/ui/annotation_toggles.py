@@ -92,7 +92,7 @@ def render_annotation_toggles(
 
         with col_cb:
             checked = st.checkbox(
-                '',
+                f'Toggle {ann.label}',
                 value=show_all,
                 key=f'{key_prefix}_{ann.label}',
                 disabled=not show_all,

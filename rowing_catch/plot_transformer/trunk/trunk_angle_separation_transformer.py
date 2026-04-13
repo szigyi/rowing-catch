@@ -9,6 +9,7 @@ import pandas as pd
 
 from rowing_catch.coaching.profile import CoachingProfile
 from rowing_catch.plot_transformer.annotations import (
+    BandAnnotation,
     PointAnnotation,
     SegmentAnnotation,
 )
@@ -264,7 +265,31 @@ def _compute_separation_annotations(
         coach_tip_is_ideal=_s2_ideal,
     )
 
-    return [p1, p2, s1, s2]
+    # [Z1] Ideal catch zone band — color supplied by renderer via color_overrides
+    z1 = BandAnnotation(
+        label='[Z1]',
+        description=f'Ideal Catch Zone: {catch_zone[0]}° to {catch_zone[1]}°',
+        y_low=catch_zone[0],
+        y_high=catch_zone[1],
+        display_name='Ideal Catch Range',
+        x_start=float(min(seat_values)),
+        x_end=float(max(seat_values)),
+        axis_id='main',
+    )
+
+    # [Z2] Ideal finish zone band — color supplied by renderer via color_overrides
+    z2 = BandAnnotation(
+        label='[Z2]',
+        description=f'Ideal Finish Zone: {finish_zone[0]}° to {finish_zone[1]}°',
+        y_low=finish_zone[0],
+        y_high=finish_zone[1],
+        display_name='Ideal Finish Range',
+        x_start=float(min(seat_values)),
+        x_end=float(max(seat_values)),
+        axis_id='main',
+    )
+
+    return [p1, p2, s1, s2, z1, z2]
 
 
 def _recovery_reach_fraction(

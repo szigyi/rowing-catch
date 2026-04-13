@@ -43,7 +43,7 @@ computed_sep = trunk_angle_sep_component.compute(
 )
 active_sep_annotations = render_annotation_toggles(
     annotations=computed_sep.get('annotations', []),
-    color_overrides={'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH},
+    color_overrides={'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH, '[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH},
     expander_label='Annotations — Trunk Angle Separation',
     key_prefix='ann_sep',
 )

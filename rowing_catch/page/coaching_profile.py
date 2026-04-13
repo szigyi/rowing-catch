@@ -60,8 +60,7 @@ with col_ctrl:
         max_value=65,
         value=int(current.trunk_opening_ideal_pct),
         step=1,
-        help='The ideal fraction of the drive phase before the trunk begins to swing. '
-             'Default: 33 % (legs-only first third).',
+        help='The ideal fraction of the drive phase before the trunk begins to swing. Default: 33 % (legs-only first third).',
     )
 
     with st.expander('Expert: tolerance (±%)'):
@@ -137,8 +136,7 @@ with col_ctrl2:
         max_value=-5,
         value=(int(current.catch_lean_low), int(current.catch_lean_high)),
         step=1,
-        help='Degrees from vertical (negative = forward lean). '
-             'Default range: −33° to −27°.',
+        help='Degrees from vertical (negative = forward lean). Default range: −33° to −27°.',
     )
     finish_low, finish_high = st.slider(
         'Ideal finish lean zone (°)',
@@ -146,8 +144,7 @@ with col_ctrl2:
         max_value=40,
         value=(int(current.finish_lean_low), int(current.finish_lean_high)),
         step=1,
-        help='Degrees from vertical (positive = backward lay-back). '
-             'Default range: 12° to 18°.',
+        help='Degrees from vertical (positive = backward lay-back). Default range: 12° to 18°.',
     )
     st.caption(
         f'Catch zone midpoint: **{(catch_low + catch_high) / 2:.1f}°**  |  '
@@ -183,7 +180,7 @@ with col_preview2:
         )
         active_sep_ann = render_annotation_toggles(
             annotations=computed_sep.get('annotations', []),
-            color_overrides={'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH},
+            color_overrides={'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH, '[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH},
             expander_label='Annotations — Separation (Angles Preview)',
             key_prefix='profile_angles_sep_ann',
         )
@@ -308,10 +305,7 @@ final_profile = CoachingProfile(
 with col_save:
     if st.button('Apply & Save to Session', type='primary', use_container_width=True):
         save_coaching_profile(final_profile)
-        st.success(
-            'Coaching profile saved for this session. '
-            'Navigate to Development or Report to see the updated diagrams.'
-        )
+        st.success('Coaching profile saved for this session. Navigate to Development or Report to see the updated diagrams.')
 
 with col_reset:
     if st.button('Reset to Defaults', use_container_width=True):

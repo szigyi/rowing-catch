@@ -74,9 +74,9 @@ class TestComputeSeparationAnnotations:
             profile=DEFAULT_COACHING_PROFILE,
         )
 
-    def test_returns_three_annotations(self):
+    def test_returns_six_annotations(self):
         result = self._run()
-        assert len(result) == 4
+        assert len(result) == 6
 
     def test_p1_is_point_annotation_at_catch(self):
         result = self._run()
@@ -206,12 +206,12 @@ class TestTrunkAngleSeparationComponentAnnotations:
         result = component.compute(df, catch_idx=20, finish_idx=50)
         assert 'annotations' in result
 
-    def test_annotations_is_list_of_three(self):
+    def test_annotations_is_list_of_six(self):
         df = _make_avg_cycle()
         component = TrunkAngleSeparationComponent(profile=DEFAULT_COACHING_PROFILE)
         result = component.compute(df, catch_idx=20, finish_idx=50)
         assert isinstance(result['annotations'], list)
-        assert len(result['annotations']) == 4
+        assert len(result['annotations']) == 6
 
     def test_annotations_backward_compatible_via_get(self):
         """Renderers use .get('annotations', []) — must be truthy."""

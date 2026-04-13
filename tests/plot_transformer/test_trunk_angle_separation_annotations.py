@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from rowing_catch.coaching.profile import DEFAULT_COACHING_PROFILE, CoachingProfile
 from rowing_catch.plot_transformer.annotations import (
     PointAnnotation,
     SegmentAnnotation,
@@ -14,12 +15,15 @@ from rowing_catch.plot_transformer.trunk.tip.trunk_angle_separation_tips import 
     recovery_separation_tip,
 )
 from rowing_catch.plot_transformer.trunk.trunk_angle_separation_transformer import (
-    IDEAL_CATCH_ZONE,
-    IDEAL_FINISH_ZONE,
     TrunkAngleSeparationComponent,
     _compute_separation_annotations,
     _recovery_reach_fraction,
 )
+
+# Shared zone constants from the default profile — used in assertions where we need the
+# actual numeric values  (replaces the old IDEAL_CATCH_ZONE / IDEAL_FINISH_ZONE module exports).
+IDEAL_CATCH_ZONE = DEFAULT_COACHING_PROFILE.catch_zone
+IDEAL_FINISH_ZONE = DEFAULT_COACHING_PROFILE.finish_zone
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -67,6 +71,7 @@ class TestComputeSeparationAnnotations:
             finish_angle=self.finish_angle,
             catch_zone=IDEAL_CATCH_ZONE,
             finish_zone=IDEAL_FINISH_ZONE,
+            profile=DEFAULT_COACHING_PROFILE,
         )
 
     def test_returns_three_annotations(self):
@@ -197,13 +202,13 @@ class TestComputeSeparationAnnotations:
 class TestTrunkAngleSeparationComponentAnnotations:
     def test_compute_includes_annotations_key(self):
         df = _make_avg_cycle()
-        component = TrunkAngleSeparationComponent()
+        component = TrunkAngleSeparationComponent(profile=DEFAULT_COACHING_PROFILE)
         result = component.compute(df, catch_idx=20, finish_idx=50)
         assert 'annotations' in result
 
     def test_annotations_is_list_of_three(self):
         df = _make_avg_cycle()
-        component = TrunkAngleSeparationComponent()
+        component = TrunkAngleSeparationComponent(profile=DEFAULT_COACHING_PROFILE)
         result = component.compute(df, catch_idx=20, finish_idx=50)
         assert isinstance(result['annotations'], list)
         assert len(result['annotations']) == 4
@@ -211,23 +216,31 @@ class TestTrunkAngleSeparationComponentAnnotations:
     def test_annotations_backward_compatible_via_get(self):
         """Renderers use .get('annotations', []) — must be truthy."""
         df = _make_avg_cycle()
-        component = TrunkAngleSeparationComponent()
+        component = TrunkAngleSeparationComponent(profile=DEFAULT_COACHING_PROFILE)
         result = component.compute(df, catch_idx=20, finish_idx=50)
         assert len(result.get('annotations', [])) > 0
 
     def test_coach_tip_is_non_empty_string(self):
         df = _make_avg_cycle()
-        component = TrunkAngleSeparationComponent()
+        component = TrunkAngleSeparationComponent(profile=DEFAULT_COACHING_PROFILE)
         result = component.compute(df, catch_idx=20, finish_idx=50)
         assert isinstance(result['coach_tip'], str)
         assert len(result['coach_tip']) > 0
 
     def test_data_keys_present(self):
         df = _make_avg_cycle()
-        component = TrunkAngleSeparationComponent()
+        component = TrunkAngleSeparationComponent(profile=DEFAULT_COACHING_PROFILE)
         result = component.compute(df, catch_idx=20, finish_idx=50)
         for key in ('seat_position', 'trunk_angle_plot', 'catch_seat', 'catch_angle', 'finish_seat', 'finish_angle'):
             assert key in result['data'], f'Missing data key: {key}'
+
+    def test_custom_profile_propagates(self):
+        """Custom profile separation thresholds should not raise errors."""
+        custom = CoachingProfile(separation_reach_ideal_low=5.0, separation_reach_ideal_high=40.0)
+        df = _make_avg_cycle()
+        component = TrunkAngleSeparationComponent(profile=custom)
+        result = component.compute(df, catch_idx=20, finish_idx=50)
+        assert 'annotations' in result
 
 
 # ---------------------------------------------------------------------------
@@ -379,50 +392,61 @@ class TestRecoveryReachFraction:
 # recovery_separation_tip — scenario coverage
 # ---------------------------------------------------------------------------
 
+# Thresholds derived from the default profile
+_SEP_LOW = DEFAULT_COACHING_PROFILE.separation_reach_ideal_low / 100.0
+_SEP_HIGH = DEFAULT_COACHING_PROFILE.separation_reach_ideal_high / 100.0
+_SEP_VERY_LATE = DEFAULT_COACHING_PROFILE.separation_very_late_threshold / 100.0
+
 
 class TestRecoverySeparationTip:
     def test_rushes_over_immediately_returns_warning(self):
-        tip, is_ideal = recovery_separation_tip(0.05)
+        tip, is_ideal = recovery_separation_tip(0.05, _SEP_LOW, _SEP_HIGH, _SEP_VERY_LATE)
         assert 'immediately' in tip or 'rushes' in tip or 'rush' in tip
         assert is_ideal is False
 
     def test_ideal_early_returns_positive(self):
-        tip, is_ideal = recovery_separation_tip(0.30)
-        assert 'Good' in tip or '\u2713' in tip
+        tip, is_ideal = recovery_separation_tip(0.30, _SEP_LOW, _SEP_HIGH, _SEP_VERY_LATE)
+        assert 'Good' in tip or '✓' in tip
         assert is_ideal is True
 
     def test_ideal_boundary_low_is_ok(self):
-        tip, is_ideal = recovery_separation_tip(0.10)
-        assert 'Good' in tip or '\u2713' in tip
+        tip, is_ideal = recovery_separation_tip(0.10, _SEP_LOW, _SEP_HIGH, _SEP_VERY_LATE)
+        assert 'Good' in tip or '✓' in tip
         assert is_ideal is True
 
     def test_ideal_boundary_high_is_ok(self):
-        tip, is_ideal = recovery_separation_tip(0.50)
-        assert 'Good' in tip or '\u2713' in tip
+        tip, is_ideal = recovery_separation_tip(0.50, _SEP_LOW, _SEP_HIGH, _SEP_VERY_LATE)
+        assert 'Good' in tip or '✓' in tip
         assert is_ideal is True
 
     def test_late_returns_warning(self):
-        tip, is_ideal = recovery_separation_tip(0.70)
+        tip, is_ideal = recovery_separation_tip(0.70, _SEP_LOW, _SEP_HIGH, _SEP_VERY_LATE)
         assert 'Late' in tip or 'late' in tip
         assert is_ideal is False
 
     def test_very_late_returns_no_separation_warning(self):
-        tip, is_ideal = recovery_separation_tip(0.95)
+        tip, is_ideal = recovery_separation_tip(0.95, _SEP_LOW, _SEP_HIGH, _SEP_VERY_LATE)
         assert 'last moment' in tip or 'no separation' in tip.lower() or 'arrives' in tip
         assert is_ideal is False
 
     def test_boundary_0_90_is_late(self):
-        tip, is_ideal = recovery_separation_tip(0.90)
+        tip, is_ideal = recovery_separation_tip(0.90, _SEP_LOW, _SEP_HIGH, _SEP_VERY_LATE)
         assert 'Late' in tip or 'late' in tip
         assert is_ideal is False
 
     def test_boundary_above_0_90_is_very_late(self):
-        tip, is_ideal = recovery_separation_tip(0.91)
+        tip, is_ideal = recovery_separation_tip(0.91, _SEP_LOW, _SEP_HIGH, _SEP_VERY_LATE)
         assert 'last moment' in tip or 'arrives' in tip or 'no separation' in tip.lower()
         assert is_ideal is False
 
     def test_returns_tuple(self):
-        result = recovery_separation_tip(0.50)
+        result = recovery_separation_tip(0.50, _SEP_LOW, _SEP_HIGH, _SEP_VERY_LATE)
         assert isinstance(result, tuple)
         assert isinstance(result[0], str)
         assert isinstance(result[1], bool)
+
+    def test_custom_thresholds_change_verdict(self):
+        """With tight window (0–20% ideal), reaching at 30% should be 'late'."""
+        tip, is_ideal = recovery_separation_tip(0.30, ideal_low=0.0, ideal_high=0.20, very_late_threshold=0.90)
+        assert 'Late' in tip or 'late' in tip
+        assert is_ideal is False

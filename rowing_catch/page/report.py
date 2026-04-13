@@ -9,6 +9,7 @@ from rowing_catch.algo.analysis import process_rowing_data
 from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.utils import get_traffic_light
 from rowing_catch.plot_transformer.trunk.trunk_angle_transformer import TrunkAngleComponent
+from rowing_catch.ui.coaching_session import get_coaching_profile
 
 st.title('The Rowing Catch — Rowing Analysis Report')
 st.markdown(
@@ -80,7 +81,7 @@ if df is not None:
         with col1:
             st.subheader('1. Biomechanical & Technical Efficiency')
             st.write('#### Trunk Angle & Range Analysis')
-            component = TrunkAngleComponent()
+            component = TrunkAngleComponent(profile=get_coaching_profile())
             computed = component.compute(
                 avg_cycle=results['avg_cycle'],
                 catch_idx=results['catch_idx'],

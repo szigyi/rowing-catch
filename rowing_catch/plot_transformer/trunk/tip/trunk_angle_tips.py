@@ -5,6 +5,10 @@ Each function is a pure function: takes floats/lists and returns a
 within the ideal range; ``is_ideal=False`` means an improvement is needed.
 The boolean drives the background colour of the coach-tip cell in the
 Streamlit toggle widget (green = ideal, red = needs improvement).
+
+All threshold parameters are **mandatory** — they must be derived from a
+``CoachingProfile`` instance by the caller (Layer 2 transformer).  This
+keeps the functions pure and fully testable without session state.
 """
 
 
@@ -66,30 +70,40 @@ def finish_lean_coach_tip(
 
 def drive_trunk_opening_coach_tip(
     drive_y: list[float],
+    open_low: float,
+    open_high: float,
+    steepness_threshold: float,
 ) -> tuple[str, bool]:
     """Return a coaching cue and ideal-flag for trunk opening timing during the drive.
 
-    Ideal pattern: trunk stays near catch angle for ~25–40% of the drive
-    (legs driving, trunk held), then rotates quickly in the final 60–75%.
+    Ideal pattern: trunk stays near catch angle for ``open_low``–``open_high``
+    of the drive (legs driving, trunk held), then rotates quickly in the
+    remaining portion.
 
     Algorithm:
         1. Total range = drive_y[-1] - drive_y[0]  (signed)
         2. 15% threshold crossing: first index where the trunk has moved
            ≥ 15% of total range. This marks "opening starts".
         3. Opening start fraction = that index / total drive length
-           - < 0.20  → trunk opens too early (legs not yet loaded)
-           - 0.20–0.45 → ideal hold window
-           - > 0.45  → trunk holds too long (opening too late / too slow)
+           - < open_low  → trunk opens too early (legs not yet loaded)
+           - open_low–open_high → ideal hold window
+           - > open_high → trunk holds too long (opening too late / too slow)
         4. Steepness (80% crossing): first index where ≥ 80% of range moved,
            expressed as a fraction of drive length.
            steepness_window = 80pct_fraction - 15pct_fraction
            - < 0.20  → very rapid swing (powerful, ideal)
-           - 0.20–0.40 → acceptable
-           - > 0.40  → slow/gradual opening throughout (no acceleration burst)
+           - 0.20–steepness_threshold → acceptable
+           - > steepness_threshold → slow/gradual opening throughout
 
     Args:
         drive_y: Trunk angle values over the drive phase (catch to finish).
                  drive_y[0] = angle at catch, drive_y[-1] = angle at finish.
+        open_low: Lower bound (0–1) of the ideal trunk-opening window.
+                  Derived from ``CoachingProfile.drive_open_low``.
+        open_high: Upper bound (0–1) of the ideal trunk-opening window.
+                   Derived from ``CoachingProfile.drive_open_high``.
+        steepness_threshold: Maximum acceptable steepness window (0–1).
+                             Derived from ``CoachingProfile.steepness_threshold``.
 
     Returns:
         Tuple of (coaching cue string, is_ideal bool)
@@ -112,45 +126,51 @@ def drive_trunk_opening_coach_tip(
 
     steepness_window = open_80_frac - open_start_frac
 
-    if open_start_frac < 0.20:
+    if open_start_frac < open_low:
         pct = round(open_start_frac * 100)
         return f'Trunk opens too early ({pct}% into drive) — sequence legs first', False
 
-    if open_start_frac > 0.45:
+    if open_start_frac > open_high:
         pct = round(open_start_frac * 100)
         return f'Trunk opens too late ({pct}% into drive) — begin swing earlier', False
 
-    if steepness_window > 0.45:
+    if steepness_window > steepness_threshold:
         return 'Trunk swings slowly — accelerate the opening burst', False
 
     hold_pct = round(open_start_frac * 100)
-    return f'Good trunk sequencing: held for {hold_pct}% then quick swing \u2713', True
+    return f'Good trunk sequencing: held for {hold_pct}% then quick swing ✓', True
 
 
 def recovery_rock_over_coach_tip(
     recovery_y: list[float],
     catch_zone: tuple[float, float],
+    reach_ideal_low: float,
+    reach_ideal_high: float,
 ) -> tuple[str, bool]:
     """Return a coaching cue and ideal-flag for trunk rock-over timing during recovery.
 
     Ideal pattern: after the finish the trunk swings forward promptly and
-    reaches the catch angle well before the next catch (~70–85% of recovery).
+    reaches the catch angle well before the next catch.
 
     Algorithm:
         1. total_range = recovery_y[-1] - recovery_y[0]  (signed, always negative)
         2. reach_frac = first index where trunk ≤ catch_zone_mid / total points
-           - reach_frac < 0.40  → rocks over very early (rushed, may lose balance)
-           - 0.40–0.80 → ideal: settled at catch position with time to spare
-           - 0.80–0.95 → late: barely reaches catch angle before the next catch
-           - > 0.95 or never reached → arrives at catch still upright (whiplash risk)
-        3. Steepness: how gradual the forward swing is.
+           - reach_frac < reach_ideal_low/100  → rocks over very early (rushed)
+           - reach_ideal_low/100 – reach_ideal_high/100 → ideal window
+           - reach_ideal_high/100–0.95 → late: barely reaches angle in time
+           - > 0.95 or never reached → arrives last moment (whiplash risk)
+        3. Steepness: how gradual the forward swing is
            steepness_window = 80pct_frac - 15pct_frac
-           - > 0.60  → very slow rock-over; rower drifts forward rather than swings
+           - > 0.60 → very slow rock-over; rower drifts rather than swings
 
     Args:
         recovery_y: Trunk angle values from finish to next catch.
-                    recovery_y[0] = angle at finish, recovery_y[-1] = angle at next catch.
+                    recovery_y[0] = angle at finish, recovery_y[-1] = next catch.
         catch_zone: (low, high) ideal catch angle range, both negative values.
+        reach_ideal_low: Lower bound (%) of the ideal rock-over window.
+                         Derived from ``CoachingProfile.recovery_reach_ideal_low``.
+        reach_ideal_high: Upper bound (%) of the ideal rock-over window.
+                          Derived from ``CoachingProfile.recovery_reach_ideal_high``.
 
     Returns:
         Tuple of (coaching cue string ≤ 14 words, is_ideal bool)
@@ -164,6 +184,8 @@ def recovery_rock_over_coach_tip(
         return 'Trunk barely moves in recovery — rock over more', False
 
     catch_zone_mid = (catch_zone[0] + catch_zone[1]) / 2
+    reach_low_frac = reach_ideal_low / 100.0
+    reach_high_frac = reach_ideal_high / 100.0
 
     fractions = [(v - recovery_y[0]) / total for v in recovery_y]
 
@@ -177,15 +199,15 @@ def recovery_rock_over_coach_tip(
     start_80_idx = next((i for i, f in enumerate(fractions) if f >= 0.80), n - 1)
     steepness_window = (start_80_idx - start_15_idx) / (n - 1)
 
-    if reach_frac < 0.35:
+    if reach_frac < reach_low_frac:
         pct = round(reach_frac * 100)
         return f'Rocks over very early ({pct}% into recovery) — risk of rushing', False
 
-    if reach_frac <= 0.80:
+    if reach_frac <= reach_high_frac:
         if steepness_window > 0.60:
             return 'Forward swing is gradual — accelerate the rock-over', False
         pct = round(reach_frac * 100)
-        return f'Good rock-over: catch angle reached at {pct}% of recovery \u2713', True
+        return f'Good rock-over: catch angle reached at {pct}% of recovery ✓', True
 
     if reach_frac <= 0.95:
         pct = round(reach_frac * 100)

@@ -14,12 +14,14 @@ from rowing_catch.plot_transformer.recovery_slide_control_transformer import Rec
 from rowing_catch.plot_transformer.rhythm.rhythm_consistency_transformer import RhythmConsistencyComponent
 from rowing_catch.plot_transformer.trunk.trunk_angle_separation_transformer import TrunkAngleSeparationComponent
 from rowing_catch.ui.annotation_toggles import render_annotation_toggles
+from rowing_catch.ui.coaching_session import get_coaching_profile
 from rowing_catch.ui.pre_process import render_sidebar_and_process
 
 st.title('Development Analysis')
 
 # Render shared sidebar and process data
 results, scenario_avg, selected_scenario, data_label = render_sidebar_and_process()
+profile = get_coaching_profile()
 
 avg_cycle = results['avg_cycle']
 catch_idx = results['catch_idx']
@@ -31,7 +33,7 @@ st.markdown(
     'Shows how the body rocks over relative to seat position. '
     "Ideal technique requires the body to be 'set' before the knees rise."
 )
-trunk_angle_sep_component = TrunkAngleSeparationComponent()
+trunk_angle_sep_component = TrunkAngleSeparationComponent(profile=profile)
 computed_sep = trunk_angle_sep_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
@@ -48,7 +50,7 @@ active_sep_annotations = render_annotation_toggles(
 render_trunk_angle_separation(computed_sep, active_annotations=active_sep_annotations)
 
 # --- 1b. Trunk Angle & Range ---
-trunk_component = TrunkAngleComponent()
+trunk_component = TrunkAngleComponent(profile=profile)
 trunk_computed = trunk_component.compute(
     avg_cycle=results['avg_cycle'],
     catch_idx=results['catch_idx'],

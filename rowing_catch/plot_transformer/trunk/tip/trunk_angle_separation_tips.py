@@ -16,6 +16,9 @@ X-axis = seat position (mm).  During the **drive** the seat travels forward
 (X increases: catch-seat → finish-seat).  During **recovery** the seat travels
 backward (X decreases: finish-seat → catch-seat).  Y-axis = trunk angle (°
 from vertical, negative = forward lean, positive = backward lay-back).
+
+All threshold parameters are **mandatory** — they must be derived from a
+``CoachingProfile`` instance by the caller (Layer 2 transformer).
 """
 
 
@@ -25,17 +28,21 @@ def catch_separation_tip(
 ) -> tuple[str, bool]:
     """Return a coaching cue and ideal-flag for the trunk angle at the catch.
 
+    Args:
+        catch_angle: Measured trunk angle at catch (degrees).
+        catch_zone: (low, high) ideal catch lean range (both negative values).
+
     Returns:
         Tuple of (coaching cue string ≤ 12 words, is_ideal bool)
     """
     z_low, z_high = catch_zone
     if catch_angle > z_high:
         deficit = abs(catch_angle - z_high)
-        return f'Rock over more \u2014 {deficit:.1f}\u00b0 short of ideal lean', False
+        return f'Rock over more — {deficit:.1f}° short of ideal lean', False
     if catch_angle < z_low:
         excess = abs(catch_angle - z_low)
-        return f'Reduce lean \u2014 {excess:.1f}\u00b0 past ideal; hips may lag', False
-    return 'Catch lean is within ideal range \u2713', True
+        return f'Reduce lean — {excess:.1f}° past ideal; hips may lag', False
+    return 'Catch lean is within ideal range ✓', True
 
 
 def finish_separation_tip(
@@ -44,45 +51,63 @@ def finish_separation_tip(
 ) -> tuple[str, bool]:
     """Return a coaching cue and ideal-flag for the trunk angle at the finish.
 
+    Args:
+        finish_angle: Measured trunk angle at finish (degrees).
+        finish_zone: (low, high) ideal finish lean range (both positive values).
+
     Returns:
         Tuple of (coaching cue string ≤ 12 words, is_ideal bool)
     """
     z_low, z_high = finish_zone
     if finish_angle < z_low:
         deficit = abs(finish_angle - z_low)
-        return f'Lay back more \u2014 {deficit:.1f}\u00b0 short of ideal finish lean', False
+        return f'Lay back more — {deficit:.1f}° short of ideal finish lean', False
     if finish_angle > z_high:
         excess = abs(finish_angle - z_high)
-        return f'Reduce lay-back \u2014 {excess:.1f}\u00b0 past ideal; back risk', False
-    return 'Finish lean is within ideal range \u2713', True
+        return f'Reduce lay-back — {excess:.1f}° past ideal; back risk', False
+    return 'Finish lean is within ideal range ✓', True
 
 
 def recovery_separation_tip(
     reach_frac: float,
+    ideal_low: float,
+    ideal_high: float,
+    very_late_threshold: float,
 ) -> tuple[str, bool]:
     """Return a coaching cue and ideal-flag for recovery separation.
 
-    Thresholds (agreed with developer):
-        reach_frac < 0.10  → rushes over; trunk rushing forward, check balance
-        0.10–0.50          → ideal: body settled early, seat travels the rest alone
-        0.50–0.90          → late: body still rocking as seat approaches catch
-        > 0.90 or never    → very late: no separation, high injury risk
+    The *reach_frac* is the fraction of recovery seat travel at which the trunk
+    first enters the catch zone midpoint.  Ideal: body settles into the catch
+    position well before the seat completes its return journey.
+
+    Args:
+        reach_frac: Fraction of seat travel (0–1) when trunk reaches catch zone.
+        ideal_low: Lower bound (0–1) — below this the trunk rushes forward.
+                   Derived from ``CoachingProfile.separation_reach_ideal_low / 100``.
+        ideal_high: Upper bound (0–1) — above this the rock-over is late.
+                    Derived from ``CoachingProfile.separation_reach_ideal_high / 100``.
+        very_late_threshold: Above this fraction the situation is very late / no separation.
+                             Derived from ``CoachingProfile.separation_very_late_threshold / 100``.
 
     Returns:
         Tuple of (coaching cue string ≤ 14 words, is_ideal bool)
     """
-    if reach_frac < 0.10:
-        pct = round(reach_frac * 100)
-        return (f'Body rocks over immediately ({pct}% of seat travel done) \u2014 trunk rushes forward; check balance'), False
-    if reach_frac <= 0.50:
-        pct = round(reach_frac * 100)
-        return (f'Good separation: body settled at {pct}% of seat travel \u2014 seat returns freely \u2713'), True
-    if reach_frac <= 0.90:
+    if reach_frac < ideal_low:
         pct = round(reach_frac * 100)
         return (
-            f'Late rock-over: body still moving at {pct}% of seat travel \u2014 trunk arrives with the seat, not before it'
+            f'Body rocks over immediately ({pct}% of seat travel done) — trunk rushes forward; check balance'
         ), False
-    return ('Body reaches catch angle as seat arrives \u2014 no separation; whiplash/overreach risk'), False
+    if reach_frac <= ideal_high:
+        pct = round(reach_frac * 100)
+        return (
+            f'Good separation: body settled at {pct}% of seat travel — seat returns freely ✓'
+        ), True
+    if reach_frac <= very_late_threshold:
+        pct = round(reach_frac * 100)
+        return (
+            f'Late rock-over: body still moving at {pct}% of seat travel — trunk arrives with the seat, not before it'
+        ), False
+    return ('Body reaches catch angle as seat arrives — no separation; whiplash/overreach risk'), False
 
 
 __all__ = [

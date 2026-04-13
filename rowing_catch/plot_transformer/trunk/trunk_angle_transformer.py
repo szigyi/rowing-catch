@@ -9,6 +9,7 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 
+from rowing_catch.coaching.profile import CoachingProfile
 from rowing_catch.plot_transformer.annotations import (
     BandAnnotation,
     PointAnnotation,
@@ -32,9 +33,16 @@ _recovery_rock_over_coach_tip = recovery_rock_over_coach_tip
 class TrunkAngleComponent(PlotComponent):
     """Trunk angle with anatomical stick figures at stroke stages."""
 
-    # Ideal target zones (degrees from vertical)
-    IDEAL_CATCH_ZONE: tuple[float, float] = (-33.0, -27.0)
-    IDEAL_FINISH_ZONE: tuple[float, float] = (12.0, 18.0)
+    def __init__(self, profile: CoachingProfile) -> None:
+        """Initialise the component with a coaching profile.
+
+        Args:
+            profile: The active ``CoachingProfile`` that provides all
+                     thresholds for this component.  Use
+                     ``rowing_catch.coaching.profile.DEFAULT_COACHING_PROFILE``
+                     as the default in tests and page code.
+        """
+        self._profile = profile
 
     @property
     def name(self) -> str:
@@ -88,9 +96,8 @@ class TrunkAngleComponent(PlotComponent):
         x_max = int(x.max())
         stage_points = [(label, int(np.clip(ix, x_min, x_max))) for label, ix in stage_points]
 
-        # Ideal zones
-        catch_zone = self.IDEAL_CATCH_ZONE
-        finish_zone = self.IDEAL_FINISH_ZONE
+        catch_zone = self._profile.catch_zone
+        finish_zone = self._profile.finish_zone
 
         # Extract angles at stage points for stick figures
         stage_angles = []
@@ -127,6 +134,7 @@ class TrunkAngleComponent(PlotComponent):
             finish_zone=finish_zone,
             x_min=float(x_min),
             x_max=float(x_max),
+            profile=self._profile,
         )
 
         return {
@@ -173,6 +181,7 @@ def _compute_trunk_annotations(
     finish_lean: float,
     catch_zone: tuple[float, float],
     finish_zone: tuple[float, float],
+    profile: CoachingProfile,
     x_min: float = 0.0,
     x_max: float | None = None,
     x_max_idx: int | None = None,
@@ -188,6 +197,20 @@ def _compute_trunk_annotations(
         [S2] Recovery segment — finish to next catch (backdrop + rock-over timing tip)
         [Z1] Ideal Catch Zone band
         [Z2] Ideal Finish Zone band
+
+    Args:
+        x: Array of x-axis values (stroke timeline indices).
+        trunk_angle: Array of trunk angle values.
+        catch_idx: Index of catch in the arrays.
+        finish_idx: Index of finish in the arrays.
+        catch_lean: Trunk angle at catch (degrees).
+        finish_lean: Trunk angle at finish (degrees).
+        catch_zone: (low, high) ideal catch angle range.
+        finish_zone: (low, high) ideal finish angle range.
+        profile: The active ``CoachingProfile`` for threshold derivation.
+        x_min: Minimum x value (for band annotation extent).
+        x_max: Maximum x value (for band annotation extent).
+        x_max_idx: Index of the x_max position in the arrays.
 
     Returns:
         List of AnnotationEntry objects describing key features of the trunk angle trace.
@@ -236,7 +259,12 @@ def _compute_trunk_annotations(
     # [S1] Drive segment (backdrop)
     drive_x = [float(v) for v in x[catch_idx : finish_idx + 1]]
     drive_y = [float(v) for v in trunk_angle[catch_idx : finish_idx + 1]]
-    _s1_tip, _s1_ideal = _drive_trunk_opening_coach_tip(drive_y)
+    _s1_tip, _s1_ideal = _drive_trunk_opening_coach_tip(
+        drive_y,
+        open_low=profile.drive_open_low,
+        open_high=profile.drive_open_high,
+        steepness_threshold=profile.steepness_threshold,
+    )
     s1 = SegmentAnnotation(
         label='[S1]',
         description=f'Drive phase: {catch_lean:.1f}° → {finish_lean:.1f}° ({abs(finish_lean - catch_lean):.1f}° range)',
@@ -256,7 +284,12 @@ def _compute_trunk_annotations(
     next_catch_lean = float(trunk_angle[rec_end_idx])
     rec_x = [float(v) for v in x[finish_idx : rec_end_idx + 1]]
     rec_y = [float(v) for v in trunk_angle[finish_idx : rec_end_idx + 1]]
-    _s2_tip, _s2_ideal = _recovery_rock_over_coach_tip(rec_y, catch_zone)
+    _s2_tip, _s2_ideal = _recovery_rock_over_coach_tip(
+        rec_y,
+        catch_zone,
+        reach_ideal_low=profile.recovery_reach_ideal_low,
+        reach_ideal_high=profile.recovery_reach_ideal_high,
+    )
     s2 = SegmentAnnotation(
         label='[S2]',
         description=(

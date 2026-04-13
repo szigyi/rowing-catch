@@ -15,6 +15,9 @@ pg = st.navigation(
             st.Page('rowing_catch/page/development.py', title='Development', icon='🏋️'),
             st.Page('rowing_catch/page/performance.py', title='Performance', icon='⚡'),
         ],
+        'Coach': [
+            st.Page('rowing_catch/page/coaching_profile.py', title='Coaching Profile', icon='🎯'),
+        ],
         'Debug': [
             st.Page('rowing_catch/page/debug_pipeline.py', title='Debug Pipeline', icon='🔬'),
             st.Page('rowing_catch/page/debug_trace.py', title='Debug Trace', icon='🔍'),

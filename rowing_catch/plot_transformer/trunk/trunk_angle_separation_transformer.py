@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pandas as pd
 
+from rowing_catch.coaching.profile import CoachingProfile
 from rowing_catch.plot_transformer.annotations import (
     PointAnnotation,
     SegmentAnnotation,
@@ -18,13 +19,20 @@ from rowing_catch.plot_transformer.trunk.tip.trunk_angle_separation_tips import 
     recovery_separation_tip,
 )
 
-# Ideal target zones (degrees from vertical) — consistent with TrunkAngleComponent
-IDEAL_CATCH_ZONE: tuple[float, float] = (-33.0, -27.0)
-IDEAL_FINISH_ZONE: tuple[float, float] = (12.0, 18.0)
-
 
 class TrunkAngleSeparationComponent(PlotComponent):
     """Trunk angle vs seat position component."""
+
+    def __init__(self, profile: CoachingProfile) -> None:
+        """Initialise the component with a coaching profile.
+
+        Args:
+            profile: The active ``CoachingProfile`` that provides all
+                     thresholds for this component.  Use
+                     ``rowing_catch.coaching.profile.DEFAULT_COACHING_PROFILE``
+                     as the default in tests and page code.
+        """
+        self._profile = profile
 
     @property
     def name(self) -> str:
@@ -81,8 +89,9 @@ class TrunkAngleSeparationComponent(PlotComponent):
             catch_angle=catch_angle,
             finish_seat=finish_seat,
             finish_angle=finish_angle,
-            catch_zone=IDEAL_CATCH_ZONE,
-            finish_zone=IDEAL_FINISH_ZONE,
+            catch_zone=self._profile.catch_zone,
+            finish_zone=self._profile.finish_zone,
+            profile=self._profile,
         )
 
         return {
@@ -127,9 +136,10 @@ def _compute_separation_annotations(
     catch_angle: float,
     finish_seat: float,
     finish_angle: float,
+    catch_zone: tuple[float, float],
+    finish_zone: tuple[float, float],
+    profile: CoachingProfile,
     n: int | None = None,
-    catch_zone: tuple[float, float] = IDEAL_CATCH_ZONE,
-    finish_zone: tuple[float, float] = IDEAL_FINISH_ZONE,
 ) -> list:
     """Compute annotation entries for the Trunk Angle Separation plot.
 
@@ -154,9 +164,10 @@ def _compute_separation_annotations(
         catch_angle: Trunk angle at catch (degrees)
         finish_seat: Seat position at finish (mm)
         finish_angle: Trunk angle at finish (degrees)
-        n: Total length of the arrays. Defaults to len(seat_values).
         catch_zone: (low, high) ideal catch angle range
         finish_zone: (low, high) ideal finish angle range
+        profile: The active ``CoachingProfile`` for threshold derivation.
+        n: Total length of the arrays. Defaults to len(seat_values).
 
     Returns:
         List of AnnotationEntry objects.
@@ -231,7 +242,12 @@ def _compute_separation_annotations(
     total_seat_travel = abs(float(seat_values[finish_idx]) - float(seat_values[rec_end_idx]))
     reach_frac = _recovery_reach_fraction(rec_y, catch_zone, rec_x, total_seat_travel)
 
-    _s2_tip, _s2_ideal = recovery_separation_tip(reach_frac)
+    _s2_tip, _s2_ideal = recovery_separation_tip(
+        reach_frac,
+        ideal_low=profile.separation_reach_ideal_low / 100.0,
+        ideal_high=profile.separation_reach_ideal_high / 100.0,
+        very_late_threshold=profile.separation_very_late_threshold / 100.0,
+    )
     s2 = SegmentAnnotation(
         label='[S2]',
         description=(
@@ -283,8 +299,6 @@ def _recovery_reach_fraction(
 
 
 __all__ = [
-    'IDEAL_CATCH_ZONE',
-    'IDEAL_FINISH_ZONE',
     'TrunkAngleSeparationComponent',
     '_compute_separation_annotations',
     '_recovery_reach_fraction',

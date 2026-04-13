@@ -4,19 +4,28 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from rowing_catch.coaching.profile import DEFAULT_COACHING_PROFILE, CoachingProfile
 from rowing_catch.plot_transformer.annotations import (
     BandAnnotation,
     PointAnnotation,
     SegmentAnnotation,
 )
+from rowing_catch.plot_transformer.trunk.tip.trunk_angle_tips import (
+    catch_lean_coach_tip,
+    drive_trunk_opening_coach_tip,
+    finish_lean_coach_tip,
+    recovery_rock_over_coach_tip,
+)
 from rowing_catch.plot_transformer.trunk.trunk_angle_transformer import (
     TrunkAngleComponent,
-    _catch_lean_coach_tip,
     _compute_trunk_annotations,
-    _drive_trunk_opening_coach_tip,
-    _finish_lean_coach_tip,
-    _recovery_rock_over_coach_tip,
 )
+
+# Backward-compatible aliases used in assertions below
+_catch_lean_coach_tip = catch_lean_coach_tip
+_finish_lean_coach_tip = finish_lean_coach_tip
+_drive_trunk_opening_coach_tip = drive_trunk_opening_coach_tip
+_recovery_rock_over_coach_tip = recovery_rock_over_coach_tip
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -46,8 +55,8 @@ class TestComputeTrunkAnnotations:
         self.trunk = self.df['Trunk_Angle'].values
         self.catch_lean = float(self.trunk[self.catch_idx])
         self.finish_lean = float(self.trunk[self.finish_idx])
-        self.catch_zone = (-33.0, -27.0)
-        self.finish_zone = (12.0, 18.0)
+        self.catch_zone = DEFAULT_COACHING_PROFILE.catch_zone
+        self.finish_zone = DEFAULT_COACHING_PROFILE.finish_zone
 
     def _run(self):
         return _compute_trunk_annotations(
@@ -59,6 +68,7 @@ class TestComputeTrunkAnnotations:
             finish_lean=self.finish_lean,
             catch_zone=self.catch_zone,
             finish_zone=self.finish_zone,
+            profile=DEFAULT_COACHING_PROFILE,
         )
 
     def test_returns_five_annotations(self):
@@ -175,6 +185,29 @@ class TestComputeTrunkAnnotations:
         expected_y = [float(v) for v in self.trunk[self.catch_idx : self.finish_idx + 1]]
         assert s1.y == pytest.approx(expected_y, abs=1e-6)
 
+    def test_custom_profile_changes_zones(self):
+        """A custom profile with different zones should produce different band annotations."""
+        custom_profile = CoachingProfile(
+            catch_lean_low=-40.0,
+            catch_lean_high=-30.0,
+            finish_lean_low=10.0,
+            finish_lean_high=20.0,
+        )
+        result = _compute_trunk_annotations(
+            x=self.x,
+            trunk_angle=self.trunk,
+            catch_idx=self.catch_idx,
+            finish_idx=self.finish_idx,
+            catch_lean=self.catch_lean,
+            finish_lean=self.finish_lean,
+            catch_zone=custom_profile.catch_zone,
+            finish_zone=custom_profile.finish_zone,
+            profile=custom_profile,
+        )
+        z1 = result[4]
+        assert z1.y_low == -40.0
+        assert z1.y_high == -30.0
+
 
 # ---------------------------------------------------------------------------
 # TrunkAngleComponent.compute() integration
@@ -184,13 +217,13 @@ class TestComputeTrunkAnnotations:
 class TestTrunkAngleComponentAnnotations:
     def test_compute_includes_annotations_key(self):
         df = _make_avg_cycle()
-        component = TrunkAngleComponent()
+        component = TrunkAngleComponent(profile=DEFAULT_COACHING_PROFILE)
         result = component.compute(df, catch_idx=20, finish_idx=50)
         assert 'annotations' in result
 
     def test_annotations_is_list_of_five(self):
         df = _make_avg_cycle()
-        component = TrunkAngleComponent()
+        component = TrunkAngleComponent(profile=DEFAULT_COACHING_PROFILE)
         result = component.compute(df, catch_idx=20, finish_idx=50)
         assert isinstance(result['annotations'], list)
         assert len(result['annotations']) == 6
@@ -198,7 +231,7 @@ class TestTrunkAngleComponentAnnotations:
     def test_no_annotations_key_still_backward_compatible(self):
         """Renderers must use .get('annotations', []) — verify it returns the list."""
         df = _make_avg_cycle()
-        component = TrunkAngleComponent()
+        component = TrunkAngleComponent(profile=DEFAULT_COACHING_PROFILE)
         result = component.compute(df, catch_idx=20, finish_idx=50)
         # Renderers call .get('annotations', []) — this must be truthy (non-empty)
         annotations = result.get('annotations', [])
@@ -206,14 +239,22 @@ class TestTrunkAngleComponentAnnotations:
 
     def test_coach_tip_is_string(self):
         df = _make_avg_cycle()
-        component = TrunkAngleComponent()
+        component = TrunkAngleComponent(profile=DEFAULT_COACHING_PROFILE)
         result = component.compute(df, catch_idx=20, finish_idx=50)
         assert isinstance(result['coach_tip'], str)
         assert len(result['coach_tip']) > 0
 
+    def test_custom_profile_propagates_to_zones(self):
+        """Custom profile catch zone must appear in the returned data dict."""
+        custom_profile = CoachingProfile(catch_lean_low=-38.0, catch_lean_high=-25.0)
+        df = _make_avg_cycle()
+        component = TrunkAngleComponent(profile=custom_profile)
+        result = component.compute(df, catch_idx=20, finish_idx=50)
+        assert result['data']['catch_zone'] == (-38.0, -25.0)
+
 
 # ---------------------------------------------------------------------------
-# _catch_lean_coach_tip — scenario coverage
+# catch_lean_coach_tip — scenario coverage
 # ---------------------------------------------------------------------------
 
 
@@ -257,7 +298,7 @@ class TestCatchLeanCoachTip:
 
 
 # ---------------------------------------------------------------------------
-# _finish_lean_coach_tip — scenario coverage
+# finish_lean_coach_tip — scenario coverage
 # ---------------------------------------------------------------------------
 
 
@@ -301,7 +342,7 @@ class TestFinishLeanCoachTip:
 
 
 # ---------------------------------------------------------------------------
-# _drive_trunk_opening_coach_tip — scenario coverage
+# drive_trunk_opening_coach_tip — scenario coverage
 # ---------------------------------------------------------------------------
 
 
@@ -332,17 +373,23 @@ def _make_drive_y(n: int, open_start_frac: float, steepness_window: float) -> li
     return y
 
 
+# Shared thresholds derived from the default profile
+_OPEN_LOW = DEFAULT_COACHING_PROFILE.drive_open_low
+_OPEN_HIGH = DEFAULT_COACHING_PROFILE.drive_open_high
+_STEEPNESS = DEFAULT_COACHING_PROFILE.steepness_threshold
+
+
 class TestDriveTrunkOpeningCoachTip:
     def test_opens_too_early_returns_sequence_legs_first(self):
         drive_y = _make_drive_y(n=100, open_start_frac=0.10, steepness_window=0.30)
-        tip, is_ideal = _drive_trunk_opening_coach_tip(drive_y)
+        tip, is_ideal = _drive_trunk_opening_coach_tip(drive_y, _OPEN_LOW, _OPEN_HIGH, _STEEPNESS)
         assert 'too early' in tip
         assert 'legs first' in tip
         assert is_ideal is False
 
     def test_opens_too_late_returns_begin_swing_earlier(self):
         drive_y = _make_drive_y(n=100, open_start_frac=0.60, steepness_window=0.30)
-        tip, is_ideal = _drive_trunk_opening_coach_tip(drive_y)
+        tip, is_ideal = _drive_trunk_opening_coach_tip(drive_y, _OPEN_LOW, _OPEN_HIGH, _STEEPNESS)
         assert 'too late' in tip
         assert 'earlier' in tip
         assert is_ideal is False
@@ -350,40 +397,49 @@ class TestDriveTrunkOpeningCoachTip:
     def test_opens_slowly_returns_accelerate_burst(self):
         start, end = -30.0, 15.0
         y = [-30.0] * 25 + [start + (end - start) * (i / 74) for i in range(75)]
-        tip, is_ideal = _drive_trunk_opening_coach_tip(y)
+        tip, is_ideal = _drive_trunk_opening_coach_tip(y, _OPEN_LOW, _OPEN_HIGH, _STEEPNESS)
         assert 'slowly' in tip or 'accelerate' in tip
         assert is_ideal is False
 
     def test_ideal_pattern_returns_positive_feedback(self):
         drive_y = _make_drive_y(n=100, open_start_frac=0.30, steepness_window=0.25)
-        tip, is_ideal = _drive_trunk_opening_coach_tip(drive_y)
-        assert 'sequencing' in tip or '\u2713' in tip
+        tip, is_ideal = _drive_trunk_opening_coach_tip(drive_y, _OPEN_LOW, _OPEN_HIGH, _STEEPNESS)
+        assert 'sequencing' in tip or '✓' in tip
         assert is_ideal is True
 
     def test_too_short_returns_fallback(self):
-        tip, is_ideal = _drive_trunk_opening_coach_tip([0.0, 1.0, 2.0])
+        tip, is_ideal = _drive_trunk_opening_coach_tip([0.0, 1.0, 2.0], _OPEN_LOW, _OPEN_HIGH, _STEEPNESS)
         assert 'short' in tip
         assert is_ideal is False
 
     def test_minimal_rotation_returns_fallback(self):
-        tip, is_ideal = _drive_trunk_opening_coach_tip([10.0] * 50)
+        tip, is_ideal = _drive_trunk_opening_coach_tip([10.0] * 50, _OPEN_LOW, _OPEN_HIGH, _STEEPNESS)
         assert 'Minimal' in tip
         assert is_ideal is False
 
     def test_returns_tuple(self):
         drive_y = _make_drive_y(n=80, open_start_frac=0.30, steepness_window=0.25)
-        result = _drive_trunk_opening_coach_tip(drive_y)
+        result = _drive_trunk_opening_coach_tip(drive_y, _OPEN_LOW, _OPEN_HIGH, _STEEPNESS)
         assert isinstance(result, tuple)
         assert isinstance(result[0], str)
         assert isinstance(result[1], bool)
 
+    def test_custom_thresholds_change_verdict(self):
+        """With a tight ideal window (40–45%), opening at 30% should be 'too early'."""
+        drive_y = _make_drive_y(n=100, open_start_frac=0.30, steepness_window=0.25)
+        tip, is_ideal = _drive_trunk_opening_coach_tip(drive_y, open_low=0.40, open_high=0.55, steepness_threshold=0.45)
+        assert 'too early' in tip
+        assert is_ideal is False
+
 
 # ---------------------------------------------------------------------------
-# _recovery_rock_over_coach_tip — scenario coverage
+# recovery_rock_over_coach_tip — scenario coverage
 # ---------------------------------------------------------------------------
 
 # Ideal catch zone used throughout: (-33.0, -27.0), midpoint = -30.0
-_CATCH_ZONE = (-33.0, -27.0)
+_CATCH_ZONE = DEFAULT_COACHING_PROFILE.catch_zone
+_REACH_LOW = DEFAULT_COACHING_PROFILE.recovery_reach_ideal_low
+_REACH_HIGH = DEFAULT_COACHING_PROFILE.recovery_reach_ideal_high
 
 
 def _make_recovery_y(
@@ -420,46 +476,46 @@ def _make_recovery_y(
 class TestRecoveryRockOverCoachTip:
     def test_rocks_over_too_early_returns_rushing_warning(self):
         rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.20)
-        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE, _REACH_LOW, _REACH_HIGH)
         assert 'early' in tip or 'rushing' in tip
         assert is_ideal is False
 
     def test_ideal_reach_returns_positive_feedback(self):
         rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.60)
-        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
-        assert '\u2713' in tip or 'Good' in tip
+        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE, _REACH_LOW, _REACH_HIGH)
+        assert '✓' in tip or 'Good' in tip
         assert is_ideal is True
 
     def test_late_rock_over_returns_whiplash_warning(self):
         rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.88)
-        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE, _REACH_LOW, _REACH_HIGH)
         assert 'late' in tip.lower() or 'whiplash' in tip.lower()
         assert is_ideal is False
 
     def test_last_moment_arrival_returns_overreach_risk(self):
         rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.99)
-        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        tip, is_ideal = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE, _REACH_LOW, _REACH_HIGH)
         assert 'whiplash' in tip.lower() or 'overreach' in tip.lower() or 'last moment' in tip.lower()
         assert is_ideal is False
 
     def test_gradual_swing_in_ideal_window_returns_accelerate(self):
         rec_y = _make_recovery_y(n=100, start=15.0, end=-30.0, reach_frac=0.75, gradual=True)
-        tip, _ = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        tip, _ = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE, _REACH_LOW, _REACH_HIGH)
         assert any(word in tip.lower() for word in ['gradual', 'accelerate', 'rock-over', 'late', 'whiplash', 'good'])
 
     def test_too_short_returns_fallback(self):
-        tip, is_ideal = _recovery_rock_over_coach_tip([15.0, 10.0, 5.0], _CATCH_ZONE)
+        tip, is_ideal = _recovery_rock_over_coach_tip([15.0, 10.0, 5.0], _CATCH_ZONE, _REACH_LOW, _REACH_HIGH)
         assert 'short' in tip
         assert is_ideal is False
 
     def test_minimal_movement_returns_rock_over_more(self):
-        tip, is_ideal = _recovery_rock_over_coach_tip([15.0] * 50, _CATCH_ZONE)
+        tip, is_ideal = _recovery_rock_over_coach_tip([15.0] * 50, _CATCH_ZONE, _REACH_LOW, _REACH_HIGH)
         assert 'rock over' in tip.lower() or 'barely' in tip.lower()
         assert is_ideal is False
 
     def test_returns_tuple(self):
         rec_y = _make_recovery_y(n=80, start=15.0, end=-30.0, reach_frac=0.60)
-        result = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE)
+        result = _recovery_rock_over_coach_tip(rec_y, _CATCH_ZONE, _REACH_LOW, _REACH_HIGH)
         assert isinstance(result, tuple)
         assert isinstance(result[0], str)
         assert isinstance(result[1], bool)

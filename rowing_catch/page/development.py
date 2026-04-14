@@ -30,8 +30,7 @@ avg_cycle = results['avg_cycle']
 catch_idx = results['catch_idx']
 finish_idx = results['finish_idx']
 
-# --- 1a. Trunk Angle Separation ---
-st.subheader('1a. Trunk Angle Separation')
+st.subheader('1. Trunk Angle Separation')
 st.markdown('Shows the trunk angle relative to seat position.')
 trunk_angle_sep_component = TrunkAngleSeparationComponent(profile=profile)
 computed_sep = trunk_angle_sep_component.compute(
@@ -49,8 +48,7 @@ active_sep_annotations = render_annotation_toggles(
 )
 fig1 = render_trunk_angle_separation(computed_sep, active_annotations=active_sep_annotations, return_fig=True)
 
-# --- 1b. Trunk Angle & Range ---
-st.subheader('1b. Trunk Angle with Stick figures')
+st.subheader('2. Trunk Angle with Stick figures')
 st.markdown('Shows the trunk angle compare to the progress of the stroke.')
 trunk_component = TrunkAngleComponent(profile=profile)
 trunk_computed = trunk_component.compute(
@@ -72,7 +70,7 @@ fig2 = render_trunk_angle_with_stage_stickfigures(
     return_fig=True,
 )
 
-st.subheader('2. Rhythm Consistency')
+st.subheader('3. Rhythm Consistency')
 st.markdown(
     'Comparison of SPM and Drive/Recovery ratio across all strokes. A tight cluster indicates professional-grade consistency.'
 )
@@ -85,7 +83,7 @@ computed_data_2 = rhythm_consistency_component.compute(
 )
 fig3 = render_rhythm_consistency(computed_data_2, return_fig=True)
 
-st.subheader('3. Handle-Seat Distance')
+st.subheader('4. Handle-Seat Distance')
 st.markdown('Measures compression. Ideally, you want a long reaching distance at the catch without losing core stability.')
 handle_distance_component = HandleSeatDistanceComponent()
 computed_data_3 = handle_distance_component.compute(
@@ -98,7 +96,7 @@ computed_data_3 = handle_distance_component.compute(
 fig4 = render_handle_seat_distance(computed_data_3, return_fig=True)
 
 
-st.subheader('4. Recovery Slide Control')
+st.subheader('5. Recovery Slide Control')
 st.markdown("Seat velocity during the recovery phase. Look for a controlled 'slow-down' before arriving at the catch.")
 recovery_control_component = RecoverySlideControlComponent()
 computed_data_4 = recovery_control_component.compute(
@@ -110,7 +108,7 @@ computed_data_4 = recovery_control_component.compute(
 fig5 = render_recovery_slide_control(computed_data_4, return_fig=True)
 
 st.markdown('---')
-st.subheader('5. Handle Trajectory (Box Plot)')
+st.subheader('6. Handle Trajectory (Box Plot)')
 st.markdown(
     'The vertical vs. horizontal path of the handle. A rectangular shape indicates consistent blade depth and clean extraction.'
 )
@@ -126,7 +124,7 @@ fig6 = render_handle_trajectory_dev(computed_data_5, return_fig=True)
 
 
 st.markdown('---')
-st.subheader('6. Export Report')
+st.subheader('7. Export Report')
 st.markdown('Generate a comprehensive PDF documentation of the development phase features above.')
 
 if st.button('Generate PDF Report', type='primary'):

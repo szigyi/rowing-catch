@@ -53,13 +53,11 @@ class RhythmConsistencyComponent(PlotComponent):
         if not df.empty:
             spm_vals = df['SPM'].to_numpy(dtype=float)
             drive_pct_vals = df['Drive_Pct'].to_numpy(dtype=float)
-            cycle_nums = df['Cycle'].tolist()
             mean_spm = float(np.nanmean(spm_vals))
             mean_drive_pct = float(np.nanmean(drive_pct_vals))
         else:
             spm_vals = np.array([], dtype=float)
             drive_pct_vals = np.array([], dtype=float)
-            cycle_nums = []
             mean_spm = float('nan')
             mean_drive_pct = float('nan')
 
@@ -72,7 +70,6 @@ class RhythmConsistencyComponent(PlotComponent):
             'data': {
                 'spm_vals': spm_vals.tolist(),
                 'drive_pct_vals': drive_pct_vals.tolist(),
-                'cycle_nums': cycle_nums,
                 'mean_spm': mean_spm,
                 'mean_drive_pct': mean_drive_pct,
                 'ideal_curve_spm': spm_curve.tolist(),

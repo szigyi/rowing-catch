@@ -9,6 +9,7 @@ from typing import Any
 import matplotlib.figure
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import streamlit as st
 
 from rowing_catch.plot.theme import BG_COLOR_AXES, COLOR_IDEAL_RATIO, COLOR_MAIN, COLOR_TEXT_SUB
@@ -36,7 +37,6 @@ def render_rhythm_consistency(
 
     spm_vals = np.array(data['spm_vals'])
     drive_pct_vals = np.array(data['drive_pct_vals'])
-    cycle_nums = data['cycle_nums']
     mean_spm = data['mean_spm']
     mean_drive_pct = data['mean_drive_pct']
 
@@ -56,21 +56,56 @@ def render_rhythm_consistency(
         linestyle='-',
         alpha=0.8,
         label='Ideal',
-        zorder=4,
+        zorder=10,
     )
 
     # Mean crosshair lines
     if not np.isnan(mean_spm):
-        ax.axvline(mean_spm, color='#94a3b8', linewidth=1, linestyle='--', alpha=0.7, label='Mean SPM')
+        ax.axvline(mean_spm, color='#94a3b8', linewidth=1, linestyle='--', alpha=0.7)
+        ax.text(
+            mean_spm, 58, 'Mean SPM', 
+            color='#64748b', fontsize=8, ha='right', va='center', rotation=90,
+            bbox=dict(facecolor=BG_COLOR_AXES, alpha=0.6, edgecolor='none', pad=1)
+        )
     if not np.isnan(mean_drive_pct):
-        ax.axhline(mean_drive_pct, color='#94a3b8', linewidth=1, linestyle='--', alpha=0.7, label='Mean Drive%')
+        ax.axhline(mean_drive_pct, color='#94a3b8', linewidth=1, linestyle='--', alpha=0.7)
+        ax.text(
+            ax.get_xlim()[1] - 1, mean_drive_pct, 'Mean Drive%', 
+            color='#64748b', fontsize=8, ha='right', va='bottom',
+            bbox=dict(facecolor=BG_COLOR_AXES, alpha=0.6, edgecolor='none', pad=1)
+        )
 
-    # Scatter points
-    ax.scatter(spm_vals, drive_pct_vals, color=COLOR_MAIN, s=80, zorder=5)
+    # Boxplot / Candlesticks
+    # Group data by rounded integer SPM to show vertical distribution
+    if len(spm_vals) > 0:
+        df = pd.DataFrame({'spm': np.round(spm_vals).astype(float), 'drive': drive_pct_vals.astype(float)})
+        # Use named aggregations to avoid inference issues
+        stats = df.groupby('spm')['drive'].agg(
+            min_val='min',
+            max_val='max',
+            q1=lambda x: x.quantile(0.25),
+            q3=lambda x: x.quantile(0.75),
+            median_val='median',
+        )
+        
+        # Iterate and plot candlesticks
+        for spm, row in stats.iterrows():
+            spm_val = float(spm)  # type: ignore[arg-type]
+            # Wick: min to max (thin line showing complete range)
+            ax.vlines(spm_val, row['min_val'], row['max_val'], color=COLOR_MAIN, linewidth=1.0, alpha=0.6, zorder=5)
+            # Body: Q1 to Q3 (interquartile range, where 50% of strokes land)
+            ax.vlines(spm_val, row['q1'], row['q3'], color=COLOR_MAIN, linewidth=6.0, alpha=0.9, zorder=6)
+            # Median: Small colored indicator
+            ax.scatter([spm_val], [row['median_val']], color='#ffffff', edgecolors=COLOR_MAIN, s=15, zorder=7)
+            # SPM Label for the candlestick
+            ax.text(
+                spm_val, row['max_val'] + 1, f'{int(spm_val)}', 
+                color=COLOR_MAIN, fontsize=7, ha='center', va='bottom', weight='bold',
+                alpha=0.8
+            )
 
-    # Cycle labels
-    for cx, cy, label in zip(spm_vals, drive_pct_vals, cycle_nums, strict=False):
-        ax.annotate(str(label), (cx, cy), textcoords='offset points', xytext=(6, 4), fontsize=8, color=COLOR_TEXT_SUB)
+    # Raw Scatter points (made semi-transparent so candlesticks stand out)
+    ax.scatter(spm_vals, drive_pct_vals, color=COLOR_MAIN, s=5, alpha=0.3, zorder=4, label='Strokes')
 
     # Fix Y-axis to a meaningful range for drive % (20–60%)
     ax.set_ylim(20, 60)

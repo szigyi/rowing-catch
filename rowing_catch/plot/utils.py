@@ -26,7 +26,12 @@ from rowing_catch.plot_transformer.annotations import (
 )
 
 
-def setup_premium_plot(title='', x_label='', y_label='', figsize=(10, 5)):
+def setup_premium_plot(
+    title: str = '',
+    x_label: str = '',
+    y_label: str = '',
+    figsize: tuple[float, float] = (10, 5),
+) -> tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
     """Set up a standard matplotlib figure with the premium UI aesthetic.
 
     Args:

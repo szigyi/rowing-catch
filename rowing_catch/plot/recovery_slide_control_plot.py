@@ -5,17 +5,22 @@ Renders seat velocity during recovery phase.
 
 from typing import Any
 
+import matplotlib.figure
 import streamlit as st
 
 from rowing_catch.plot.theme import COLOR_SEAT
 from rowing_catch.plot.utils import setup_premium_plot
 
 
-def render_recovery_slide_control(computed_data: dict[str, Any]):
+def render_recovery_slide_control(
+    computed_data: dict[str, Any],
+    return_fig: bool = False,
+) -> matplotlib.figure.Figure | None:
     """Render recovery slide control plot.
 
     Args:
         computed_data: Output from RecoverySlideControlComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure for PDF export.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -23,7 +28,7 @@ def render_recovery_slide_control(computed_data: dict[str, Any]):
 
     if not data.get('has_data', True):
         st.warning('Insufficient data for recovery control analysis.')
-        return
+        return None
 
     fig, ax = setup_premium_plot(title=metadata['title'], figsize=(10, 6.4))
 
@@ -42,3 +47,7 @@ def render_recovery_slide_control(computed_data: dict[str, Any]):
 
     st.pyplot(fig)
     st.info(f'**Performance Insight:** {coach_tip}')
+
+    if return_fig:
+        return fig
+    return None

@@ -6,6 +6,7 @@ This is the authoritative version (migrated from the debug pipeline).
 
 from typing import Any
 
+import matplotlib.figure
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
@@ -14,11 +15,15 @@ from rowing_catch.plot.theme import BG_COLOR_AXES, COLOR_IDEAL_RATIO, COLOR_MAIN
 from rowing_catch.plot.utils import setup_premium_plot
 
 
-def render_rhythm_consistency(computed_data: dict[str, Any]) -> None:
+def render_rhythm_consistency(
+    computed_data: dict[str, Any],
+    return_fig: bool = False,
+) -> matplotlib.figure.Figure | None:
     """Render rhythm consistency scatter plot with ideal drive% curve.
 
     Args:
         computed_data: Output from RhythmConsistencyComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure for PDF export.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -27,7 +32,7 @@ def render_rhythm_consistency(computed_data: dict[str, Any]) -> None:
     if not data['has_data']:
         st.warning('No individual cycle data available for rhythm consistency.')
         st.info(f'**Performance Insight:** {coach_tip}')
-        return
+        return None
 
     spm_vals = np.array(data['spm_vals'])
     drive_pct_vals = np.array(data['drive_pct_vals'])
@@ -76,4 +81,8 @@ def render_rhythm_consistency(computed_data: dict[str, Any]) -> None:
     st.pyplot(fig, width='stretch')
     plt.close(fig)
 
+    if return_fig:
+        return fig
+
     st.info(f'**Performance Insight:** {coach_tip}')
+    return None

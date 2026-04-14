@@ -5,17 +5,22 @@ Renders compression distance plot with scenario comparison.
 
 from typing import Any
 
+import matplotlib.figure
 import streamlit as st
 
 from rowing_catch.plot.theme import COLOR_CATCH, COLOR_COMPARE, COLOR_FINISH, COLOR_HANDLE
 from rowing_catch.plot.utils import setup_premium_plot
 
 
-def render_handle_seat_distance(computed_data: dict[str, Any]):
+def render_handle_seat_distance(
+    computed_data: dict[str, Any],
+    return_fig: bool = False,
+) -> matplotlib.figure.Figure | None:
     """Render handle-seat distance plot.
 
     Args:
         computed_data: Output from HandleSeatDistanceComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure for PDF export.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -48,5 +53,10 @@ def render_handle_seat_distance(computed_data: dict[str, Any]):
     ax.axvline(data['finish_idx'], color=COLOR_FINISH, linestyle='--', alpha=0.5, zorder=2)
 
     ax.legend()
+
     st.pyplot(fig)
     st.info(f'**Developing Advice:** {coach_tip}')
+
+    if return_fig:
+        return fig
+    return None

@@ -5,6 +5,7 @@ Renders 2D vertical vs horizontal handle path (box plot).
 
 from typing import Any, cast
 
+import matplotlib.figure
 import pandas as pd
 import streamlit as st
 
@@ -88,11 +89,15 @@ def _get_annotation_y_coordinate(y_data, x_idx: int | None, y_max: float, y_rang
     return y_max - y_range * 0.1
 
 
-def render_handle_trajectory_dev(computed_data: dict[str, Any]):
+def render_handle_trajectory_dev(
+    computed_data: dict[str, Any],
+    return_fig: bool = False,
+) -> matplotlib.figure.Figure | None:
     """Render handle trajectory 2D path plot.
 
     Args:
         computed_data: Output from HandleTrajectoryDevComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure for PDF export.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -129,3 +134,7 @@ def render_handle_trajectory_dev(computed_data: dict[str, Any]):
 
     st.pyplot(fig)
     st.info(f"**Coach's Tip:** {coach_tip}")
+
+    if return_fig:
+        return fig
+    return None

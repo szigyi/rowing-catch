@@ -97,6 +97,16 @@ class CoachingProfile:
     """If trunk reaches catch zone after this fraction → very late / no separation."""
 
     # ------------------------------------------------------------------ #
+    # Rhythm & Consistency
+    # ------------------------------------------------------------------ #
+
+    rhythm_spm_min: float = 15.0
+    """Lower bound of the visible ideal rhythm line (SPM)."""
+
+    rhythm_spm_max: float = 45.0
+    """Upper bound of the visible ideal rhythm line (SPM)."""
+
+    # ------------------------------------------------------------------ #
     # Derived properties (computed from the high-level philosophy)
     # ------------------------------------------------------------------ #
 

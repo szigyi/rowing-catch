@@ -11,8 +11,10 @@ import streamlit as st
 
 from rowing_catch.coaching.profile import DEFAULT_COACHING_PROFILE, CoachingProfile
 from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH
+from rowing_catch.plot.rhythm.rhythm_consistency_plot import render_rhythm_consistency
 from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.trunk.trunk_angle_separation_plot import render_trunk_angle_separation
+from rowing_catch.plot_transformer.rhythm.rhythm_consistency_transformer import RhythmConsistencyComponent
 from rowing_catch.plot_transformer.trunk.trunk_angle_separation_transformer import TrunkAngleSeparationComponent
 from rowing_catch.plot_transformer.trunk.trunk_angle_transformer import TrunkAngleComponent
 from rowing_catch.ui.annotation_toggles import render_annotation_toggles
@@ -95,6 +97,8 @@ with col_preview:
         separation_reach_ideal_low=current.separation_reach_ideal_low,
         separation_reach_ideal_high=current.separation_reach_ideal_high,
         separation_very_late_threshold=current.separation_very_late_threshold,
+        rhythm_spm_min=current.rhythm_spm_min,
+        rhythm_spm_max=current.rhythm_spm_max,
     )
     trunk_comp_timing = TrunkAngleComponent(profile=preview_profile_timing)
     trunk_computed_timing = trunk_comp_timing.compute(
@@ -164,6 +168,8 @@ with col_preview2:
         separation_reach_ideal_low=current.separation_reach_ideal_low,
         separation_reach_ideal_high=current.separation_reach_ideal_high,
         separation_very_late_threshold=current.separation_very_late_threshold,
+        rhythm_spm_min=current.rhythm_spm_min,
+        rhythm_spm_max=current.rhythm_spm_max,
     )
 
     left_p, right_p = st.columns(2)
@@ -261,6 +267,8 @@ with col_preview3:
         separation_reach_ideal_low=float(sep_low_raw),
         separation_reach_ideal_high=float(sep_high_raw),
         separation_very_late_threshold=float(very_late_raw),
+        rhythm_spm_min=current.rhythm_spm_min,
+        rhythm_spm_max=current.rhythm_spm_max,
     )
     trunk_comp_rec = TrunkAngleComponent(profile=preview_profile_rec)
     trunk_computed_rec = trunk_comp_rec.compute(
@@ -284,6 +292,56 @@ with col_preview3:
 st.markdown('---')
 
 # ---------------------------------------------------------------------------
+# Section 4: Rhythm Consistency
+# ---------------------------------------------------------------------------
+st.subheader('4. Rhythm Consistency')
+st.markdown(
+    'Set the **visibility range** of the Ideal Rhythm line. '
+    'This defines the SPM boundaries for the ideal biomechanical curve reference.'
+)
+
+col_ctrl4, col_preview4 = st.columns([1, 2], gap='large')
+
+with col_ctrl4:
+    rhythm_min, rhythm_max = st.slider(
+        'Ideal SPM Range',
+        min_value=10,
+        max_value=60,
+        value=(int(current.rhythm_spm_min), int(current.rhythm_spm_max)),
+        step=1,
+        help='The SPM range for which the ideal rhythm curve is drawn. Default: 15–45 SPM.',
+    )
+
+with col_preview4:
+    st.caption('Live preview — Rhythm Consistency (Ideal Line Range)')
+    preview_profile_rhythm = CoachingProfile(
+        trunk_opening_ideal_pct=float(trunk_opening_pct),
+        trunk_open_tolerance_pct=float(trunk_tolerance_pct),
+        catch_lean_low=float(catch_low),
+        catch_lean_high=float(catch_high),
+        finish_lean_low=float(finish_low),
+        finish_lean_high=float(finish_high),
+        recovery_reach_ideal_low=float(rec_low),
+        recovery_reach_ideal_high=float(rec_high),
+        separation_reach_ideal_low=float(sep_low_raw),
+        separation_reach_ideal_high=float(sep_high_raw),
+        separation_very_late_threshold=float(very_late_raw),
+        rhythm_spm_min=float(rhythm_min),
+        rhythm_spm_max=float(rhythm_max),
+    )
+    rhythm_comp = RhythmConsistencyComponent(profile=preview_profile_rhythm)
+    computed_rhythm = rhythm_comp.compute(
+        avg_cycle=avg_cycle,
+        catch_idx=catch_idx,
+        finish_idx=finish_idx,
+        results=results,
+    )
+    # Render with just the Ideal [I1] annotation for range clarity
+    render_rhythm_consistency(computed_rhythm, active_annotations={'[I1]'})
+
+st.markdown('---')
+
+# ---------------------------------------------------------------------------
 # Save / Reset buttons
 # ---------------------------------------------------------------------------
 col_save, col_reset = st.columns([1, 1])
@@ -300,6 +358,8 @@ final_profile = CoachingProfile(
     separation_reach_ideal_low=float(sep_low_raw),
     separation_reach_ideal_high=float(sep_high_raw),
     separation_very_late_threshold=float(very_late_raw),
+    rhythm_spm_min=float(rhythm_min),
+    rhythm_spm_max=float(rhythm_max),
 )
 
 with col_save:

@@ -74,14 +74,20 @@ st.subheader('3. Rhythm Consistency')
 st.markdown(
     'Comparison of SPM and Drive/Recovery ratio across all strokes. A tight cluster indicates professional-grade consistency.'
 )
-rhythm_consistency_component = RhythmConsistencyComponent()
+rhythm_consistency_component = RhythmConsistencyComponent(profile=profile)
 computed_data_2 = rhythm_consistency_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
     finish_idx=finish_idx,
     results=results,
 )
-fig3 = render_rhythm_consistency(computed_data_2, return_fig=True)
+active_rhythm_annotations = render_annotation_toggles(
+    annotations=computed_data_2.get('annotations', []),
+    expander_label='Annotations — Rhythm Consistency',
+    key_prefix='ann_rhythm',
+)
+fig3 = render_rhythm_consistency(computed_data_2, active_annotations=active_rhythm_annotations, return_fig=True)
+fig3_display = render_rhythm_consistency(computed_data_2, active_annotations=active_rhythm_annotations, return_fig=False)
 
 st.subheader('4. Handle-Seat Distance')
 st.markdown('Measures compression. Ideally, you want a long reaching distance at the catch without losing core stability.')
@@ -143,7 +149,7 @@ if st.button('Generate PDF Report', type='primary'):
         figures = [
             ('Trunk Angle Separation', fig1, get_active_anns(computed_sep.get('annotations', []), active_sep_annotations)),
             ('Trunk Angle & Range', fig2, get_active_anns(trunk_computed.get('annotations', []), active_trunk_annotations)),
-            ('Rhythm Consistency', fig3, []),
+            ('Rhythm Consistency', fig3, get_active_anns(computed_data_2.get('annotations', []), active_rhythm_annotations)),
             ('Handle-Seat Distance', fig4, []),
             ('Recovery Slide Control', fig5, []),
             ('Handle Trajectory (Box Plot)', fig6, []),

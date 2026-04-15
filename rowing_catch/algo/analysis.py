@@ -2,14 +2,14 @@ import logging
 
 import pandas as pd
 
-from rowing_catch.algo.steps.step0_validation import validate_input_df
-from rowing_catch.algo.steps.step1_rename import step1_rename_columns
-from rowing_catch.algo.steps.step2_smoothing import step2_smooth
-from rowing_catch.algo.steps.step3_detection import step3_detect_catches
-from rowing_catch.algo.steps.step4_segmentation import step4_segment_and_average
-from rowing_catch.algo.steps.step5_metrics import step5_compute_metrics
-from rowing_catch.algo.steps.step6_statistics import step6_statistics
-from rowing_catch.algo.steps.step7_diagnostics import step7_diagnostics
+from rowing_catch.algo.step.step0_validation import validate_input_df
+from rowing_catch.algo.step.step1_rename import step1_rename_columns
+from rowing_catch.algo.step.step2_smoothing import step2_smooth
+from rowing_catch.algo.step.step3_detection import step3_detect_catches
+from rowing_catch.algo.step.step4_segmentation import step4_segment_and_average
+from rowing_catch.algo.step.step5_metrics import step5_compute_metrics
+from rowing_catch.algo.step.step6_statistics import step6_statistics
+from rowing_catch.algo.step.step7_diagnostics import step7_diagnostics
 
 logger = logging.getLogger(__name__)
 

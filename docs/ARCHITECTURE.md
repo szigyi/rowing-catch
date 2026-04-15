@@ -60,7 +60,7 @@ This document establishes the architectural layers and development rules for the
           # Transform avg_cycle into plot-ready data
           return {
               'data': {...},
-              'metadata': {'title': '...', 'xlabel': '...', 'ylabel': '...'},
+              'metadata': {'title': '...', 'x_label': '...', 'y_label': '...'},
               'coach_tip': 'Advice for rower'
           }
   ```
@@ -135,71 +135,78 @@ rowing_catch/scenario/
 
 ### Step 1: Create Transform
 File: `rowing_catch/plot_transforms/myplot.py`
+
 ```python
 from typing import Any
 import pandas as pd
-from rowing_catch.plot_transforms.base import PlotComponent
+from rowing_catch.plot_transformer.base import PlotComponent
+
 
 class MyPlotComponent(PlotComponent):
-    @property
-    def name(self) -> str:
-        return "My Plot"
-    
-    @property
-    def description(self) -> str:
-        return "Description of my plot"
-    
-    def compute(self, avg_cycle, catch_idx, finish_idx, ghost_cycle=None, results=None):
-        # Your computation here
-        return {
-            'data': {...},
-            'metadata': {'title': '', 'xlabel': '', 'ylabel': ''},
-            'coach_tip': ''
-        }
+  @property
+  def name(self) -> str:
+    return "My Plot"
+
+  @property
+  def description(self) -> str:
+    return "Description of my plot"
+
+  def compute(self, avg_cycle, catch_idx, finish_idx, ghost_cycle=None, results=None):
+    # Your computation here
+    return {
+      'data': {...},
+      'metadata': {'title': '', 'x_label': '', 'y_label': ''},
+      'coach_tip': ''
+    }
 ```
 
 ### Step 2: Create Renderer
 File: `rowing_catch/plots/myplot.py`
+
 ```python
 from typing import Any
 import streamlit as st
-from rowing_catch.plots.theme import COLOR_MAIN
-from rowing_catch.plots.utils import setup_premium_plot
+from rowing_catch.plot.theme import COLOR_MAIN
+from rowing_catch.plot.utils import setup_premium_plot
+
 
 def render_myplot(computed_data: dict[str, Any]):
-    data = computed_data['data']
-    metadata = computed_data['metadata']
-    coach_tip = computed_data['coach_tip']
-    
-    fig, ax = setup_premium_plot(...)
-    # Render to matplotlib
-    st.pyplot(fig)
-    st.info(coach_tip)
+  data = computed_data['data']
+  metadata = computed_data['metadata']
+  coach_tip = computed_data['coach_tip']
+
+  fig, ax = setup_premium_plot(...)
+  # Render to matplotlib
+  st.pyplot(fig)
+  st.info(coach_tip)
 ```
 
 ### Step 3: Register Transform
 Edit `rowing_catch/plot_transforms/registry.py`:
+
 ```python
-from rowing_catch.plot_transforms.myplot import MyPlotComponent
+from rowing_catch.plot_transformer.myplot import MyPlotComponent
 
 _PLOT_COMPONENTS = {
-    'myplot': MyPlotComponent(),
-    # ... other plots
+  'myplot': MyPlotComponent(),
+  # ... other plots
 }
 ```
 
 ### Step 4: Export Renderer
 Edit `rowing_catch/plots/__init__.py`:
+
 ```python
-from rowing_catch.plots.myplot import render_myplot
+from rowing_catch.plot.myplot import render_myplot
 
 __all__ = ['render_myplot', ...]
 ```
 
 ### Step 5: Use in Page
+
 ```python
-from rowing_catch.plot_transforms import get_plot_component
-from rowing_catch.plots.myplot import render_myplot
+from rowing_catch.plot_transformer import get_plot_component
+from rowing_catch.plot.myplot import render_myplot
 
 component = get_plot_component('myplot')
 computed = component.compute(avg_cycle, catch_idx, finish_idx, ...)

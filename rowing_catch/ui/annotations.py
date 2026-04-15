@@ -1,284 +1,134 @@
-"""
-Scenario-driven configuration for diagram markers and explanations.
-These annotations only appear when a Global Scenario Overlay is selected.
-"""
+from typing import Any, cast
 
-DIAGRAM_ANNOTATIONS = {
-    'Ideal Technique': {
-        'trunk_angle_separation': [
-            {
-                'x_type': 'point',
-                'point_name': 'catch',
-                'text': 'Optimal Reach',
-                'description': 'Full forward lean with core stability.',
-                'color': 'green',
-                'offset': (-20, 30),
-            },
-            {
-                'x_type': 'percentage_of_cycle',
-                'x': 15,
-                'text': 'Early Body Over',
-                'description': 'Posture set before the legs rise in recovery.',
-                'color': '#636EFA',
-            },
-            {
-                'x_type': 'point',
-                'point_name': 'finish',
-                'text': 'Stable Finish',
-                'description': 'Held angle provides a platform for the hands.',
-                'color': '#EF553B',
-            },
-        ],
-        'power_accumulation': [
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 25,
-                'text': 'Legs Drive',
-                'description': 'Heavy contribution early in the stroke.',
-                'color': 'green',
-            },
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 60,
-                'text': 'Smooth Swing',
-                'description': 'Body takes over as legs reach full extension.',
-                'color': 'green',
-            },
-        ],
-    },
-    'Slow Hand Away': {
-        'trunk_angle_separation': [
-            {
-                'x_type': 'percentage_of_cycle',
-                'x': 70,
-                'text': 'Late Rock-over',
-                'description': 'Body still leaning back while moving up the slide.',
-                'color': 'orange',
-            },
-            {
-                'x_type': 'point',
-                'point_name': 'finish',
-                'text': 'Hands Stuck',
-                'description': 'Pausing at the finish breaks the rhythm.',
-                'color': 'red',
-            },
-        ],
-        'recovery_control': [
-            {
-                'x_type': 'percentage_of_recovery',
-                'x': 30,
-                'text': 'No Hands Lead',
-                'description': 'Hands must move away before the body swings.',
-                'color': 'red',
-            }
-        ],
-    },
-    'Short Catch (Limited Reach)': {
-        'trunk_angle_separation': [
-            {
-                'x_type': 'point',
-                'point_name': 'catch',
-                'text': 'Limited Reach',
-                'description': 'Sitting too upright; losing stroke length.',
-                'color': 'red',
-                'offset': (-10, 40),
-            }
-        ],
-        'handle_seat_distance': [
-            {
-                'x_type': 'point',
-                'point_name': 'catch',
-                'text': 'Short Stroke',
-                'description': 'Missing effective length at the catch.',
-                'color': 'red',
-            }
-        ],
-    },
-    'Over-lean at Finish': {
-        'trunk_angle_separation': [
-            {
-                'x_type': 'point',
-                'point_name': 'finish',
-                'text': 'Extreme Lean Back',
-                'description': 'Unstable posture; inefficient recovery.',
-                'color': 'red',
-            }
-        ]
-    },
-    'No Separation': {
-        'trunk_angle_separation': [
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 20,
-                'text': 'Opening Early',
-                'description': 'Body swinging before legs halfway down.',
-                'color': 'red',
-            }
-        ],
-        'power_accumulation': [
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 20,
-                'text': 'Lost Leg Potential',
-                'description': 'Trunk takes over too soon; leg drive cut short.',
-                'color': 'orange',
-            }
-        ],
-    },
-    'Rigid Trunk': {
-        'trunk_angle_separation': [
-            {
-                'x_type': 'percentage_of_cycle',
-                'x': 50,
-                'text': 'Static Posture',
-                'description': 'Missing power from hip swing.',
-                'color': 'orange',
-            }
-        ]
-    },
-    # --- Trajectory Scenarios ---
-    'Ideal Path': {
-        'handle_trajectory': [
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 10,
-                'text': 'Sharp Catch',
-                'description': 'Blade enters water early and cleanly.',
-                'color': 'green',
-                'offset': (0, -40),
-            },
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 50,
-                'text': 'Consistent Depth',
-                'description': 'Blade stays at optimal depth throughout drive.',
-                'color': '#333333',
-                'offset': (0, -40),
-            },
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 90,
-                'text': 'Clean Extraction',
-                'description': 'Lifting handle away from finish.',
-                'color': 'red',
-                'offset': (0, -40),
-            },
-        ]
-    },
-    'Digging Deep': {
-        'handle_trajectory': [
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 50,
-                'text': 'Too Deep (Dragging)',
-                'description': 'Handle too low; blade dragging through water.',
-                'color': 'red',
-                'offset': (0, 40),
-            },
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 80,
-                'text': 'Heavy Finish',
-                'description': 'Blade buried too deep to exit cleanly.',
-                'color': 'red',
-                'offset': (20, 40),
-            },
-        ]
-    },
-    'Skying the Catch': {
-        'handle_trajectory': [
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 5,
-                'text': 'Handle Too High',
-                'description': 'Reaching handle up before catch; skying blade.',
-                'color': 'red',
-                'offset': (-40, -40),
-            },
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 15,
-                'text': 'Late Blade Entry',
-                'description': 'Missing the front of the catch.',
-                'color': 'red',
-                'offset': (20, -40),
-            },
-        ]
-    },
-    # --- Coordination Scenarios ---
-    'Ideal Coordination': {
-        'kinetic_chain': [
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 10,
-                'text': 'Connected Drive',
-                'description': 'Seat and handle move in unison.',
-                'color': 'green',
-            },
-        ]
-    },
-    'Shooting the Slide': {
-        'kinetic_chain': [
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 20,
-                'text': 'Seat Rushing',
-                'description': 'Seat moving way faster than handle.',
-                'color': 'red',
-                'offset': (-20, 30),
-            },
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 40,
-                'text': 'Disconnected',
-                'description': 'Leg power not reaching the handle.',
-                'color': 'red',
-                'offset': (20, 30),
-            },
-        ]
-    },
-    'Arm-Only Drive': {
-        'kinetic_chain': [
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 20,
-                'text': 'Static Seat',
-                'description': 'No leg drive detected.',
-                'color': 'red',
-            },
-        ],
-        'power_accumulation': [
-            {
-                'x_type': 'percentage_of_drive',
-                'x': 30,
-                'text': 'Missing Legs',
-                'description': 'First 50% of stroke should be legs.',
-                'color': 'red',
-            },
-        ],
-    },
-    # --- Consistency Scenarios ---
-    'Professional (Robotic)': {
-        'recovery_control': [
-            {
-                'x_type': 'percentage_of_recovery',
-                'x': 50,
-                'text': 'Perfect Control',
-                'description': 'Stable, repeatable slide speed.',
-                'color': 'green',
-            },
-        ]
-    },
-    'Rushed Recovery': {
-        'recovery_control': [
-            {
-                'x_type': 'percentage_of_recovery',
-                'x': 30,
-                'text': 'Rushing!',
-                'description': 'Too fast early in the recovery.',
-                'color': 'red',
-                'offset': (0, 30),
-            },
-        ]
-    },
-}
+import pandas as pd
+
+from rowing_catch.ui.annotations_data import DIAGRAM_ANNOTATIONS
+
+
+def _apply_annotations(
+    ax: Any,
+    diagram_key: str,
+    data: pd.DataFrame,
+    catch_idx: int | None = None,
+    finish_idx: int | None = None,
+    y_data: pd.Series | None = None,
+    scenario_name: str = 'None',
+) -> None:
+    """
+    Helper to apply markers and text from DIAGRAM_ANNOTATIONS to an axis.
+    Only applies if a scenario is selected.
+    """
+    if scenario_name == 'None' or scenario_name not in DIAGRAM_ANNOTATIONS:
+        return
+
+    scenario_configs = cast(dict[str, Any], DIAGRAM_ANNOTATIONS[scenario_name])
+    if diagram_key not in scenario_configs:
+        return
+
+    annotations: list[dict[str, Any]] = scenario_configs[diagram_key]
+
+    # Get common data characteristics
+    n_points = len(data)
+
+    # Determine the y-range for normalized placement if y_data is not provided
+    y_min, y_max = ax.get_ylim()
+    y_range = y_max - y_min
+
+    for ann in annotations:
+        # 1. Calculate the index to look up
+        x_idx = _calculate_annotation_index(ann, n_points, catch_idx, finish_idx)
+        if x_idx is None:
+            continue
+
+        # 2. Get the physical X coordinate for the plot
+        x_pos = _get_annotation_x_coordinate(ax, ann, data, x_idx, diagram_key)
+
+        # 3. Get the vertical Y coordinate
+        y_pos = _get_annotation_y_coordinate(y_data, x_idx, y_max, y_range)
+
+        # Apply the annotation
+        color = ann.get('color', '#333333')
+        offset = ann.get('offset', (20, 20))
+
+        ax.annotate(
+            ann['text'],
+            xy=(x_pos, y_pos),
+            xytext=offset,
+            textcoords='offset points',
+            arrowprops=dict(arrowstyle='->', color=color, connectionstyle='arc3,rad=.2', lw=1.5),
+            fontsize=10,
+            fontweight='bold',
+            color=color,
+            bbox=dict(boxstyle='round,pad=0.3', fc='white', ec=color, alpha=0.9, lw=1.5),
+            zorder=10,
+        )
+
+
+def _calculate_annotation_index(ann: dict, n_points: int, catch_idx: int | None, finish_idx: int | None) -> int | None:
+    """Helper to calculate the integer index for an annotation based on its timing type."""
+    if ann['x_type'] == 'percentage_of_cycle':
+        return int((ann['x'] / 100) * (n_points - 1))
+
+    if ann['x_type'] == 'percentage_of_drive':
+        if catch_idx is not None and finish_idx is not None:
+            drive_len = finish_idx - catch_idx
+            return int(catch_idx + (ann['x'] / 100) * drive_len)
+        return None
+
+    if ann['x_type'] == 'percentage_of_recovery':
+        if finish_idx is not None:
+            rec_len = n_points - finish_idx
+            return int(finish_idx + (ann['x'] / 100) * rec_len)
+        return None
+
+    if ann['x_type'] == 'point':
+        if ann['point_name'] == 'catch' and catch_idx is not None:
+            return catch_idx
+        if ann['point_name'] == 'finish' and finish_idx is not None:
+            return finish_idx
+        return None
+
+    return None
+
+
+def _get_annotation_x_coordinate(ax, ann: dict, data: pd.DataFrame, x_idx: int, diagram_key: str) -> float:
+    """Map a data index to a plot's physical X-coordinate."""
+    # Ensure index is within bounds
+    x_idx = min(max(0, x_idx), len(data) - 1)
+    base_idx = data.index[x_idx]
+
+    # Handle trajectory: X is Handle_X
+    if diagram_key == 'handle_trajectory' and 'Handle_X_Smooth' in data.columns:
+        try:
+            return float(data.loc[base_idx, 'Handle_X_Smooth'])
+        except Exception:
+            return float(base_idx)
+
+    # Trunk angle: X is Seat_X
+    if diagram_key == 'trunk_angle_separation_plot' and 'Seat_X_Smooth' in data.columns:
+        try:
+            return float(data.loc[base_idx, 'Seat_X_Smooth'])
+        except Exception:
+            return float(base_idx)
+
+    # Special handling for percentage-based X axes
+    x_label = str(ax.get_xlabel())
+    if '%' in x_label:
+        if ann['x_type'] in ['percentage_of_drive', 'percentage_of_recovery']:
+            return float(ann['x'])
+        if ann['x_type'] == 'point':
+            return 0.0 if ann['point_name'] == 'catch' else 100.0
+
+    return float(base_idx)
+
+
+def _get_annotation_y_coordinate(y_data: pd.Series | None, x_idx: int, y_max: float, y_range: float) -> float:
+    """Determine the vertical Y coordinate for an annotation."""
+    if y_data is not None:
+        try:
+            x_idx = min(max(0, x_idx), len(y_data) - 1)
+            return float(y_data.iloc[int(x_idx)])
+        except Exception:
+            return y_max - (y_range * 0.1)
+
+    return y_max - (y_range * 0.2)

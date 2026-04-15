@@ -401,7 +401,7 @@ def _draw_band_annotation(
         linewidth=0,
         zorder=1,
     )
-    # Dashed borders
+    # Dashed borders — horizontal top and bottom
     for y_val in (ann.y_low, ann.y_high):
         ax.plot(
             [x_start, x_end],

@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from rowing_catch.algo.analysis import process_rowing_data
+from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH
 from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.utils import get_traffic_light
 from rowing_catch.plot_transformer.trunk.trunk_angle_transformer import TrunkAngleComponent
@@ -88,7 +89,7 @@ if df is not None:
                 finish_idx=results['finish_idx'],
                 results=results,
             )
-            render_trunk_angle_with_stage_stickfigures(computed)
+            render_trunk_angle_with_stage_stickfigures(computed, color_overrides={'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH})
 
         with col2:
             st.subheader('2. Performance Metrics')

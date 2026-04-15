@@ -9,11 +9,22 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from rowing_catch.algo.helpers import calculate_ideal_drive_ratio
+from rowing_catch.algo.helpers import calculate_ideal_drive_rhythm
 from rowing_catch.coaching.profile import CoachingProfile
-from rowing_catch.plot_transformer.annotations import AnnotationEntry, BandAnnotation, PointAnnotation, SegmentAnnotation
+from rowing_catch.plot_transformer.annotations import (
+    AnnotationEntry,
+    BandAnnotation,
+    PhaseAnnotation,
+    PointAnnotation,
+    SegmentAnnotation,
+)
 from rowing_catch.plot_transformer.base import PlotComponent
 from rowing_catch.plot_transformer.rhythm.drive_recovery_balance_transformer import compute_rhythm_spread
+from rowing_catch.plot_transformer.rhythm.tip import (
+    drive_pct_spread_coach_tip,
+    drive_pct_vs_ideal_coach_tip,
+    spm_spread_coach_tip,
+)
 
 
 class RhythmConsistencyComponent(PlotComponent):
@@ -71,23 +82,27 @@ class RhythmConsistencyComponent(PlotComponent):
             mean_spm = float('nan')
             mean_drive_pct = float('nan')
 
-        # Ideal drive% curve: configurable SPM range from profile
-        min_spm = self.profile.rhythm_spm_min if self.profile else 15.0
-        max_spm = self.profile.rhythm_spm_max if self.profile else 45.0
+        # Ideal drive% curve: SPM range derived from actual data with 10% padding
+        if spm_vals.size > 0:
+            spm_range = spm_vals.max() - spm_vals.min()
+            spm_pad = spm_range * 0.50 if spm_range > 0 else 2.0
+            min_spm = spm_vals.min() - spm_pad
+            max_spm = spm_vals.max() + spm_pad
+        else:
+            min_spm, max_spm = 15.0, 45.0
 
         spm_curve = np.linspace(min_spm, max_spm, 100)
-        ideal_ratios = np.asarray(calculate_ideal_drive_ratio(spm_curve), dtype=float)
-        ideal_drive_pct_curve = ideal_ratios / (1.0 + ideal_ratios) * 100
+        offset = self.profile.rhythm_drive_pct_offset if self.profile is not None else 0.0
+        ideal_drive_pct_curve = np.asarray(calculate_ideal_drive_rhythm(spm_curve), dtype=float) + offset
 
         # --- Annotations Calculation ---
         annotations: list[AnnotationEntry] = []
         if not np.isnan(mean_spm) and not np.isnan(mean_drive_pct):
-            # 1. Ideal Drive % at current Mean SPM
-            ideal_ratio_at_mean = float(calculate_ideal_drive_ratio(np.array([mean_spm]))[0])
-            ideal_pct_at_mean = (ideal_ratio_at_mean / (1.0 + ideal_ratio_at_mean)) * 100
-            diff_pct = mean_drive_pct - ideal_pct_at_mean
+            # 1. Ideal Drive % at current Mean SPM (with profile offset applied)
+            ideal_pct_at_mean = float(calculate_ideal_drive_rhythm(mean_spm)) + offset
 
-            # [P1] Performance Mean
+            # [P1] Performance Mean — tip delegates to pure function in tip/
+            p1_tip, p1_ideal = drive_pct_vs_ideal_coach_tip(mean_drive_pct, ideal_pct_at_mean, mean_spm)
             annotations.append(
                 PointAnnotation(
                     label='[P1]',
@@ -95,17 +110,15 @@ class RhythmConsistencyComponent(PlotComponent):
                     x=mean_spm,
                     y=mean_drive_pct,
                     style='callout',
-                    coach_tip=(
-                        f'Your mean drive % is {abs(diff_pct):.1f}% {"above" if diff_pct > 0 else "below"} '
-                        f'the elite benchmark ({ideal_pct_at_mean:.1f}%) for this stroke rate.'
-                    ),
+                    coach_tip=p1_tip,
+                    coach_tip_is_ideal=p1_ideal,
                 )
             )
 
-            # [I1] Ideal Rhythm Reference (Segment Annotation replaces the old Band)
+            # [S1] Ideal Rhythm Reference (Segment Annotation — renamed from [I1] to match segment convention)
             annotations.append(
                 SegmentAnnotation(
-                    label='[I1]',
+                    label='[S1]',
                     description='Ideal Rhythm',
                     x_start=float(spm_curve[0]),
                     x_end=float(spm_curve[-1]),
@@ -119,25 +132,33 @@ class RhythmConsistencyComponent(PlotComponent):
                 )
             )
 
-            # [Z1] Consistency & Spread
+            # [Z1] + [Z2] Consistency spread — Band (Drive% ±1SD) + Phase (SPM ±1SD)
             if len(spm_vals) > 1:
                 spm_std = float(np.std(spm_vals))
                 drive_std = float(np.std(drive_pct_vals))
 
+                z1_tip, z1_ideal = drive_pct_spread_coach_tip(drive_std)
                 annotations.append(
                     BandAnnotation(
                         label='[Z1]',
-                        description='Consistency Spread (±1 SD)',
+                        description=f'Drive% spread (±{drive_std:.1f}%)',
                         y_low=mean_drive_pct - drive_std,
                         y_high=mean_drive_pct + drive_std,
+                        display_name='[Z1]',
+                        coach_tip=z1_tip,
+                        coach_tip_is_ideal=z1_ideal,
+                    )
+                )
+
+                z2_tip, z2_ideal = spm_spread_coach_tip(spm_std)
+                annotations.append(
+                    PhaseAnnotation(
+                        label='[Z2]',
+                        description=f'SPM spread (±{spm_std:.1f} SPM)',
                         x_start=mean_spm - spm_std,
                         x_end=mean_spm + spm_std,
-                        coach_tip=(
-                            f'Vertical spread ({drive_std:.1f}%) indicates the rhythm '
-                            '(drive/recovery balance) is changing a lot. '
-                            f'Horizontal spread ({spm_std:.1f} SPM) shows inconsistency '
-                            'keeping the same SPM during the piece.'
-                        ),
+                        coach_tip=z2_tip,
+                        coach_tip_is_ideal=z2_ideal,
                     )
                 )
 

@@ -11,7 +11,7 @@ import streamlit as st
 
 from rowing_catch.coaching.profile import DEFAULT_COACHING_PROFILE, CoachingProfile
 from rowing_catch.plot.rhythm.rhythm_consistency_plot import render_rhythm_consistency
-from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH
+from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH, COLOR_IDEAL_RATIO, COLOR_RHYTHM_SPREAD
 from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.trunk.trunk_angle_separation_plot import render_trunk_angle_separation
 from rowing_catch.plot_transformer.rhythm.rhythm_consistency_transformer import RhythmConsistencyComponent
@@ -97,8 +97,6 @@ with col_preview:
         separation_reach_ideal_low=current.separation_reach_ideal_low,
         separation_reach_ideal_high=current.separation_reach_ideal_high,
         separation_very_late_threshold=current.separation_very_late_threshold,
-        rhythm_spm_min=current.rhythm_spm_min,
-        rhythm_spm_max=current.rhythm_spm_max,
     )
     trunk_comp_timing = TrunkAngleComponent(profile=preview_profile_timing)
     trunk_computed_timing = trunk_comp_timing.compute(
@@ -108,15 +106,17 @@ with col_preview:
         ghost_cycle=scenario_avg,
         results=results,
     )
+    _trunk_timing_overrides = {'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH}
     active_ann_timing = render_annotation_toggles(
         annotations=trunk_computed_timing.get('annotations', []),
-        color_overrides={'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH},
+        color_overrides=_trunk_timing_overrides,
         expander_label='Annotations — Trunk Angle (Timing Preview)',
         key_prefix='profile_timing_ann',
     )
     render_trunk_angle_with_stage_stickfigures(
         trunk_computed_timing,
         active_annotations=active_ann_timing,
+        color_overrides=_trunk_timing_overrides,
     )
 
 st.markdown('---')
@@ -168,8 +168,6 @@ with col_preview2:
         separation_reach_ideal_low=current.separation_reach_ideal_low,
         separation_reach_ideal_high=current.separation_reach_ideal_high,
         separation_very_late_threshold=current.separation_very_late_threshold,
-        rhythm_spm_min=current.rhythm_spm_min,
-        rhythm_spm_max=current.rhythm_spm_max,
     )
 
     left_p, right_p = st.columns(2)
@@ -184,13 +182,14 @@ with col_preview2:
             ghost_cycle=scenario_avg,
             results={'scenario_name': selected_scenario},
         )
+        _sep_overrides = {'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH, '[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH}
         active_sep_ann = render_annotation_toggles(
             annotations=computed_sep.get('annotations', []),
-            color_overrides={'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH, '[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH},
+            color_overrides=_sep_overrides,
             expander_label='Annotations — Separation (Angles Preview)',
             key_prefix='profile_angles_sep_ann',
         )
-        render_trunk_angle_separation(computed_sep, active_annotations=active_sep_ann)
+        render_trunk_angle_separation(computed_sep, active_annotations=active_sep_ann, color_overrides=_sep_overrides)
 
     with right_p:
         st.caption('Trunk Angle & Range (1b)')
@@ -202,15 +201,17 @@ with col_preview2:
             ghost_cycle=scenario_avg,
             results=results,
         )
+        _trunk_angles_overrides = {'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH}
         active_ann_angles = render_annotation_toggles(
             annotations=trunk_computed_angles.get('annotations', []),
-            color_overrides={'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH},
+            color_overrides=_trunk_angles_overrides,
             expander_label='Annotations — Trunk Angle (Angles Preview)',
             key_prefix='profile_angles_trunk_ann',
         )
         render_trunk_angle_with_stage_stickfigures(
             trunk_computed_angles,
             active_annotations=active_ann_angles,
+            color_overrides=_trunk_angles_overrides,
         )
 
 st.markdown('---')
@@ -267,8 +268,6 @@ with col_preview3:
         separation_reach_ideal_low=float(sep_low_raw),
         separation_reach_ideal_high=float(sep_high_raw),
         separation_very_late_threshold=float(very_late_raw),
-        rhythm_spm_min=current.rhythm_spm_min,
-        rhythm_spm_max=current.rhythm_spm_max,
     )
     trunk_comp_rec = TrunkAngleComponent(profile=preview_profile_rec)
     trunk_computed_rec = trunk_comp_rec.compute(
@@ -278,15 +277,17 @@ with col_preview3:
         ghost_cycle=scenario_avg,
         results=results,
     )
+    _trunk_rec_overrides = {'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH}
     active_ann_rec = render_annotation_toggles(
         annotations=trunk_computed_rec.get('annotations', []),
-        color_overrides={'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH},
+        color_overrides=_trunk_rec_overrides,
         expander_label='Annotations — Trunk Angle (Recovery Preview)',
         key_prefix='profile_rec_ann',
     )
     render_trunk_angle_with_stage_stickfigures(
         trunk_computed_rec,
         active_annotations=active_ann_rec,
+        color_overrides=_trunk_rec_overrides,
     )
 
 st.markdown('---')
@@ -296,24 +297,35 @@ st.markdown('---')
 # ---------------------------------------------------------------------------
 st.subheader('4. Rhythm Consistency')
 st.markdown(
-    'Set the **visibility range** of the Ideal Rhythm line. '
-    'This defines the SPM boundaries for the ideal biomechanical curve reference.'
+    'Shift the **Ideal Rhythm line** up or down to match your club style. '
+    'Positive offset → curve moves up (more drive time expected); '
+    'negative offset → curve moves down (shorter drive expected).'
 )
 
 col_ctrl4, col_preview4 = st.columns([1, 2], gap='large')
 
 with col_ctrl4:
-    rhythm_min, rhythm_max = st.slider(
-        'Ideal SPM Range',
-        min_value=10,
-        max_value=60,
-        value=(int(current.rhythm_spm_min), int(current.rhythm_spm_max)),
+    rhythm_offset = st.slider(
+        'Ideal rhythm offset (% points)',
+        min_value=-10,
+        max_value=10,
+        value=int(current.rhythm_drive_pct_offset),
         step=1,
-        help='The SPM range for which the ideal rhythm curve is drawn. Default: 15–45 SPM.',
+        help=(
+            'Shifts the biomechanical ideal curve vertically. '
+            '0 = published elite benchmark. '
+            '+5 means the ideal allows 5% more drive time.'
+        ),
     )
 
+    ideal_at_28 = -0.000202 * 28**2 + 0.0195 * 28 + 0.0793
+    ideal_at_28_pct = ideal_at_28 * 100 + rhythm_offset
+    ideal_at_36 = -0.000202 * 36**2 + 0.0195 * 36 + 0.0793
+    ideal_at_36_pct = ideal_at_36 * 100 + rhythm_offset
+    st.info(f'**Ideal at 28 SPM:** {ideal_at_28_pct:.1f}%\n\n**Ideal at 36 SPM:** {ideal_at_36_pct:.1f}%')
+
 with col_preview4:
-    st.caption('Live preview — Rhythm Consistency (Ideal Line Range)')
+    st.caption('Live preview — Rhythm Consistency (Ideal line position)')
     preview_profile_rhythm = CoachingProfile(
         trunk_opening_ideal_pct=float(trunk_opening_pct),
         trunk_open_tolerance_pct=float(trunk_tolerance_pct),
@@ -326,8 +338,7 @@ with col_preview4:
         separation_reach_ideal_low=float(sep_low_raw),
         separation_reach_ideal_high=float(sep_high_raw),
         separation_very_late_threshold=float(very_late_raw),
-        rhythm_spm_min=float(rhythm_min),
-        rhythm_spm_max=float(rhythm_max),
+        rhythm_drive_pct_offset=float(rhythm_offset),
     )
     rhythm_comp = RhythmConsistencyComponent(profile=preview_profile_rhythm)
     computed_rhythm = rhythm_comp.compute(
@@ -336,8 +347,19 @@ with col_preview4:
         finish_idx=finish_idx,
         results=results,
     )
-    # Render with just the Ideal [I1] annotation for range clarity
-    render_rhythm_consistency(computed_rhythm, active_annotations={'[I1]'})
+    # Show all annotations so the coach sees the full picture
+    _rhythm_preview_overrides = {'[S1]': COLOR_IDEAL_RATIO, '[Z1]': COLOR_RHYTHM_SPREAD, '[Z2]': COLOR_RHYTHM_SPREAD}
+    active_rhythm_ann = render_annotation_toggles(
+        annotations=computed_rhythm.get('annotations', []),
+        color_overrides=_rhythm_preview_overrides,
+        expander_label='Annotations — Rhythm Consistency (Preview)',
+        key_prefix='profile_rhythm_ann',
+    )
+    render_rhythm_consistency(
+        computed_rhythm,
+        active_annotations=active_rhythm_ann,
+        color_overrides=_rhythm_preview_overrides,
+    )
 
 st.markdown('---')
 
@@ -358,8 +380,7 @@ final_profile = CoachingProfile(
     separation_reach_ideal_low=float(sep_low_raw),
     separation_reach_ideal_high=float(sep_high_raw),
     separation_very_late_threshold=float(very_late_raw),
-    rhythm_spm_min=float(rhythm_min),
-    rhythm_spm_max=float(rhythm_max),
+    rhythm_drive_pct_offset=float(rhythm_offset),
 )
 
 with col_save:

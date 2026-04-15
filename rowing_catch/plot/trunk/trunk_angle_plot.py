@@ -25,6 +25,7 @@ from rowing_catch.plot.utils import apply_annotations
 def render_trunk_angle_with_stage_stickfigures(
     computed_data: dict[str, Any],
     active_annotations: set[str] | None = None,
+    color_overrides: dict[str, str] | None = None,
     return_fig: bool = False,
 ) -> matplotlib.figure.Figure | None:
     """Render trunk angle with stage stick figures.
@@ -33,6 +34,9 @@ def render_trunk_angle_with_stage_stickfigures(
         computed_data: Output from TrunkAngleComponent.compute()
         active_annotations: Set of annotation labels to show (e.g. {'[A1]', '[A3]'}).
                             None means show all annotations. Empty set means hide all.
+        color_overrides: Optional label→hex colour map forwarded to apply_annotations.
+                         Pass the same dict given to render_annotation_toggles so
+                         on-plot colours and Streamlit badge colours stay in sync.
         return_fig: If True, skip st.pyplot() and return the Figure for PDF export.
 
     Returns:
@@ -192,16 +196,12 @@ def render_trunk_angle_with_stage_stickfigures(
 
     # --- Apply annotations to top axes (on-plot markers only).
     # The legend table is rendered by the page layer as a Streamlit widget.
-    _zone_color_overrides = {
-        '[Z1]': COLOR_CATCH,
-        '[Z2]': COLOR_FINISH,
-    }
     apply_annotations(
         ax_top,
         annotations,
         active_labels=active_annotations,
         axis_id='top',
-        color_overrides=_zone_color_overrides,
+        color_overrides=color_overrides,
     )
 
     # --- Bottom: anchor axis with stick figures ---

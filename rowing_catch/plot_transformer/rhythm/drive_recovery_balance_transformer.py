@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from rowing_catch.algo.helpers import calculate_ideal_drive_ratio
+from rowing_catch.algo.helpers import calculate_ideal_drive_rhythm
 from rowing_catch.algo.step.step5_metrics import _pick_finish_index
 from rowing_catch.plot_transformer.base import PlotComponent
 
@@ -58,8 +58,7 @@ def compute_drive_recovery_balance(
     mean_spm = float(np.nanmean(cycle_spms)) if cycle_spms else float('nan')
 
     if not np.isnan(mean_spm):
-        ideal_ratio = float(calculate_ideal_drive_ratio(mean_spm))
-        ideal_drive_pct = (ideal_ratio / (1.0 + ideal_ratio)) * 100
+        ideal_drive_pct = float(calculate_ideal_drive_rhythm(mean_spm))
     else:
         ideal_drive_pct = 100 / 3
         mean_spm = float('nan')

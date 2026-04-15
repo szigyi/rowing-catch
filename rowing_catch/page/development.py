@@ -8,7 +8,7 @@ from rowing_catch.plot.handle_seat_distance_plot import render_handle_seat_dista
 from rowing_catch.plot.handle_trajectory_dev_plot import render_handle_trajectory_dev
 from rowing_catch.plot.recovery_slide_control_plot import render_recovery_slide_control
 from rowing_catch.plot.rhythm.rhythm_consistency_plot import render_rhythm_consistency
-from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH
+from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH, COLOR_IDEAL_RATIO, COLOR_RHYTHM_SPREAD
 from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.trunk.trunk_angle_separation_plot import render_trunk_angle_separation
 from rowing_catch.plot_transformer import TrunkAngleComponent
@@ -43,13 +43,19 @@ computed_sep = trunk_angle_sep_component.compute(
     ghost_cycle=scenario_avg,
     results={'scenario_name': selected_scenario},
 )
+_sep_color_overrides = {'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH, '[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH}
 active_sep_annotations = render_annotation_toggles(
     annotations=computed_sep.get('annotations', []),
-    color_overrides={'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH, '[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH},
+    color_overrides=_sep_color_overrides,
     expander_label='Annotations — Trunk Angle Separation',
     key_prefix='ann_sep',
 )
-fig1 = render_trunk_angle_separation(computed_sep, active_annotations=active_sep_annotations, return_fig=True)
+fig1 = render_trunk_angle_separation(
+    computed_sep,
+    active_annotations=active_sep_annotations,
+    color_overrides=_sep_color_overrides,
+    return_fig=True,
+)
 if fig1:
     st.pyplot(fig1)
     st.info(f'**Developing Advice:** {computed_sep["coach_tip"]}')
@@ -64,15 +70,17 @@ trunk_computed = trunk_component.compute(
     ghost_cycle=scenario_avg,
     results=results,
 )
+_trunk_color_overrides = {'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH}
 active_trunk_annotations = render_annotation_toggles(
     annotations=trunk_computed.get('annotations', []),
-    color_overrides={'[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH},
+    color_overrides=_trunk_color_overrides,
     expander_label='Annotations — Trunk Angle & Range',
     key_prefix='ann_trunk',
 )
 fig2 = render_trunk_angle_with_stage_stickfigures(
     trunk_computed,
     active_annotations=active_trunk_annotations,
+    color_overrides=_trunk_color_overrides,
     return_fig=True,
 )
 if fig2:
@@ -88,13 +96,19 @@ computed_data_2 = rhythm_component.compute(
     finish_idx=finish_idx,
     results={'cycles': results['cycles']},
 )
+_rhythm_color_overrides = {'[S1]': COLOR_IDEAL_RATIO, '[Z1]': COLOR_RHYTHM_SPREAD, '[Z2]': COLOR_RHYTHM_SPREAD}
 active_rhythm_annotations = render_annotation_toggles(
     annotations=computed_data_2.get('annotations', []),
-    color_overrides={'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH},
+    color_overrides=_rhythm_color_overrides,
     expander_label='Annotations — Rhythm Consistency',
     key_prefix='ann_rhythm',
 )
-fig3 = render_rhythm_consistency(computed_data_2, active_annotations=active_rhythm_annotations, return_fig=True)
+fig3 = render_rhythm_consistency(
+    computed_data_2,
+    active_annotations=active_rhythm_annotations,
+    color_overrides=_rhythm_color_overrides,
+    return_fig=True,
+)
 if fig3:
     st.pyplot(fig3, width='stretch')
     st.info(f'**Performance Insight:** {computed_data_2["coach_tip"]}')

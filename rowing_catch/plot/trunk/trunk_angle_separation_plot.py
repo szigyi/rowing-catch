@@ -23,6 +23,7 @@ from rowing_catch.plot.utils import apply_annotations
 def render_trunk_angle_separation(
     computed_data: dict[str, Any],
     active_annotations: set[str] | None = None,
+    color_overrides: dict[str, str] | None = None,
     return_fig: bool = False,
 ) -> matplotlib.figure.Figure | None:
     """Render trunk angle separation plot.
@@ -31,6 +32,9 @@ def render_trunk_angle_separation(
         computed_data: Output from TrunkAngleSeparationComponent.compute()
         active_annotations: Set of annotation labels to show. None means show all.
                             Empty set means hide all.
+        color_overrides: Optional label→hex colour map forwarded to apply_annotations.
+                         Pass the same dict given to render_annotation_toggles so
+                         on-plot colours and Streamlit badge colours stay in sync.
         return_fig: If True, skip st.pyplot() and return the Figure for PDF export.
 
     Returns:
@@ -121,18 +125,12 @@ def render_trunk_angle_separation(
 
     # Apply on-plot annotation markers (backdrops, callout arrows).
     # The legend table is rendered by the page layer, not here.
-    _zone_overrides = {
-        '[P1]': COLOR_CATCH,
-        '[P2]': COLOR_FINISH,
-        '[Z1]': COLOR_CATCH,
-        '[Z2]': COLOR_FINISH,
-    }
     apply_annotations(
         ax,
         annotations,
         active_labels=active_annotations,
         axis_id='main',
-        color_overrides=_zone_overrides,
+        color_overrides=color_overrides,
     )
 
     if not return_fig:

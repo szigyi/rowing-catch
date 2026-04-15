@@ -395,53 +395,50 @@ def _validate_secondary_for_reversal(idx: int, secondary: np.ndarray | None, min
 
 
 @overload
-def calculate_ideal_drive_ratio(spm: float) -> float: ...
+def calculate_ideal_drive_rhythm(spm: float) -> float: ...
 
 
 @overload
-def calculate_ideal_drive_ratio(spm: np.ndarray) -> np.ndarray: ...
+def calculate_ideal_drive_rhythm(spm: np.ndarray) -> np.ndarray: ...
 
 
 @overload
-def calculate_ideal_drive_ratio(spm: Sequence[float]) -> np.ndarray: ...
+def calculate_ideal_drive_rhythm(spm: Sequence[float]) -> np.ndarray: ...
 
 
-def calculate_ideal_drive_ratio(spm: float | np.ndarray | Sequence[float]) -> float | np.ndarray:
-    """
-    Calculate ideal drive:recovery ratio based on stroke rate (SPM).
+def calculate_ideal_drive_rhythm(spm: float | np.ndarray | Sequence[float]) -> float | np.ndarray:
+    """Calculate the ideal drive phase percentage for a given stroke rate (SPM).
 
     Based on "The Biomechanics of Rowing" (2nd revision), page 17, Figure 2.6.
-    This quadratic relationship describes the optimal drive phase duration
-    relative to recovery for efficient propulsion.
+    Returns the drive phase as a percentage of the total stroke cycle — i.e.
+    how much of each stroke should be spent in the drive phase at this rate.
 
     Args:
         spm: Strokes per minute (scalar float, numpy array, or list).
              Typical range: 14-50 SPM for recreational to competitive rowing.
 
     Returns:
-        Ideal drive:recovery ratio as decimal (e.g., 0.33 = 33% drive time).
+        Drive phase as a percentage (0–100) of the total stroke cycle.
         - If input is float, returns float
         - If input is array or list, returns np.ndarray
-        At 14 SPM: ~0.313 (31.3% drive)
-        At 50 SPM: ~0.549 (54.9% drive)
+        At 15 SPM: ~32.6%
+        At 30 SPM: ~48.3%
+        At 40 SPM: ~53.6%
 
     Formula:
-        drive_ratio = -0.000202 * spm² + 0.0195 * spm + 0.0793
+        drive_pct = (-0.000202 * spm² + 0.0195 * spm + 0.0793) * 100
 
     References:
         Coker, J. (2012). The Biomechanics of Rowing (2nd Revised Edition).
         Figure 2.6, page 17.
     """
-    # Convert list to numpy array if needed
     spm_arr = np.asarray(spm)  # type: ignore[no-untyped-call]
 
-    # Quadratic coefficients from biomechanics literature
+    # Quadratic coefficients from biomechanics literature (Figure 2.6)
     a = -0.000202
     b = 0.0195
     c = 0.0793
 
-    # Compute ideal ratio using quadratic formula
-    ratio: float | np.ndarray = a * spm_arr**2 + b * spm_arr + c
+    pct: float | np.ndarray = (a * spm_arr**2 + b * spm_arr + c) * 100
 
-    # Return as-is (accepts both scalars, arrays, and lists)
-    return ratio.item() if np.ndim(ratio) == 0 else ratio  # type: ignore[union-attr]
+    return pct.item() if np.ndim(pct) == 0 else pct  # type: ignore[union-attr]

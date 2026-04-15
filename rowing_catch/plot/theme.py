@@ -35,6 +35,7 @@ COLOR_CATCH = '#00CC96'  # Green — catch event marker
 COLOR_FINISH = '#EF553B'  # Red   — finish event marker
 COLOR_COMPARE = '#A8B2C1'  # Gray (Ideal/Compare/Ghost)
 COLOR_IDEAL_RATIO = '#FDB833'  # Gold — biomechanically ideal ratio
+COLOR_RHYTHM_SPREAD = '#10B981'  # Emerald — rhythm Z1/Z2 spread bands
 COLOR_TEXT_MAIN = '#444444'
 COLOR_TEXT_SUB = '#666666'
 
@@ -69,6 +70,7 @@ __all__ = [
     'COLOR_FINISH',
     'COLOR_COMPARE',
     'COLOR_IDEAL_RATIO',
+    'COLOR_RHYTHM_SPREAD',
     'COLOR_TEXT_MAIN',
     'COLOR_TEXT_SUB',
     'BG_COLOR_FIGURE',

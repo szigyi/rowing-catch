@@ -26,13 +26,13 @@ else
     exit 1
 fi
 
-# 1. Linting with Ruff
+# 1. Linting with Ruff (auto-fix)
 echo -e "\n${BLUE}Step 1: Linting (Ruff)${NC}"
-ruff check .
+ruff check . --fix
 
-# 2. Formatting Check with Ruff
-echo -e "\n${BLUE}Step 2: Formatting Check (Ruff)${NC}"
-ruff format --check .
+# 2. Formatting with Ruff (auto-fix)
+echo -e "\n${BLUE}Step 2: Formatting (Ruff)${NC}"
+ruff format .
 
 # 3. Type Checking with Mypy
 echo -e "\n${BLUE}Step 3: Type Checking (Mypy)${NC}"

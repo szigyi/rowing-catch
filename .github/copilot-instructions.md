@@ -186,6 +186,85 @@ def render_myplot(computed_data: dict[str, Any]):
     st.info(coach_tip)
 ```
 
+## Coaching Tips Pattern
+
+When a plot component produces annotation-level coaching tips that carry **conditional logic** (e.g. green/yellow/red thresholds), extract that logic into a dedicated `tip/` sub-package inside the transformer package. This mirrors the pattern used by `plot_transformer/trunk/tip/`.
+
+### Structure
+
+```
+rowing_catch/plot_transformer/<domain>/
+    __init__.py
+    <domain>_transformer.py       ← imports from tip/
+    tip/
+        __init__.py               ← re-exports all public tip functions
+        <domain>_tips.py          ← pure tip functions only
+```
+
+### Tip Function Contract
+
+Each tip function must:
+- Be a **pure function** (no side effects, no imports from `plot/` or `page/`)
+- Accept only plain Python scalars (`float`, `tuple[float, float]`, `list[float]`, …)
+- Return **`tuple[str, bool]`** — `(cue_text, is_ideal)`
+  - `is_ideal=True` → rower is within the ideal range (renders green in the UI)
+  - `is_ideal=False` → improvement needed (renders red/yellow in the UI)
+- Declare **named threshold constants** at module level (not magic numbers inline)
+- Be covered by `pytest` tests in `tests/plot_transformer/`
+
+### Tip Function Template
+
+```python
+# File: rowing_catch/plot_transformer/<domain>/tip/<domain>_tips.py
+
+MY_THRESHOLD: float = 3.0  # units — below = ideal
+
+
+def my_metric_coach_tip(value: float) -> tuple[str, bool]:
+    """Return coaching cue and ideal-flag for <metric>.
+
+    Args:
+        value: Measured <metric> value.
+
+    Returns:
+        Tuple of (coaching cue string, is_ideal bool)
+    """
+    if value <= MY_THRESHOLD:
+        return f'<metric> is {value:.1f} — within ideal range ✓', True
+    return f'<metric> is {value:.1f} — exceeds threshold ({MY_THRESHOLD}). <Action>.', False
+```
+
+### Wiring tip functions into annotations
+
+In the transformer, import tip functions from the `tip/` sub-package and pass both the cue and the flag to the annotation:
+
+```python
+from rowing_catch.plot_transformer.<domain>.tip import my_metric_coach_tip
+
+tip_text, tip_ideal = my_metric_coach_tip(value)
+annotations.append(
+    PointAnnotation(
+        label='[P1]',
+        description='...',
+        x=x, y=y,
+        coach_tip=tip_text,
+        coach_tip_is_ideal=tip_ideal,   # ← drives green/red cell in the UI
+    )
+)
+```
+
+### Rules
+
+- ❌ Never inline threshold logic directly in `compute()` — it can't be tested in isolation
+- ❌ Never hardcode threshold numbers as magic values — use named module-level constants
+- ✅ Keep tip functions in `tip/<domain>_tips.py`, exported via `tip/__init__.py`
+- ✅ Test every tip function in `tests/plot_transformer/`
+
+### Real Example
+
+See `rowing_catch/plot_transformer/trunk/tip/trunk_angle_tips.py` (trunk) and
+`rowing_catch/plot_transformer/rhythm/tip/rhythm_consistency_tips.py` (rhythm) as reference implementations.
+
 ## Common Mistakes (DO NOT DO)
 
 - ❌ Import `plot/` in `plot_transformer/` → Violates layer dependency

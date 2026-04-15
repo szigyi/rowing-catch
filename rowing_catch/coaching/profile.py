@@ -97,14 +97,15 @@ class CoachingProfile:
     """If trunk reaches catch zone after this fraction → very late / no separation."""
 
     # ------------------------------------------------------------------ #
-    # Rhythm & Consistency
+    # Rhythm consistency — ideal curve offset
     # ------------------------------------------------------------------ #
 
-    rhythm_spm_min: float = 15.0
-    """Lower bound of the visible ideal rhythm line (SPM)."""
-
-    rhythm_spm_max: float = 45.0
-    """Upper bound of the visible ideal rhythm line (SPM)."""
+    rhythm_drive_pct_offset: float = 0.0
+    """Vertical offset (percentage points) applied to the biomechanical ideal drive%
+    curve.  Positive values shift the curve up (more drive time expected);
+    negative values shift it down (less drive time expected).  Default 0 uses
+    the published biomechanics curve unchanged.
+    """
 
     # ------------------------------------------------------------------ #
     # Derived properties (computed from the high-level philosophy)

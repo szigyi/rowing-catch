@@ -11,6 +11,7 @@ from rowing_catch.plot.rhythm.rhythm_consistency_plot import render_rhythm_consi
 from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH, COLOR_IDEAL_RATIO, COLOR_RHYTHM_SPREAD
 from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.trunk.trunk_angle_separation_plot import render_trunk_angle_separation
+from rowing_catch.plot.velocity.velocity_profile_plot import render_velocity_profile
 from rowing_catch.plot_transformer import TrunkAngleComponent
 from rowing_catch.plot_transformer.annotations import AnnotationEntry
 from rowing_catch.plot_transformer.handle_seat_distance_transformer import HandleSeatDistanceComponent
@@ -18,6 +19,7 @@ from rowing_catch.plot_transformer.handle_trajectory_dev_transformer import Hand
 from rowing_catch.plot_transformer.recovery_slide_control_transformer import RecoverySlideControlComponent
 from rowing_catch.plot_transformer.rhythm.rhythm_consistency_transformer import RhythmConsistencyComponent
 from rowing_catch.plot_transformer.trunk.trunk_angle_separation_transformer import TrunkAngleSeparationComponent
+from rowing_catch.plot_transformer.velocity.velocity_profile_transformer import VelocityProfileComponent
 from rowing_catch.ui.annotation_toggles import render_annotation_toggles
 from rowing_catch.ui.coaching_session import get_coaching_profile
 from rowing_catch.ui.pre_process import render_sidebar_and_process
@@ -33,7 +35,20 @@ avg_cycle = results['avg_cycle']
 catch_idx = results['catch_idx']
 finish_idx = results['finish_idx']
 
-st.subheader('1. Trunk Angle Separation')
+st.subheader('1. Detailed Velocity Profile (Seat, Handle, Shoulder, Rower)')
+st.markdown('Rate of change (velocity) of all tracked segments across the averaged stroke.')
+velocity_profile_component = VelocityProfileComponent()
+computed_vel = velocity_profile_component.compute(
+    avg_cycle=avg_cycle,
+    catch_idx=catch_idx,
+    finish_idx=finish_idx,
+)
+fig0 = render_velocity_profile(computed_vel, return_fig=True)
+if fig0:
+    st.pyplot(fig0)
+    st.info(f"**Coach's Tip:** {computed_vel['coach_tip']}")
+
+st.subheader('2. Trunk Angle Separation')
 st.markdown('Shows the trunk angle relative to seat position.')
 trunk_angle_sep_component = TrunkAngleSeparationComponent(profile=profile)
 computed_sep = trunk_angle_sep_component.compute(
@@ -60,7 +75,7 @@ if fig1:
     st.pyplot(fig1)
     st.info(f'**Developing Advice:** {computed_sep["coach_tip"]}')
 
-st.subheader('2. Trunk Angle with Stick figures')
+st.subheader('3. Trunk Angle with Stick figures')
 st.markdown('Shows the trunk angle compare to the progress of the stroke.')
 trunk_component = TrunkAngleComponent(profile=profile)
 trunk_computed = trunk_component.compute(
@@ -87,7 +102,7 @@ if fig2:
     st.pyplot(fig2)
     st.info(f"**Coach's Tip:** {trunk_computed['coach_tip']}")
 
-st.subheader('3. Rhythm Consistency')
+st.subheader('4. Rhythm Consistency')
 st.markdown('Measures how consistently the rower reaches the target rhythm. Consistency is key for high-level performance.')
 rhythm_component = RhythmConsistencyComponent(profile=profile)
 computed_data_2 = rhythm_component.compute(
@@ -113,7 +128,7 @@ if fig3:
     st.pyplot(fig3, width='stretch')
     st.info(f'**Performance Insight:** {computed_data_2["coach_tip"]}')
 
-st.subheader('4. Handle-Seat Distance')
+st.subheader('5. Handle-Seat Distance')
 st.markdown('Measures compression. Ideally, you want a long reaching distance at the catch without losing core stability.')
 handle_seat_distance_component = HandleSeatDistanceComponent()
 computed_data_3 = handle_seat_distance_component.compute(
@@ -128,7 +143,7 @@ if fig4:
     st.info(f'**Developing Advice:** {computed_data_3["coach_tip"]}')
 
 
-st.subheader('5. Recovery Slide Control')
+st.subheader('6. Recovery Slide Control')
 st.markdown('Analyzes seat velocity during recovery. Gradual deceleration into the catch indicates good slide control.')
 recovery_slide_control_component = RecoverySlideControlComponent()
 computed_data_4 = recovery_slide_control_component.compute(
@@ -143,7 +158,7 @@ if fig5:
     st.info(f'**Performance Insight:** {computed_data_4["coach_tip"]}')
 
 st.markdown('---')
-st.subheader('6. Handle Trajectory (Box Plot)')
+st.subheader('7. Handle Trajectory (Box Plot)')
 st.markdown('Shows the variance of handle height across the stroke.')
 handle_trajectory_dev_component = HandleTrajectoryDevComponent()
 computed_data_5 = handle_trajectory_dev_component.compute(
@@ -170,6 +185,7 @@ if st.button('Generate PDF Report', type='primary'):
             return [a for a in all_anns if a.label in active_labels]
 
         figures: list[tuple[str, plt.Figure | None, Sequence[AnnotationEntry]]] = [
+            ('Detailed Velocity Profile', fig0, []),
             ('Trunk Angle Separation', fig1, _get_active_anns(computed_sep.get('annotations', []), active_sep_annotations)),
             ('Trunk Angle & Range', fig2, _get_active_anns(trunk_computed.get('annotations', []), active_trunk_annotations)),
             ('Rhythm Consistency', fig3, _get_active_anns(computed_data_2.get('annotations', []), active_rhythm_annotations)),
@@ -204,6 +220,6 @@ st.markdown('---')
 st.caption(f'Analysis complete for **{data_label}**.')
 
 # Cleanup Matplotlib figures to prevent memory leaks and MediaFileStorageError
-for f in [fig1, fig2, fig3, fig4, fig5, fig6]:
+for f in [fig0, fig1, fig2, fig3, fig4, fig5, fig6]:
     if f is not None:
         plt.close(f)

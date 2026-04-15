@@ -63,7 +63,7 @@ def render_drive_recovery_balance(computed_data: dict[str, Any], return_fig: boo
     ax.spines['bottom'].set_color('#DDDDDD')
 
     if not return_fig:
-        st.pyplot(fig, use_container_width=False)
+        st.pyplot(fig, width='content')
         plt.close(fig)
         st.info(coach_tip)
         return None

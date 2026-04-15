@@ -384,12 +384,12 @@ final_profile = CoachingProfile(
 )
 
 with col_save:
-    if st.button('Apply & Save to Session', type='primary', use_container_width=True):
+    if st.button('Apply & Save to Session', type='primary', width='stretch'):
         save_coaching_profile(final_profile)
         st.success('Coaching profile saved for this session. Navigate to Development or Report to see the updated diagrams.')
 
 with col_reset:
-    if st.button('Reset to Defaults', use_container_width=True):
+    if st.button('Reset to Defaults', width='stretch'):
         save_coaching_profile(DEFAULT_COACHING_PROFILE)
         st.rerun()
 

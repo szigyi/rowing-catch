@@ -20,11 +20,12 @@ from rowing_catch.plot.theme import (
 from rowing_catch.plot.utils import setup_premium_plot
 
 
-def render_avg_cycle_multi_axis(computed_data: dict[str, Any]) -> None:
+def render_avg_cycle_multi_axis(computed_data: dict[str, Any], return_fig: bool = False) -> plt.Figure | None:
     """Render multi-axis averaged cycle plot.
 
     Args:
         computed_data: Output from AvgCycleMultiAxisComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -134,7 +135,10 @@ def render_avg_cycle_multi_axis(computed_data: dict[str, Any]) -> None:
         edgecolor='#DDDDDD',
     )
 
-    st.pyplot(fig, width='stretch')
-    plt.close(fig)
+    if not return_fig:
+        st.pyplot(fig, width='stretch')
+        plt.close(fig)
+        st.info(coach_tip)
+        return None
 
-    st.info(coach_tip)
+    return fig

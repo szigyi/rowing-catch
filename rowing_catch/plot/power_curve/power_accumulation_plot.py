@@ -5,17 +5,19 @@ Renders stacked power curve for legs, trunk, and arms.
 
 from typing import Any
 
+import matplotlib.pyplot as plt
 import streamlit as st
 
 from rowing_catch.plot.theme import COLOR_ARMS, COLOR_LEGS, COLOR_TRUNK
 from rowing_catch.plot.utils import setup_premium_plot
 
 
-def render_power_accumulation(computed_data: dict[str, Any]):
+def render_power_accumulation(computed_data: dict[str, Any], return_fig: bool = False) -> plt.Figure | None:
     """Render power accumulation stacked area plot.
 
     Args:
         computed_data: Output from PowerAccumulationComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -23,7 +25,7 @@ def render_power_accumulation(computed_data: dict[str, Any]):
 
     if not data.get('has_data', True):
         st.warning(coach_tip)
-        return
+        return None
 
     fig, ax = setup_premium_plot(metadata['title'], metadata['x_label'], metadata['y_label'])
 
@@ -56,5 +58,10 @@ def render_power_accumulation(computed_data: dict[str, Any]):
 
     ax.legend(loc='upper right')
 
-    st.pyplot(fig)
-    st.info(f'**Performance Insight:** {coach_tip}')
+    if not return_fig:
+        st.pyplot(fig)
+        plt.close(fig)
+        st.info(f'**Performance Insight:** {coach_tip}')
+        return None
+
+    return fig

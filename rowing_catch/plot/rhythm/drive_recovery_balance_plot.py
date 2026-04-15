@@ -12,11 +12,12 @@ import streamlit as st
 from rowing_catch.plot.theme import BG_COLOR_AXES, BG_COLOR_FIGURE, COLOR_CATCH, COLOR_IDEAL_RATIO, COLOR_MAIN, COLOR_TEXT_SUB
 
 
-def render_drive_recovery_balance(computed_data: dict[str, Any]) -> None:
+def render_drive_recovery_balance(computed_data: dict[str, Any], return_fig: bool = False) -> plt.Figure | None:
     """Render drive vs recovery stacked bar.
 
     Args:
         computed_data: Output from DriveRecoveryBalanceComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure.
     """
     data = computed_data['data']
     coach_tip = computed_data['coach_tip']
@@ -61,7 +62,10 @@ def render_drive_recovery_balance(computed_data: dict[str, Any]) -> None:
     ax.spines[['top', 'right', 'left']].set_visible(False)
     ax.spines['bottom'].set_color('#DDDDDD')
 
-    st.pyplot(fig, use_container_width=False)
-    plt.close(fig)
+    if not return_fig:
+        st.pyplot(fig, use_container_width=False)
+        plt.close(fig)
+        st.info(coach_tip)
+        return None
 
-    st.info(coach_tip)
+    return fig

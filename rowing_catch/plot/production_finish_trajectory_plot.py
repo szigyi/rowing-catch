@@ -12,11 +12,12 @@ from rowing_catch.plot.theme import BG_COLOR_AXES, COLOR_CATCH, COLOR_FINISH, CO
 from rowing_catch.plot.utils import setup_premium_plot
 
 
-def render_production_finish_trajectory(computed_data: dict[str, Any]) -> None:
+def render_production_finish_trajectory(computed_data: dict[str, Any], return_fig: bool = False) -> plt.Figure | None:
     """Render full trajectory with production finish detection.
 
     Args:
         computed_data: Output from ProductionFinishTrajectoryComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -25,7 +26,7 @@ def render_production_finish_trajectory(computed_data: dict[str, Any]) -> None:
     if not data['index']:
         st.warning('Insufficient data to display full trajectory.')
         st.info(coach_tip)
-        return
+        return None
 
     fig, ax = setup_premium_plot(
         title=metadata['title'],
@@ -43,7 +44,10 @@ def render_production_finish_trajectory(computed_data: dict[str, Any]) -> None:
     ax.scatter(data['finish_indices'], data['finish_values'], color=COLOR_FINISH, marker='X', s=60, zorder=5, label='Finish')
 
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
-    st.pyplot(fig, width='stretch')
-    plt.close(fig)
+    if not return_fig:
+        st.pyplot(fig, width='stretch')
+        plt.close(fig)
+        st.info(coach_tip)
+        return None
 
-    st.info(coach_tip)
+    return fig

@@ -289,12 +289,13 @@ def render_trunk_angle_with_stage_stickfigures(
             clip_on=False,
         )
 
-    st.pyplot(fig)
-    st.info(f"**Coach's Tip:** {coach_tip}")
+    if not return_fig:
+        st.pyplot(fig)
+        st.info(f"**Coach's Tip:** {coach_tip}")
+        plt.close(fig)
+        return None
 
-    if return_fig:
-        return fig
-    return None
+    return fig
 
 
 __all__ = ['render_trunk_angle_with_stage_stickfigures']

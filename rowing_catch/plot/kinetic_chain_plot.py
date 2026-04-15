@@ -5,17 +5,19 @@ Renders velocity and acceleration coordination with dual-axis plot.
 
 from typing import Any
 
+import matplotlib.pyplot as plt
 import streamlit as st
 
 from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH, MAIN_COLORS
 from rowing_catch.plot.utils import setup_premium_plot
 
 
-def render_kinetic_chain(computed_data: dict[str, Any]):
+def render_kinetic_chain(computed_data: dict[str, Any], return_fig: bool = False) -> plt.Figure | None:
     """Render kinetic chain coordination plot.
 
     Args:
         computed_data: Output from KineticChainComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -47,5 +49,10 @@ def render_kinetic_chain(computed_data: dict[str, Any]):
 
     ax.legend(loc='upper left')
 
-    st.pyplot(fig)
-    st.info(f'**Performance Insight:** {coach_tip}')
+    if not return_fig:
+        st.pyplot(fig)
+        plt.close(fig)
+        st.info(f'**Performance Insight:** {coach_tip}')
+        return None
+
+    return fig

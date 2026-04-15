@@ -10,8 +10,8 @@ impact of their choices.
 import streamlit as st
 
 from rowing_catch.coaching.profile import DEFAULT_COACHING_PROFILE, CoachingProfile
-from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH
 from rowing_catch.plot.rhythm.rhythm_consistency_plot import render_rhythm_consistency
+from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH
 from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.trunk.trunk_angle_separation_plot import render_trunk_angle_separation
 from rowing_catch.plot_transformer.rhythm.rhythm_consistency_transformer import RhythmConsistencyComponent

@@ -12,11 +12,12 @@ from rowing_catch.plot.theme import BG_COLOR_AXES, BG_COLOR_FIGURE, COLOR_CATCH,
 from rowing_catch.plot.utils import setup_premium_plot  # noqa: F401 — imported for style consistency
 
 
-def render_jerk_comparison(computed_data: dict[str, Any]) -> None:
+def render_jerk_comparison(computed_data: dict[str, Any], return_fig: bool = False) -> plt.Figure | None:
     """Render jerk comparison subplots.
 
     Args:
         computed_data: Output from JerkComparisonComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -26,7 +27,7 @@ def render_jerk_comparison(computed_data: dict[str, Any]) -> None:
     if not panels:
         st.warning('No jerk data available.')
         st.info(coach_tip)
-        return
+        return None
 
     index = data['index']
     rower_jerk = data['rower_jerk']
@@ -76,7 +77,10 @@ def render_jerk_comparison(computed_data: dict[str, Any]) -> None:
 
     axes[-1].set_xlabel(metadata['x_label'], fontweight='bold', color=COLOR_TEXT_SUB)
     plt.tight_layout()
-    st.pyplot(fig, width='stretch')
-    plt.close(fig)
+    if not return_fig:
+        st.pyplot(fig, width='stretch')
+        plt.close(fig)
+        st.info(coach_tip)
+        return None
 
-    st.info(coach_tip)
+    return fig

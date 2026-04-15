@@ -13,11 +13,12 @@ from rowing_catch.plot.theme import BG_COLOR_AXES, COLOR_MAIN
 from rowing_catch.plot.utils import setup_premium_plot
 
 
-def render_cycle_overlay_mean_std(computed_data: dict[str, Any]) -> None:
+def render_cycle_overlay_mean_std(computed_data: dict[str, Any], return_fig: bool = False) -> plt.Figure | None:
     """Render cycle overlay with mean and SD band.
 
     Args:
         computed_data: Output from CycleOverlayMeanStdComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -25,7 +26,7 @@ def render_cycle_overlay_mean_std(computed_data: dict[str, Any]) -> None:
 
     if not data['cycle_arrays']:
         st.warning('No cycle data available.')
-        return
+        return None
 
     x_idx = np.array(data['x_idx'])
     mean_vals = np.array(data['mean_vals'])
@@ -45,7 +46,10 @@ def render_cycle_overlay_mean_std(computed_data: dict[str, Any]) -> None:
     ax.plot(x_idx, mean_vals, color=COLOR_MAIN, linewidth=2, label='Mean cycle')
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
 
-    st.pyplot(fig, width='stretch')
-    plt.close(fig)
+    if not return_fig:
+        st.pyplot(fig, width='stretch')
+        plt.close(fig)
+        st.info(coach_tip)
+        return None
 
-    st.info(coach_tip)
+    return fig

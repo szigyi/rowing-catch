@@ -12,11 +12,12 @@ from rowing_catch.plot.theme import BG_COLOR_AXES, COLOR_CATCH, COLOR_FINISH, CO
 from rowing_catch.plot.utils import setup_premium_plot
 
 
-def render_avg_cycle_trunk_angle(computed_data: dict[str, Any]) -> None:
+def render_avg_cycle_trunk_angle(computed_data: dict[str, Any], return_fig: bool = False) -> plt.Figure | None:
     """Render trunk angle plot.
 
     Args:
         computed_data: Output from AvgCycleTrunkAngleComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -67,7 +68,10 @@ def render_avg_cycle_trunk_angle(computed_data: dict[str, Any]) -> None:
     )
 
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES, edgecolor='#DDDDDD')
-    st.pyplot(fig, width='stretch')
-    plt.close(fig)
+    if not return_fig:
+        st.pyplot(fig, width='stretch')
+        plt.close(fig)
+        st.info(coach_tip)
+        return None
 
-    st.info(coach_tip)
+    return fig

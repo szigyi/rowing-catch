@@ -6,20 +6,20 @@ This is the authoritative version (migrated from the debug pipeline).
 
 from typing import Any
 
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
+from matplotlib.figure import Figure
 
-from rowing_catch.plot.theme import BG_COLOR_AXES, COLOR_IDEAL_RATIO, COLOR_MAIN, COLOR_TEXT_SUB
-from rowing_catch.plot.utils import setup_premium_plot
+from rowing_catch.plot.theme import BG_COLOR_AXES, COLOR_IDEAL_RATIO, COLOR_MAIN
+from rowing_catch.plot.utils import apply_annotations, setup_premium_plot
 
 
 def render_rhythm_consistency(
     computed_data: dict[str, Any],
     active_annotations: set[str] | None = None,
     return_fig: bool = False,
-) -> matplotlib.figure.Figure | None:
+) -> Figure | None:
     """Render rhythm consistency scatter plot with ideal drive% curve and annotation table.
 
     Args:
@@ -53,16 +53,27 @@ def render_rhythm_consistency(
     if not np.isnan(mean_spm):
         ax.axvline(mean_spm, color='#94a3b8', linewidth=1, linestyle='--', alpha=0.7)
         ax.text(
-            mean_spm, 58, 'Mean SPM', 
-            color='#64748b', fontsize=8, ha='right', va='center', rotation=90,
-            bbox=dict(facecolor=BG_COLOR_AXES, alpha=0.6, edgecolor='none', pad=1)
+            mean_spm,
+            58,
+            'Mean SPM',
+            color='#64748b',
+            fontsize=8,
+            ha='right',
+            va='center',
+            rotation=90,
+            bbox=dict(facecolor=BG_COLOR_AXES, alpha=0.6, edgecolor='none', pad=1),
         )
     if not np.isnan(mean_drive_pct):
         ax.axhline(mean_drive_pct, color='#94a3b8', linewidth=1, linestyle='--', alpha=0.7)
         ax.text(
-            ax.get_xlim()[1] - 1, mean_drive_pct, 'Mean Drive%', 
-            color='#64748b', fontsize=8, ha='right', va='bottom',
-            bbox=dict(facecolor=BG_COLOR_AXES, alpha=0.6, edgecolor='none', pad=1)
+            ax.get_xlim()[1] - 1,
+            mean_drive_pct,
+            'Mean Drive%',
+            color='#64748b',
+            fontsize=8,
+            ha='right',
+            va='bottom',
+            bbox=dict(facecolor=BG_COLOR_AXES, alpha=0.6, edgecolor='none', pad=1),
         )
 
     # Raw Scatter points (now primary, along with annotations)
@@ -70,13 +81,8 @@ def render_rhythm_consistency(
 
     # Apply Annotations (drawings only)
     if annotations:
-        from rowing_catch.plot.utils import apply_annotations
         # Override [I1] to use the specific teal color intended for the ideal ratio
-        apply_annotations(
-            ax, annotations, 
-            active_labels=active_annotations,
-            color_overrides={'[I1]': COLOR_IDEAL_RATIO}
-        )
+        apply_annotations(ax, annotations, active_labels=active_annotations, color_overrides={'[I1]': COLOR_IDEAL_RATIO})
 
     # Fix Y-axis to a meaningful range for drive % (20–60%)
     ax.set_ylim(20, 60)

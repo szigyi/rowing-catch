@@ -257,6 +257,9 @@ def test_compute_drive_angle():
 Always run:
 
 ```bash
+# Activate virtual env
+source .venv/bin/activate
+
 # Type checking
 python -m mypy rowing_catch/
 

@@ -13,11 +13,12 @@ from rowing_catch.plot.theme import BG_COLOR_AXES, COLOR_CATCH, COLOR_SEAT
 from rowing_catch.plot.utils import setup_premium_plot
 
 
-def render_catch_detection(computed_data: dict[str, Any]) -> None:
+def render_catch_detection(computed_data: dict[str, Any], return_fig: bool = False) -> plt.Figure | None:
     """Render catch detection plot and interval table.
 
     Args:
         computed_data: Output from CatchDetectionComponent.compute()
+        return_fig: If True, skip st.pyplot() and return the Figure.
     """
     data = computed_data['data']
     metadata = computed_data['metadata']
@@ -53,19 +54,23 @@ def render_catch_detection(computed_data: dict[str, Any]) -> None:
         )
 
     ax.legend(fontsize=8, facecolor=BG_COLOR_AXES)
-    st.pyplot(fig, width='stretch')
-    plt.close(fig)
+    if not return_fig:
+        st.pyplot(fig, width='stretch')
+        plt.close(fig)
 
-    if data['intervals']:
-        st.markdown('**Catch-to-catch intervals (samples):**')
-        df_intervals = pd.DataFrame(
-            {
-                'Catch #': [r['catch_num'] for r in data['intervals']],
-                'Start index': [r['start'] for r in data['intervals']],
-                'End index': [r['end'] for r in data['intervals']],
-                'Interval (samples)': [r['interval'] for r in data['intervals']],
-            }
-        )
-        st.dataframe(df_intervals, width='stretch', hide_index=True)
+        if data['intervals']:
+            st.markdown('**Catch-to-catch intervals (samples):**')
+            df_intervals = pd.DataFrame(
+                {
+                    'Catch #': [r['catch_num'] for r in data['intervals']],
+                    'Start index': [r['start'] for r in data['intervals']],
+                    'End index': [r['end'] for r in data['intervals']],
+                    'Interval (samples)': [r['interval'] for r in data['intervals']],
+                }
+            )
+            st.dataframe(df_intervals, width='stretch', hide_index=True)
 
-    st.info(coach_tip)
+        st.info(coach_tip)
+        return None
+
+    return fig

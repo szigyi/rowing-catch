@@ -135,9 +135,10 @@ def render_trunk_angle_separation(
         color_overrides=_zone_overrides,
     )
 
-    st.pyplot(fig)
-    st.info(f'**Developing Advice:** {coach_tip}')
+    if not return_fig:
+        st.pyplot(fig)
+        st.info(f'**Developing Advice:** {coach_tip}')
+        plt.close(fig)
+        return None
 
-    if return_fig:
-        return fig
-    return None
+    return fig

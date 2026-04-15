@@ -12,33 +12,39 @@ from rowing_catch.plot.theme import BG_COLOR_AXES, COLOR_COMPARE, COLOR_HANDLE, 
 from rowing_catch.plot.utils import setup_premium_plot
 
 
-def render_signal_smoothing_comparison(computed_data: dict[str, Any]) -> None:
+def render_signal_smoothing_comparison(computed_data: dict[str, Any], return_fig: bool = False) -> list[plt.Figure] | None:
     """Render signal smoothing comparison.
 
     Args:
         computed_data: Output from SignalSmoothingComparisonComponent.compute()
+        return_fig: If True, skip st.pyplot() and return a list of Figures.
     """
     data = computed_data['data']
     coach_tip = computed_data['coach_tip']
 
-    col_left, col_right = st.columns(2)
+    # Seat_X figure
+    fig_seat, ax_seat = setup_premium_plot(x_label='Sample index', y_label='Seat_X', figsize=(5, 2.5))
+    ax_seat.plot(data['index_raw'], data['seat_raw'], color=COLOR_COMPARE, linewidth=0.8, label='Raw')
+    ax_seat.plot(data['index_smooth'], data['seat_smooth'], color=COLOR_SEAT, linewidth=1.5, label='Smoothed')
+    ax_seat.legend(fontsize=8, facecolor=BG_COLOR_AXES)
 
-    with col_left:
-        st.markdown('**Before vs. after — `Seat_X`:**')
-        fig, ax = setup_premium_plot(x_label='Sample index', y_label='Seat_X', figsize=(5, 2.5))
-        ax.plot(data['index_raw'], data['seat_raw'], color=COLOR_COMPARE, linewidth=0.8, label='Raw')
-        ax.plot(data['index_smooth'], data['seat_smooth'], color=COLOR_SEAT, linewidth=1.5, label='Smoothed')
-        ax.legend(fontsize=8, facecolor=BG_COLOR_AXES)
-        st.pyplot(fig, width='stretch')
-        plt.close(fig)
+    # Handle_X figure
+    fig_handle, ax_handle = setup_premium_plot(x_label='Sample index', y_label='Handle_X', figsize=(5, 2.5))
+    ax_handle.plot(data['index_raw'], data['handle_raw'], color=COLOR_COMPARE, linewidth=0.8, label='Raw')
+    ax_handle.plot(data['index_smooth'], data['handle_smooth'], color=COLOR_HANDLE, linewidth=1.5, label='Smoothed')
+    ax_handle.legend(fontsize=8, facecolor=BG_COLOR_AXES)
 
-    with col_right:
-        st.markdown('**Before vs. after — `Handle_X`:**')
-        fig, ax = setup_premium_plot(x_label='Sample index', y_label='Handle_X', figsize=(5, 2.5))
-        ax.plot(data['index_raw'], data['handle_raw'], color=COLOR_COMPARE, linewidth=0.8, label='Raw')
-        ax.plot(data['index_smooth'], data['handle_smooth'], color=COLOR_HANDLE, linewidth=1.5, label='Smoothed')
-        ax.legend(fontsize=8, facecolor=BG_COLOR_AXES)
-        st.pyplot(fig, width='stretch')
-        plt.close(fig)
+    if not return_fig:
+        col_left, col_right = st.columns(2)
+        with col_left:
+            st.markdown('**Before vs. after — `Seat_X`:**')
+            st.pyplot(fig_seat, width='stretch')
+            plt.close(fig_seat)
+        with col_right:
+            st.markdown('**Before vs. after — `Handle_X`:**')
+            st.pyplot(fig_handle, width='stretch')
+            plt.close(fig_handle)
+        st.info(coach_tip)
+        return None
 
-    st.info(coach_tip)
+    return [fig_seat, fig_handle]

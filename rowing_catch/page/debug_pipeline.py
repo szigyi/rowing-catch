@@ -417,6 +417,7 @@ with st.expander('Step 6 details', expanded=True):
 
     st.markdown('**Ratio & Rhythm Spread (Consistency):**')
     from rowing_catch.ui.coaching_session import get_coaching_profile
+
     profile = get_coaching_profile()
     computed_rhythm = RhythmConsistencyComponent(profile=profile).compute(
         avg_cycle=avg_cycle_m,

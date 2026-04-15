@@ -1,5 +1,7 @@
 import base64
+from collections.abc import Sequence
 
+import matplotlib.pyplot as plt
 import streamlit as st
 
 from rowing_catch.plot.handle_seat_distance_plot import render_handle_seat_distance
@@ -10,6 +12,7 @@ from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH
 from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.trunk.trunk_angle_separation_plot import render_trunk_angle_separation
 from rowing_catch.plot_transformer import TrunkAngleComponent
+from rowing_catch.plot_transformer.annotations import AnnotationEntry
 from rowing_catch.plot_transformer.handle_seat_distance_transformer import HandleSeatDistanceComponent
 from rowing_catch.plot_transformer.handle_trajectory_dev_transformer import HandleTrajectoryDevComponent
 from rowing_catch.plot_transformer.recovery_slide_control_transformer import RecoverySlideControlComponent
@@ -47,6 +50,9 @@ active_sep_annotations = render_annotation_toggles(
     key_prefix='ann_sep',
 )
 fig1 = render_trunk_angle_separation(computed_sep, active_annotations=active_sep_annotations, return_fig=True)
+if fig1:
+    st.pyplot(fig1)
+    st.info(f'**Developing Advice:** {computed_sep["coach_tip"]}')
 
 st.subheader('2. Trunk Angle with Stick figures')
 st.markdown('Shows the trunk angle compare to the progress of the stroke.')
@@ -69,121 +75,121 @@ fig2 = render_trunk_angle_with_stage_stickfigures(
     active_annotations=active_trunk_annotations,
     return_fig=True,
 )
+if fig2:
+    st.pyplot(fig2)
+    st.info(f"**Coach's Tip:** {trunk_computed['coach_tip']}")
 
 st.subheader('3. Rhythm Consistency')
-st.markdown(
-    'Comparison of SPM and Drive/Recovery ratio across all strokes. A tight cluster indicates professional-grade consistency.'
-)
-rhythm_consistency_component = RhythmConsistencyComponent(profile=profile)
-computed_data_2 = rhythm_consistency_component.compute(
+st.markdown('Measures how consistently the rower reaches the target rhythm. Consistency is key for high-level performance.')
+rhythm_component = RhythmConsistencyComponent(profile=profile)
+computed_data_2 = rhythm_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
     finish_idx=finish_idx,
-    results=results,
+    results={'cycles': results['cycles']},
 )
 active_rhythm_annotations = render_annotation_toggles(
     annotations=computed_data_2.get('annotations', []),
+    color_overrides={'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH},
     expander_label='Annotations — Rhythm Consistency',
     key_prefix='ann_rhythm',
 )
 fig3 = render_rhythm_consistency(computed_data_2, active_annotations=active_rhythm_annotations, return_fig=True)
-fig3_display = render_rhythm_consistency(computed_data_2, active_annotations=active_rhythm_annotations, return_fig=False)
+if fig3:
+    st.pyplot(fig3, width='stretch')
+    st.info(f'**Performance Insight:** {computed_data_2["coach_tip"]}')
 
 st.subheader('4. Handle-Seat Distance')
 st.markdown('Measures compression. Ideally, you want a long reaching distance at the catch without losing core stability.')
-handle_distance_component = HandleSeatDistanceComponent()
-computed_data_3 = handle_distance_component.compute(
+handle_seat_distance_component = HandleSeatDistanceComponent()
+computed_data_3 = handle_seat_distance_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
     finish_idx=finish_idx,
-    ghost_cycle=scenario_avg,
     results={'scenario_name': selected_scenario},
 )
 fig4 = render_handle_seat_distance(computed_data_3, return_fig=True)
+if fig4:
+    st.pyplot(fig4)
+    st.info(f'**Developing Advice:** {computed_data_3["coach_tip"]}')
 
 
 st.subheader('5. Recovery Slide Control')
-st.markdown("Seat velocity during the recovery phase. Look for a controlled 'slow-down' before arriving at the catch.")
-recovery_control_component = RecoverySlideControlComponent()
-computed_data_4 = recovery_control_component.compute(
+st.markdown('Analyzes seat velocity during recovery. Gradual deceleration into the catch indicates good slide control.')
+recovery_slide_control_component = RecoverySlideControlComponent()
+computed_data_4 = recovery_slide_control_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
     finish_idx=finish_idx,
     results={'scenario_name': selected_scenario},
 )
 fig5 = render_recovery_slide_control(computed_data_4, return_fig=True)
+if fig5:
+    st.pyplot(fig5)
+    st.info(f'**Performance Insight:** {computed_data_4["coach_tip"]}')
 
 st.markdown('---')
 st.subheader('6. Handle Trajectory (Box Plot)')
-st.markdown(
-    'The vertical vs. horizontal path of the handle. A rectangular shape indicates consistent blade depth and clean extraction.'
-)
-trajectory_component = HandleTrajectoryDevComponent()
-computed_data_5 = trajectory_component.compute(
+st.markdown('Shows the variance of handle height across the stroke.')
+handle_trajectory_dev_component = HandleTrajectoryDevComponent()
+computed_data_5 = handle_trajectory_dev_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
     finish_idx=finish_idx,
-    ghost_cycle=scenario_avg,
     results={'scenario_name': selected_scenario},
 )
 fig6 = render_handle_trajectory_dev(computed_data_5, return_fig=True)
+if fig6:
+    st.pyplot(fig6)
+    st.info(f"**Coach's Tip:** {computed_data_5['coach_tip']}")
 
 
 st.markdown('---')
-st.subheader('7. Export Report')
-st.markdown('Generate a comprehensive PDF documentation of the development phase features above.')
-
 if st.button('Generate PDF Report', type='primary'):
-    try:
-        import matplotlib.figure
-
-        from rowing_catch.plot_transformer.annotations import AnnotationEntry
-
-        def get_active_anns(all_anns: list[AnnotationEntry], active_set: set[str] | None) -> list[AnnotationEntry]:
-            if not all_anns:
-                return []
-            if active_set is None:
+    with st.spinner('Generating report...'):
+        # Filter out multi-figure lists or None. renderer_performance_metrics returns a list.
+        # But we only use single figures here.
+        # Filter active annotations to pass full objects to PDF generator
+        def _get_active_anns(all_anns: list[AnnotationEntry], active_labels: set[str] | None) -> list[AnnotationEntry]:
+            if active_labels is None:
                 return all_anns
-            return [a for a in all_anns if a.label in active_set]
+            return [a for a in all_anns if a.label in active_labels]
 
-        figures = [
-            ('Trunk Angle Separation', fig1, get_active_anns(computed_sep.get('annotations', []), active_sep_annotations)),
-            ('Trunk Angle & Range', fig2, get_active_anns(trunk_computed.get('annotations', []), active_trunk_annotations)),
-            ('Rhythm Consistency', fig3, get_active_anns(computed_data_2.get('annotations', []), active_rhythm_annotations)),
+        figures: list[tuple[str, plt.Figure | None, Sequence[AnnotationEntry]]] = [
+            ('Trunk Angle Separation', fig1, _get_active_anns(computed_sep.get('annotations', []), active_sep_annotations)),
+            ('Trunk Angle & Range', fig2, _get_active_anns(trunk_computed.get('annotations', []), active_trunk_annotations)),
+            ('Rhythm Consistency', fig3, _get_active_anns(computed_data_2.get('annotations', []), active_rhythm_annotations)),
             ('Handle-Seat Distance', fig4, []),
             ('Recovery Slide Control', fig5, []),
-            ('Handle Trajectory (Box Plot)', fig6, []),
+            ('Handle Trajectory', fig6, []),
         ]
 
-        # Remove any Nones in case some data was missing
-        from collections.abc import Sequence
+        valid_figures: list[tuple[str, plt.Figure, Sequence[AnnotationEntry]]] = []
+        for name, f, anns in figures:
+            if f is not None:
+                valid_figures.append((name, f, anns))
 
-        valid_figures: list[tuple[str, matplotlib.figure.Figure, Sequence[AnnotationEntry]]] = [
-            (t, f, a) for t, f, a in figures if f is not None
-        ]
+        pdf_bytes = generate_development_report(
+            valid_figures,
+            data_label=data_label,
+        )
 
-        with st.spinner('Generating report...'):
-            pdf_bytes = generate_development_report(valid_figures, data_label)
-
-            # Use base64 encoded data URI via javascript to open in a new window/tab
-            b64 = base64.b64encode(pdf_bytes).decode()
-            style = (
-                'display: inline-block; padding: 0.5rem 1rem; '
-                'background-color: #2e66ff; color: white; '
-                'text-decoration: none; border-radius: 4px; '
-                'font-weight: 500; font-family: sans-serif;'
-            )
-            pdf_display = f'''
-                <a href="data:application/pdf;base64,{b64}" download="{data_label}_Development_Report.pdf" target="_blank"
-                   style="{style}">
-                    Click to Open/Download Report
-                </a>
-            '''
-            st.markdown(pdf_display, unsafe_allow_html=True)
-            st.success('Report successfully generated!')
-
-    except Exception as e:
-        st.error(f'Failed to generate report: {e}')
+        b64 = base64.b64encode(pdf_bytes).decode()
+        href = (
+            f'<a href="data:application/pdf;base64,{b64}" '
+            f'download="Rowing_Development_Report_{data_label}.pdf" '
+            f'style="text-decoration:none;">'
+            f'<div style="background-color:#FF4B4B;color:white;padding:10px 20px;'
+            f'border-radius:5px;text-align:center;font-weight:bold;margin-top:10px;">'
+            f'Download PDF Report'
+            f'</div></a>'
+        )
+        st.markdown(href, unsafe_allow_html=True)
 
 st.markdown('---')
 st.caption(f'Analysis complete for **{data_label}**.')
+
+# Cleanup Matplotlib figures to prevent memory leaks and MediaFileStorageError
+for f in [fig1, fig2, fig3, fig4, fig5, fig6]:
+    if f is not None:
+        plt.close(f)

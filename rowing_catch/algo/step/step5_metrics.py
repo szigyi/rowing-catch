@@ -1,13 +1,13 @@
 import numpy as np
 import pandas as pd
 
-from rowing_catch.algo.helpers import _detect_catches_by_seat_reversal
+from rowing_catch.algo.helpers import _detect_catches_by_seat_reversal, compute_trunk_angle_series
 
 
 def step5_compute_metrics(
     avg_cycle: pd.DataFrame,
     window: int = 10,
-) -> tuple[pd.DataFrame, int, int]:
+) -> tuple[pd.DataFrame, int, int, bool]:
     """Compute per-sample metrics on the averaged cycle.
 
     Adds the following columns to *avg_cycle* (in-place copy):
@@ -25,9 +25,11 @@ def step5_compute_metrics(
         window: Smoothing window (used for catch detection on the avg cycle).
 
     Returns:
-        A tuple ``(avg_cycle, catch_idx, finish_idx)`` where *avg_cycle* has
-        the new metric columns and the two indices locate the catch and finish
-        events within the averaged stroke.
+        A tuple ``(avg_cycle, catch_idx, finish_idx, is_facing_left)`` where
+        *avg_cycle* has the new metric columns, the two indices locate the catch
+        and finish events within the averaged stroke, and *is_facing_left* is
+        ``True`` when the handle is to the left of the seat at the catch (i.e.
+        the rower faces left on screen).
     """
     avg_cycle = avg_cycle.copy()
 
@@ -35,7 +37,7 @@ def step5_compute_metrics(
     ref_catch = avg_cycle.iloc[0]
     is_facing_left = ref_catch['Handle_X_Smooth'] < ref_catch['Seat_X_Smooth']
 
-    avg_cycle['Trunk_Angle'] = _compute_trunk_angles(avg_cycle, is_facing_left)
+    avg_cycle['Trunk_Angle'] = compute_trunk_angle_series(avg_cycle, is_facing_left)
 
     # Calculate derivatives (Velocity -> Acceleration -> Jerk)
     # Using np.gradient which handles non-uniform time steps if 't' is provided.
@@ -104,7 +106,7 @@ def step5_compute_metrics(
 
     finish_idx = _pick_finish_index(avg_cycle, catch_idx=catch_idx)
 
-    return avg_cycle, catch_idx, finish_idx
+    return avg_cycle, catch_idx, finish_idx, bool(is_facing_left)
 
 
 def _pick_finish_index(avg_cycle: pd.DataFrame, catch_idx: int) -> int:
@@ -144,23 +146,6 @@ def _pick_finish_index(avg_cycle: pd.DataFrame, catch_idx: int) -> int:
             handle_target = handle_target - 1
 
     return int(np.clip(handle_target, catch_idx + 1, n - 1))
-
-
-def _compute_trunk_angles(df: pd.DataFrame, is_facing_left: bool) -> pd.Series:
-    """Compute trunk angles for each row in the dataframe."""
-
-    def _calc_angle(row):
-        dx = row['Shoulder_X_Smooth'] - row['Seat_X_Smooth']
-        # dy = Shoulder_Y - Seat_Y (Shoulder is higher, so dy is usually positive)
-        dy = row['Shoulder_Y_Smooth'] - row['Seat_Y_Smooth']
-        dy_abs = abs(dy)
-
-        if is_facing_left:
-            return np.degrees(np.arctan2(dx, dy_abs))
-        else:
-            return np.degrees(np.arctan2(-dx, dy_abs))
-
-    return pd.Series(df.apply(_calc_angle, axis=1), dtype=float)
 
 
 def _compute_power_proxies(df: pd.DataFrame) -> pd.DataFrame:

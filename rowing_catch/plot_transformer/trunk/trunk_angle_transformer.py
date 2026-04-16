@@ -9,6 +9,7 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 
+from rowing_catch.algo.helpers import compute_trunk_angle_series
 from rowing_catch.coaching.profile import CoachingProfile
 from rowing_catch.plot_transformer.annotations import (
     BandAnnotation,
@@ -151,6 +152,13 @@ class TrunkAngleComponent(PlotComponent):
                 'finish_zone': finish_zone,
                 'catch_lean': catch_lean,
                 'finish_lean': finish_lean,
+                'cycle_trunk_angles': [
+                    compute_trunk_angle_series(
+                        cyc.iloc[: min(len(avg_cycle), len(cyc))],
+                        bool(results.get('is_facing_left', True)) if results else True,
+                    ).tolist()
+                    for cyc in (results.get('cycles', []) if results else [])
+                ],
             },
             'ghost_data': ghost_data,
             'metadata': {

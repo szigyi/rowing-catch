@@ -110,6 +110,10 @@ def render_handle_trajectory_dev(
     ideal_y = data['ideal_y']
     ax.plot(ideal_x, ideal_y, color=COLOR_COMPARE, linestyle='--', alpha=0.4, label='Reference Path', linewidth=1.5, zorder=1)
 
+    # Grey per-cycle trajectory overlays — behind main trace
+    for cyc_x, cyc_y in zip(data.get('cycle_handle_x', []), data.get('cycle_handle_y', []), strict=False):
+        ax.plot(cyc_x, cyc_y, color='#AAAAAA', linewidth=0.8, alpha=0.15, zorder=2)
+
     # Plot Actual Trajectory
     ax.plot(data['handle_x'], data['handle_y'], color=COLOR_HANDLE, linewidth=3, label='Your Data', zorder=3)
 

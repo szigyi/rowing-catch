@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pandas as pd
 
+from rowing_catch.algo.helpers import compute_trunk_angle_series
 from rowing_catch.coaching.profile import CoachingProfile
 from rowing_catch.plot_transformer.annotations import (
     BandAnnotation,
@@ -108,6 +109,17 @@ class TrunkAngleSeparationComponent(PlotComponent):
                 'scenario_seat': scenario_data['Seat_X_Smooth'].values if scenario_data is not None else None,
                 'scenario_angle': scenario_data['Trunk_Angle'].values if scenario_data is not None else None,
                 'scenario_data': scenario_data,
+                'cycle_seat_positions': [
+                    cyc['Seat_X_Smooth'].iloc[: min(len(avg_cycle), len(cyc))].to_numpy(dtype=float).tolist()
+                    for cyc in (results.get('cycles', []) if results else [])
+                ],
+                'cycle_trunk_angles': [
+                    compute_trunk_angle_series(
+                        cyc.iloc[: min(len(avg_cycle), len(cyc))],
+                        bool(results.get('is_facing_left', True)) if results else True,
+                    ).tolist()
+                    for cyc in (results.get('cycles', []) if results else [])
+                ],
             },
             'metadata': {
                 'title': 'Trunk Angle vs Stroke Progress',

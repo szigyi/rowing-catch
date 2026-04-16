@@ -5,6 +5,7 @@ Transforms averaged cycle velocity data into plot-ready format.
 
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from rowing_catch.plot_transformer.base import PlotComponent
@@ -49,6 +50,20 @@ class VelocityProfileComponent(PlotComponent):
         shoulder_vel = avg_cycle['Shoulder_X_Vel'].to_numpy(dtype=float).tolist() if has_shoulder else []
         rower_vel = avg_cycle['Rower_Vel'].to_numpy(dtype=float).tolist() if 'Rower_Vel' in avg_cycle.columns else []
 
+        # Per-cycle overlays (Seat + Handle only) — derive velocity via gradient
+        min_length = len(avg_cycle)
+        cycles: list[Any] = results.get('cycles', []) if results else []
+        cycle_handle_vels: list[list[float]] = []
+        cycle_seat_vels: list[list[float]] = []
+        for cyc in cycles:
+            if 'Handle_X_Smooth' not in cyc.columns or 'Seat_X_Smooth' not in cyc.columns:
+                continue
+            n = min(min_length, len(cyc))
+            h = cyc['Handle_X_Smooth'].iloc[:n].to_numpy(dtype=float)
+            s = cyc['Seat_X_Smooth'].iloc[:n].to_numpy(dtype=float)
+            cycle_handle_vels.append(np.gradient(h).tolist())
+            cycle_seat_vels.append(np.gradient(s).tolist())
+
         return {
             'data': {
                 'index': index,
@@ -59,6 +74,8 @@ class VelocityProfileComponent(PlotComponent):
                 'has_shoulder': has_shoulder,
                 'catch_idx': catch_idx,
                 'finish_idx': finish_idx,
+                'cycle_handle_vels': cycle_handle_vels,
+                'cycle_seat_vels': cycle_seat_vels,
             },
             'metadata': {
                 'title': 'Velocity Profile — Seat, Handle, Shoulder, Rower',

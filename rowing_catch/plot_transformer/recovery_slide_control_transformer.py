@@ -53,12 +53,24 @@ class RecoverySlideControlComponent(PlotComponent):
         # Seat velocity (absolute value for "speed")
         seat_speed = np.abs(rec['Seat_X_Vel'].values) if len(rec) > 0 else np.array([])
 
+        # Per-cycle recovery overlays (normalized to 0-100%) — derive speed via gradient
+        cycles: list[Any] = results.get('cycles', []) if results else []
+        cycle_recovery_speeds: list[list[float]] = []
+        for cyc in cycles:
+            if 'Seat_X_Smooth' not in cyc.columns:
+                continue
+            cyc_rec = cyc.iloc[finish_idx:] if finish_idx < len(cyc) else cyc.iloc[0:0]
+            if len(cyc_rec) > 1:
+                spd = np.abs(np.gradient(cyc_rec['Seat_X_Smooth'].to_numpy(dtype=float))).tolist()
+                cycle_recovery_speeds.append(spd)
+
         return {
             'data': {
                 'recovery_progress': rec_progress,
                 'seat_speed': seat_speed,
                 'finish_idx': finish_idx,
                 'recovery_data': rec,
+                'cycle_recovery_speeds': cycle_recovery_speeds,
             },
             'metadata': {
                 'title': 'Recovery Slide Control',

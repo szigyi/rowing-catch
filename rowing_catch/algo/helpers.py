@@ -8,6 +8,33 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def compute_trunk_angle_series(df: pd.DataFrame, is_facing_left: bool) -> pd.Series:
+    """Compute trunk angle (degrees from vertical) for every row in *df*.
+
+    This is the single source of truth for trunk angle geometry, shared by the
+    pipeline (step5_metrics) and the per-cycle overlay computation
+    (plot_transformer/trunk/cycle_utils).
+
+    The angle is measured from the vertical through the seat, positive when the
+    trunk leans in the direction the rower faces.  At the catch the rower leans
+    forward so the value is negative.
+
+    Args:
+        df: DataFrame with columns ``Shoulder_X_Smooth``, ``Shoulder_Y_Smooth``,
+            ``Seat_X_Smooth``, ``Seat_Y_Smooth``.
+        is_facing_left: ``True`` when the handle is to the left of the seat at
+            the catch (i.e. the rower faces left on screen).  Derived from
+            ``results['is_facing_left']`` which is set by ``step5_compute_metrics``.
+
+    Returns:
+        A float Series of trunk angles, one per row, with the same index as *df*.
+    """
+    dx = df['Shoulder_X_Smooth'].to_numpy(dtype=float) - df['Seat_X_Smooth'].to_numpy(dtype=float)
+    dy_abs = np.abs(df['Shoulder_Y_Smooth'].to_numpy(dtype=float) - df['Seat_Y_Smooth'].to_numpy(dtype=float))
+    angles = np.degrees(np.arctan2(dx, dy_abs) if is_facing_left else np.arctan2(-dx, dy_abs))
+    return pd.Series(angles, index=df.index, dtype=float)
+
+
 def _detect_catches_by_seat_reversal(
     seat_x: pd.Series,
     min_separation: int = 20,

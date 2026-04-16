@@ -123,6 +123,15 @@ class HandleSeatDistanceComponent(PlotComponent):
             sd = np.abs(scenario_data['Handle_X_Smooth'] - scenario_data['Seat_X_Smooth'])
             scenario_dist_values = sd.values if hasattr(sd, 'values') else np.asarray(sd)
 
+        # Per-cycle distance overlays
+        cycles: list[Any] = results.get('cycles', []) if results else []
+        min_length = len(avg_cycle)
+        cycle_distances: list[list[float]] = []
+        for cyc in cycles:
+            n = min(min_length, len(cyc))
+            cd = np.abs(cyc['Handle_X_Smooth'].iloc[:n].values - cyc['Seat_X_Smooth'].iloc[:n].values)
+            cycle_distances.append(cd.tolist())
+
         # ------------------------------------------------------------------ #
         # Phase boundary detection
         # ------------------------------------------------------------------ #
@@ -306,6 +315,7 @@ class HandleSeatDistanceComponent(PlotComponent):
                 'second_min_idx': second_min_idx,
                 'scenario_distance': scenario_dist_values,
                 'scenario_data': scenario_data,
+                'cycle_distances': cycle_distances,
             },
             'metadata': {
                 'title': 'Handle-Seat Separation (Intra-Stroke Compression)',

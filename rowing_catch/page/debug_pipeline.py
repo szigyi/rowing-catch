@@ -317,7 +317,7 @@ _step_header(
 )
 
 with st.expander('Step 5 details', expanded=True):
-    avg_cycle_m, catch_idx, finish_idx = step5_compute_metrics(avg_cycle, window=WINDOW)
+    avg_cycle_m, catch_idx, finish_idx, _ = step5_compute_metrics(avg_cycle, window=WINDOW)
 
     # --- Derived Relative Metrics (UI/Analysis helper) ---
     if 'Seat_X_Vel' in avg_cycle_m.columns:

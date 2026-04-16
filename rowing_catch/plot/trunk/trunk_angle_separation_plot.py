@@ -63,6 +63,14 @@ def render_trunk_angle_separation(
     ax.spines['bottom'].set_color(SPINE_COLOR)
     ax.grid(axis='y', linestyle='-', linewidth=0.5, color='#F0F0F0', zorder=0)
 
+    # Grey per-cycle overlays (seat position vs trunk angle) — behind main trace
+    for cyc_seat, cyc_angle in zip(
+        data.get('cycle_seat_positions', []),
+        data.get('cycle_trunk_angles', []),
+        strict=False,
+    ):
+        ax.plot(cyc_seat, cyc_angle, color='#AAAAAA', linewidth=0.8, alpha=0.15, zorder=1)
+
     # Main trace
     ax.plot(
         data['seat_position'],

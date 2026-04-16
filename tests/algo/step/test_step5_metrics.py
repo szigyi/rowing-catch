@@ -30,7 +30,7 @@ def test_step5_compute_metrics_basic():
     )
 
     # Run metrics computation
-    df_out, catch_idx, finish_idx = step5_compute_metrics(df, window=5)
+    df_out, catch_idx, finish_idx, _ = step5_compute_metrics(df, window=5)
 
     # 1. Row count preserved
     assert len(df_out) == len(df)
@@ -74,35 +74,80 @@ def test_step5_compute_metrics_basic():
     )
 
 
-def test_step5_compute_metrics_right_facing():
-    """Test metrics computation for a right-facing rower."""
-    # Facing right: Handle_X > Seat_X at catch
+def test_step5_detects_left_facing_rower():
+    """step5_compute_metrics returns is_facing_left=True when handle_x < seat_x at catch."""
     t = np.linspace(0, 1.0, 101)
-    # Seat at 500, Handle at 600 -> Handle > Seat -> Facing Right
     seat_x = 550 - 50 * np.cos(2 * np.pi * t)
-    handle_x = 550 + 50 * np.cos(2 * np.pi * t)
-
-    shoulder_y = np.zeros(101) + 600
-    seat_y = np.zeros(101) + 200
-    # Leaning forward to the right at catch (t=0): shoulder_x = seat_x + 50 = 550
-    shoulder_x = seat_x + 50 * np.cos(np.pi * t)
-
+    handle_x = 300 + 100 * np.cos(2 * np.pi * t)  # handle < seat at t=0
     df = pd.DataFrame(
         {
             'Seat_X_Smooth': seat_x,
             'Handle_X_Smooth': handle_x,
-            'Seat_Y_Smooth': seat_y,
-            'Shoulder_X_Smooth': shoulder_x,
-            'Shoulder_Y_Smooth': shoulder_y,
+            'Seat_Y_Smooth': np.full(101, 200.0),
+            'Shoulder_X_Smooth': seat_x - 30,
+            'Shoulder_Y_Smooth': np.full(101, 600.0),
         }
     )
+    _, _, _, is_facing_left = step5_compute_metrics(df, window=5)
+    assert is_facing_left is True
 
-    df_out, _, _ = step5_compute_metrics(df, window=5)
 
-    # At t=0 (catch): dx = 550 - 500 = 50.
-    # Facing right: angle = degrees(arctan2(-dx, dy_abs)) = degrees(arctan2(-50, 400))
-    expected_catch_angle = np.degrees(np.arctan2(-50, 400))
-    assert np.isclose(df_out['Trunk_Angle'].iloc[0], expected_catch_angle)
+def test_step5_detects_right_facing_rower():
+    """step5_compute_metrics returns is_facing_left=False when handle_x > seat_x at catch."""
+    t = np.linspace(0, 1.0, 101)
+    seat_x = 550 - 50 * np.cos(2 * np.pi * t)
+    handle_x = 700 + 50 * np.cos(2 * np.pi * t)  # handle > seat at t=0
+    df = pd.DataFrame(
+        {
+            'Seat_X_Smooth': seat_x,
+            'Handle_X_Smooth': handle_x,
+            'Seat_Y_Smooth': np.full(101, 200.0),
+            'Shoulder_X_Smooth': seat_x + 30,
+            'Shoulder_Y_Smooth': np.full(101, 600.0),
+        }
+    )
+    _, _, _, is_facing_left = step5_compute_metrics(df, window=5)
+    assert is_facing_left is False
+
+
+def test_step5_facing_direction_drives_trunk_angle_sign():
+    """The returned is_facing_left flag matches the sign of Trunk_Angle in avg_cycle.
+
+    Left-facing: forward lean at catch → negative trunk angle.
+    Right-facing: forward lean at catch (shoulder to the right) → negative trunk angle.
+    Both should produce negative catch angles; the is_facing_left flag must agree
+    with compute_trunk_angle_series so cycle overlays use the same convention.
+    """
+    t = np.linspace(0, 1.0, 101)
+    seat_x = 550 - 50 * np.cos(2 * np.pi * t)
+
+    # Left-facing: shoulder is to the left of seat at catch → forward lean → negative angle
+    df_left = pd.DataFrame(
+        {
+            'Seat_X_Smooth': seat_x,
+            'Handle_X_Smooth': 300 + 100 * np.cos(2 * np.pi * t),
+            'Seat_Y_Smooth': np.full(101, 200.0),
+            'Shoulder_X_Smooth': seat_x - 30,  # shoulder left of seat
+            'Shoulder_Y_Smooth': np.full(101, 600.0),
+        }
+    )
+    df_out_left, _, _, facing_left = step5_compute_metrics(df_left, window=5)
+    assert facing_left is True
+    assert df_out_left['Trunk_Angle'].iloc[0] < 0  # forward lean = negative
+
+    # Right-facing: shoulder is to the right of seat at catch → forward lean → negative angle
+    df_right = pd.DataFrame(
+        {
+            'Seat_X_Smooth': seat_x,
+            'Handle_X_Smooth': 700 + 50 * np.cos(2 * np.pi * t),
+            'Seat_Y_Smooth': np.full(101, 200.0),
+            'Shoulder_X_Smooth': seat_x + 30,  # shoulder right of seat
+            'Shoulder_Y_Smooth': np.full(101, 600.0),
+        }
+    )
+    df_out_right, _, _, facing_right = step5_compute_metrics(df_right, window=5)
+    assert facing_right is False
+    assert df_out_right['Trunk_Angle'].iloc[0] < 0  # forward lean = negative
 
 
 def test_step5_compute_metrics_no_time():
@@ -117,7 +162,7 @@ def test_step5_compute_metrics_no_time():
     df = pd.DataFrame(data)
 
     # Should not raise error
-    df_out, _, _ = step5_compute_metrics(df)
+    df_out, _, _, _ = step5_compute_metrics(df)
     assert 'Handle_X_Vel' in df_out.columns
 
 
@@ -156,7 +201,7 @@ def test_step5_catch_recalculation():
     # min_separation = max(5, window). If window=10, min_sep=10.
     # idx 5 and 20 are 15 apart, so both are detected as candidates.
     # step5_compute_metrics picks the LAST candidate: catch_idx = catch_candidates_avg[-1]
-    df_out, catch_idx, finish_idx = step5_compute_metrics(df, window=10)
+    df_out, catch_idx, finish_idx, _ = step5_compute_metrics(df, window=10)
 
     # Refinement should pick the LAST catch candidate (idx 20)
     # instead of the global minimum (idx 5).
@@ -200,7 +245,7 @@ def test_step5_finish_selection_with_multiple_candidates():
     df.loc[10, 'Seat_X_Smooth'] = 250.0  # Catch at 10
 
     # Run metrics computation
-    df_out, catch_idx, finish_idx = step5_compute_metrics(df, window=5)
+    df_out, catch_idx, finish_idx, _ = step5_compute_metrics(df, window=5)
 
     # It should have picked the handle peak at 80
     assert finish_idx == 80

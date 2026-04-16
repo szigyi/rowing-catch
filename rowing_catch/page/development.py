@@ -42,6 +42,7 @@ computed_vel = velocity_profile_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
     finish_idx=finish_idx,
+    results=results,
 )
 fig0 = render_velocity_profile(computed_vel, return_fig=True)
 if fig0:
@@ -56,7 +57,7 @@ computed_sep = trunk_angle_sep_component.compute(
     catch_idx=catch_idx,
     finish_idx=finish_idx,
     ghost_cycle=scenario_avg,
-    results={'scenario_name': selected_scenario},
+    results={**results, 'scenario_name': selected_scenario},
 )
 _sep_color_overrides = {'[P1]': COLOR_CATCH, '[P2]': COLOR_FINISH, '[Z1]': COLOR_CATCH, '[Z2]': COLOR_FINISH}
 active_sep_annotations = render_annotation_toggles(
@@ -135,7 +136,7 @@ computed_data_3 = handle_seat_distance_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
     finish_idx=finish_idx,
-    results={'scenario_name': selected_scenario},
+    results={**results, 'scenario_name': selected_scenario},
 )
 active_hsd_annotations = render_annotation_toggles(
     annotations=computed_data_3.get('annotations', []),
@@ -159,7 +160,7 @@ computed_data_4 = recovery_slide_control_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
     finish_idx=finish_idx,
-    results={'scenario_name': selected_scenario},
+    results={**results, 'scenario_name': selected_scenario},
 )
 fig5 = render_recovery_slide_control(computed_data_4, return_fig=True)
 if fig5:
@@ -174,7 +175,7 @@ computed_data_5 = handle_trajectory_dev_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
     finish_idx=finish_idx,
-    results={'scenario_name': selected_scenario},
+    results={**results, 'scenario_name': selected_scenario},
 )
 fig6 = render_handle_trajectory_dev(computed_data_5, return_fig=True)
 if fig6:

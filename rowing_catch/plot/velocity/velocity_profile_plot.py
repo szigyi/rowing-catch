@@ -39,6 +39,12 @@ def render_velocity_profile(computed_data: dict[str, Any], return_fig: bool = Fa
     ax.plot(index, data['seat_vel'], color=MAIN_COLORS[1], linewidth=1.5, label='Seat')
     ax.fill_between(index, data['seat_vel'], 0, color=MAIN_COLORS[1], alpha=0.08)
 
+    # Grey per-cycle overlays (Seat + Handle) — behind main traces
+    for cyc_h in data.get('cycle_handle_vels', []):
+        ax.plot(index[: len(cyc_h)], cyc_h, color='#AAAAAA', linewidth=0.8, alpha=0.15, zorder=1)
+    for cyc_s in data.get('cycle_seat_vels', []):
+        ax.plot(index[: len(cyc_s)], cyc_s, color='#AAAAAA', linewidth=0.8, alpha=0.15, zorder=1)
+
     if data['has_shoulder']:
         ax.plot(index, data['shoulder_vel'], color=MAIN_COLORS[2], linewidth=1.2, linestyle='--', label='Shoulder')
         if data['rower_vel']:

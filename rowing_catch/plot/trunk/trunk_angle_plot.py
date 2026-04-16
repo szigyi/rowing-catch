@@ -93,6 +93,18 @@ def render_trunk_angle_with_stage_stickfigures(
         pass
 
     # --- Top: trunk angle trace ---
+    # Grey per-cycle overlays — behind main trace, top panel only
+    x_arr = data['x']
+    for cyc_angles in data.get('cycle_trunk_angles', []):
+        ax_top.plot(
+            x_arr[: len(cyc_angles)],
+            cyc_angles,
+            color='#AAAAAA',
+            linewidth=0.8,
+            alpha=0.15,
+            zorder=1,
+        )
+
     ax_top.plot(x, trunk_angle, color=COLOR_MAIN, label='Trunk Angle', linewidth=2.5, zorder=5)
 
     # Fill under the curve

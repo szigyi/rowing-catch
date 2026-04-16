@@ -178,7 +178,7 @@ try:
     if result4 is None:
         raise RuntimeError('No valid cycles could be extracted during segmentation.')
     _step_context['cycles'], _step_context['avg_cycle'], _step_context['min_length'] = result4
-    _step_context['avg_cycle_m'], _step_context['catch_idx'], _step_context['finish_idx'] = step5_compute_metrics(
+    _step_context['avg_cycle_m'], _step_context['catch_idx'], _step_context['finish_idx'], _ = step5_compute_metrics(
         _step_context['avg_cycle'], window=10
     )
     _step_context['stats'] = step6_statistics(

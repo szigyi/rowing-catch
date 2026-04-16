@@ -6,6 +6,7 @@ Renders seat velocity during recovery phase.
 from typing import Any
 
 import matplotlib.pyplot as plt
+import numpy as np
 import streamlit as st
 
 from rowing_catch.plot.theme import COLOR_SEAT
@@ -34,6 +35,11 @@ def render_recovery_slide_control(
 
     recovery_progress = data['recovery_progress']
     seat_speed = data['seat_speed']
+
+    # Grey per-cycle recovery overlays — behind main trace
+    for cyc_spd in data.get('cycle_recovery_speeds', []):
+        cyc_prog = np.linspace(0, 100, len(cyc_spd))
+        ax.plot(cyc_prog, cyc_spd, color='#AAAAAA', linewidth=0.8, alpha=0.15, zorder=1)
 
     # Main plot: seat velocity during recovery
     ax.plot(recovery_progress, seat_speed, color=COLOR_SEAT, linewidth=2.5, label='Seat Velocity')

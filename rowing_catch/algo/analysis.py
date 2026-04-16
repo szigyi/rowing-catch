@@ -69,7 +69,7 @@ def process_rowing_data(df: pd.DataFrame, pre_catch_window: int = 10) -> dict | 
     cycles, avg_cycle, min_length = result
 
     # Step 5
-    avg_cycle, catch_idx, finish_idx = step5_compute_metrics(avg_cycle, window=window)
+    avg_cycle, catch_idx, finish_idx, is_facing_left = step5_compute_metrics(avg_cycle, window=window)
 
     # Step 6: Performance statistics (both sample and time-based)
     stats = step6_statistics(cycles, min_length, catch_idx, finish_idx, avg_cycle)
@@ -82,6 +82,7 @@ def process_rowing_data(df: pd.DataFrame, pre_catch_window: int = 10) -> dict | 
         'cycles': cycles,
         'catch_idx': catch_idx,
         'finish_idx': finish_idx,
+        'is_facing_left': is_facing_left,
         'min_length': min_length,
         **stats,
         'metadata': metadata,

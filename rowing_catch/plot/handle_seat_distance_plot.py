@@ -38,6 +38,10 @@ def render_handle_seat_distance(
         y_label=metadata['y_label'],
     )
 
+    # Grey per-cycle distance overlays — behind main trace
+    for cyc_dist in computed_data['data'].get('cycle_distances', []):
+        ax.plot(data['x'][: len(cyc_dist)], cyc_dist, color='#AAAAAA', linewidth=0.8, alpha=0.15, zorder=1)
+
     # Main plot
     ax.plot(data['x'], data['distance'], color=COLOR_HANDLE, linewidth=2.5, label='Distance', zorder=5)
     ax.fill_between(data['x'], data['distance'], color=COLOR_HANDLE, alpha=0.1, zorder=4)

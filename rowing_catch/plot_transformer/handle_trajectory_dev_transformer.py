@@ -69,6 +69,16 @@ class HandleTrajectoryDevComponent(PlotComponent):
             scenario_x = scenario_data['Handle_X_Smooth'].values
             scenario_y = scenario_data['Handle_Y_Smooth'].values
 
+        # Per-cycle overlays
+        cycles: list[Any] = results.get('cycles', []) if results else []
+        min_length = len(avg_cycle)
+        cycle_handle_x: list[list[float]] = []
+        cycle_handle_y: list[list[float]] = []
+        for cyc in cycles:
+            n = min(min_length, len(cyc))
+            cycle_handle_x.append(cyc['Handle_X_Smooth'].iloc[:n].to_numpy(dtype=np.float64).tolist())
+            cycle_handle_y.append(cyc['Handle_Y_Smooth'].iloc[:n].to_numpy(dtype=np.float64).tolist())
+
         return {
             'data': {
                 'handle_x': h_x,
@@ -84,6 +94,8 @@ class HandleTrajectoryDevComponent(PlotComponent):
                 'scenario_x': scenario_x,
                 'scenario_y': scenario_y,
                 'scenario_data': scenario_data,
+                'cycle_handle_x': cycle_handle_x,
+                'cycle_handle_y': cycle_handle_y,
             },
             'metadata': {
                 'title': 'Handle Trajectory Path',

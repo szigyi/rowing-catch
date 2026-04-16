@@ -14,7 +14,7 @@ from rowing_catch.plot.trunk.trunk_angle_separation_plot import render_trunk_ang
 from rowing_catch.plot.velocity.velocity_profile_plot import render_velocity_profile
 from rowing_catch.plot_transformer import TrunkAngleComponent
 from rowing_catch.plot_transformer.annotations import AnnotationEntry
-from rowing_catch.plot_transformer.handle_seat_distance_transformer import HandleSeatDistanceComponent
+from rowing_catch.plot_transformer.handle_seat.handle_seat_distance_transformer import HandleSeatDistanceComponent
 from rowing_catch.plot_transformer.handle_trajectory_dev_transformer import HandleTrajectoryDevComponent
 from rowing_catch.plot_transformer.recovery_slide_control_transformer import RecoverySlideControlComponent
 from rowing_catch.plot_transformer.rhythm.rhythm_consistency_transformer import RhythmConsistencyComponent
@@ -130,14 +130,23 @@ if fig3:
 
 st.subheader('5. Handle-Seat Distance')
 st.markdown('Measures compression. Ideally, you want a long reaching distance at the catch without losing core stability.')
-handle_seat_distance_component = HandleSeatDistanceComponent()
+handle_seat_distance_component = HandleSeatDistanceComponent(profile=profile)
 computed_data_3 = handle_seat_distance_component.compute(
     avg_cycle=avg_cycle,
     catch_idx=catch_idx,
     finish_idx=finish_idx,
     results={'scenario_name': selected_scenario},
 )
-fig4 = render_handle_seat_distance(computed_data_3, return_fig=True)
+active_hsd_annotations = render_annotation_toggles(
+    annotations=computed_data_3.get('annotations', []),
+    expander_label='Annotations — Handle-Seat Distance',
+    key_prefix='ann_hsd',
+)
+fig4 = render_handle_seat_distance(
+    computed_data_3,
+    active_annotations=active_hsd_annotations,
+    return_fig=True,
+)
 if fig4:
     st.pyplot(fig4)
     st.info(f'**Developing Advice:** {computed_data_3["coach_tip"]}')
@@ -189,7 +198,7 @@ if st.button('Generate PDF Report', type='primary'):
             ('Trunk Angle Separation', fig1, _get_active_anns(computed_sep.get('annotations', []), active_sep_annotations)),
             ('Trunk Angle & Range', fig2, _get_active_anns(trunk_computed.get('annotations', []), active_trunk_annotations)),
             ('Rhythm Consistency', fig3, _get_active_anns(computed_data_2.get('annotations', []), active_rhythm_annotations)),
-            ('Handle-Seat Distance', fig4, []),
+            ('Handle-Seat Distance', fig4, _get_active_anns(computed_data_3.get('annotations', []), active_hsd_annotations)),
             ('Recovery Slide Control', fig5, []),
             ('Handle Trajectory', fig6, []),
         ]

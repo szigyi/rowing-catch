@@ -52,7 +52,6 @@ def step7_diagnostics(
             if sampling_cv is not None and sampling_cv > 5.0:
                 sampling_is_stable = False
                 warnings.append(f'Sampling frequency unstable: CV={sampling_cv:.1f}% (expected ~0-2%)')
-                logger.warning(f'Sampling frequency unstable: {sampling_cv:.1f}%')
 
     # 2. NaN rate in position columns (from avg_cycle)
     position_cols = [

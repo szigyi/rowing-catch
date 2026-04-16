@@ -10,10 +10,12 @@ impact of their choices.
 import streamlit as st
 
 from rowing_catch.coaching.profile import DEFAULT_COACHING_PROFILE, CoachingProfile
+from rowing_catch.plot.handle_seat_distance_plot import render_handle_seat_distance
 from rowing_catch.plot.rhythm.rhythm_consistency_plot import render_rhythm_consistency
 from rowing_catch.plot.theme import COLOR_CATCH, COLOR_FINISH, COLOR_IDEAL_RATIO, COLOR_RHYTHM_SPREAD
 from rowing_catch.plot.trunk.trunk_angle_plot import render_trunk_angle_with_stage_stickfigures
 from rowing_catch.plot.trunk.trunk_angle_separation_plot import render_trunk_angle_separation
+from rowing_catch.plot_transformer.handle_seat.handle_seat_distance_transformer import HandleSeatDistanceComponent
 from rowing_catch.plot_transformer.rhythm.rhythm_consistency_transformer import RhythmConsistencyComponent
 from rowing_catch.plot_transformer.trunk.trunk_angle_separation_transformer import TrunkAngleSeparationComponent
 from rowing_catch.plot_transformer.trunk.trunk_angle_transformer import TrunkAngleComponent
@@ -364,6 +366,81 @@ with col_preview4:
 st.markdown('---')
 
 # ---------------------------------------------------------------------------
+# Section 5: Handle-Seat Distance (Intra-Stroke Compression)
+# ---------------------------------------------------------------------------
+st.subheader('5. Handle-Seat Distance — Intra-Stroke Compression')
+st.markdown(
+    'Configure thresholds for the **upper body engagement timing** during the drive '
+    'and the **recovery rock-over speed** after the finish.'
+)
+
+col_ctrl5, col_preview5 = st.columns([1, 2], gap='large')
+
+with col_ctrl5:
+    rockover_pct = st.slider(
+        'Recovery rock-over target (% of recovery)',
+        min_value=10,
+        max_value=60,
+        value=int(current.handle_seat_rockover_pct),
+        step=5,
+        help=(
+            'By this % of the recovery, the handle-seat distance should have reached '
+            '50% of its maximum recovery value. Lower = faster rock-over expected. Default: 30%.'
+        ),
+    )
+    compression_max_pct = st.slider(
+        'Max upper body draw duration (% of drive)',
+        min_value=20,
+        max_value=70,
+        value=int(current.handle_seat_compression_max_pct),
+        step=5,
+        help=(
+            'If the handle-seat compression phase lasts longer than this fraction of the drive, '
+            'the upper body draw is flagged as drawn out. Default: 40%.'
+        ),
+    )
+    st.info(
+        f'**Rock-over window:** handle at 50% of max by {rockover_pct}% of recovery\n\n'
+        f'**Max draw duration:** {compression_max_pct}% of drive\n\n'
+        f'Upper body timing uses the Trunk Opening setting above: {trunk_opening_pct}% ± {trunk_tolerance_pct}%'
+    )
+
+with col_preview5:
+    st.caption('Live preview — Handle-Seat Distance (phase annotations & coaching tips)')
+    preview_profile_hsd = CoachingProfile(
+        trunk_opening_ideal_pct=float(trunk_opening_pct),
+        trunk_open_tolerance_pct=float(trunk_tolerance_pct),
+        catch_lean_low=float(catch_low),
+        catch_lean_high=float(catch_high),
+        finish_lean_low=float(finish_low),
+        finish_lean_high=float(finish_high),
+        recovery_reach_ideal_low=float(rec_low),
+        recovery_reach_ideal_high=float(rec_high),
+        separation_reach_ideal_low=float(sep_low_raw),
+        separation_reach_ideal_high=float(sep_high_raw),
+        separation_very_late_threshold=float(very_late_raw),
+        handle_seat_rockover_pct=float(rockover_pct),
+        handle_seat_compression_max_pct=float(compression_max_pct),
+    )
+    hsd_comp = HandleSeatDistanceComponent(profile=preview_profile_hsd)
+    computed_hsd = hsd_comp.compute(
+        avg_cycle=avg_cycle,
+        catch_idx=catch_idx,
+        finish_idx=finish_idx,
+        results={'scenario_name': 'None'},
+    )
+    from rowing_catch.ui.annotation_toggles import render_annotation_toggles as _render_ann_toggles
+
+    active_hsd_ann = _render_ann_toggles(
+        annotations=computed_hsd.get('annotations', []),
+        expander_label='Annotations — Handle-Seat Distance (Preview)',
+        key_prefix='profile_hsd_ann',
+    )
+    render_handle_seat_distance(computed_hsd, active_annotations=active_hsd_ann)
+
+st.markdown('---')
+
+# ---------------------------------------------------------------------------
 # Save / Reset buttons
 # ---------------------------------------------------------------------------
 col_save, col_reset = st.columns([1, 1])
@@ -381,6 +458,8 @@ final_profile = CoachingProfile(
     separation_reach_ideal_high=float(sep_high_raw),
     separation_very_late_threshold=float(very_late_raw),
     rhythm_drive_pct_offset=float(rhythm_offset),
+    handle_seat_rockover_pct=float(rockover_pct),
+    handle_seat_compression_max_pct=float(compression_max_pct),
 )
 
 with col_save:

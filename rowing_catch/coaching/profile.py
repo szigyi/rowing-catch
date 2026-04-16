@@ -97,6 +97,28 @@ class CoachingProfile:
     """If trunk reaches catch zone after this fraction → very late / no separation."""
 
     # ------------------------------------------------------------------ #
+    # Handle-Seat Distance (intra-stroke compression)
+    # ------------------------------------------------------------------ #
+
+    handle_seat_rockover_pct: float = 30.0
+    """By this percentage of the recovery phase the handle-seat distance should
+    have reached at least 50 % of its maximum recovery value.
+
+    A lower value means the coach expects a quicker early rock-over after the
+    finish.  Default 30 % — the rower should rock over in the first third of
+    the recovery.
+    """
+
+    handle_seat_compression_max_pct: float = 40.0
+    """Maximum acceptable fraction of the drive phase during which the upper
+    body draw (trunk and/or arm pull) is active, detected as the decreasing
+    portion of the handle-seat distance curve.
+
+    Above this value the draw is considered drawn out and slow.  Default 40 %
+    of the drive.
+    """
+
+    # ------------------------------------------------------------------ #
     # Rhythm consistency — ideal curve offset
     # ------------------------------------------------------------------ #
 

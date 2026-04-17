@@ -63,11 +63,9 @@ def render_handle_seat_distance(
 
     # Phase region text labels — rendered directly so they appear inside the shaded spans
     y_min, y_max = ax.get_ylim()
-    y_label_pos = y_min + (y_max - y_min) * 0.06
+    y_top = y_max - (y_max - y_min) * 0.05
     _phase_labels = {
-        '[Ph1]': 'Drive Phase',
-        '[Ph2]': 'Intra-Stroke\nCompression',
-        '[Ph3]': 'Recovery',
+        '[Z1]': 'Intra-Stroke\nCompression',
     }
     for ann in annotations:
         if not isinstance(ann, PhaseAnnotation):
@@ -79,11 +77,11 @@ def render_handle_seat_distance(
             mid_x = (ann.x_start + ann.x_end) / 2
             ax.text(
                 mid_x,
-                y_label_pos,
+                y_top,
                 label_text,
                 ha='center',
-                va='bottom',
-                fontsize=8,
+                va='top',
+                fontsize=10,
                 color='#666666',
                 fontstyle='italic',
                 bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.7, pad=1.0),

@@ -385,7 +385,21 @@ with col_ctrl5:
         step=5,
         help=(
             'By this % of the recovery, the handle-seat distance should have reached '
-            '50% of its maximum recovery value. Lower = faster rock-over expected. Default: 30%.'
+            f'{int(100 * (current.handle_seat_rockover_fraction if hasattr(current, "handle_seat_rockover_fraction") else 0.5))}'
+            '% of its max recovery value.\n'
+            'Lower = faster rock-over expected. Default: 30%.'
+        ),
+    )
+    rockover_fraction = st.slider(
+        'Ideal rock-over distance (fraction of max recovery)',
+        min_value=0.2,
+        max_value=0.8,
+        value=float(getattr(current, 'handle_seat_rockover_fraction', 0.5)),
+        step=0.01,
+        format="%.2f",
+        help=(
+            'What fraction of the maximum handle-seat distance during recovery is considered the ideal rock-over point?\n'
+            'Default: 0.50 (50%). This sets the height of the [Z3] band annotation.'
         ),
     )
     compression_max_pct = st.slider(
@@ -400,7 +414,7 @@ with col_ctrl5:
         ),
     )
     st.info(
-        f'**Rock-over window:** handle at 50% of max by {rockover_pct}% of recovery\n\n'
+        f'**Rock-over window:** handle at {int(100 * rockover_fraction)}% of max by {rockover_pct}% of recovery\n\n'
         f'**Max draw duration:** {compression_max_pct}% of drive\n\n'
         f'Upper body timing uses the Trunk Opening setting above: {trunk_opening_pct}% ± {trunk_tolerance_pct}%'
     )
@@ -420,6 +434,7 @@ with col_preview5:
         separation_reach_ideal_high=float(sep_high_raw),
         separation_very_late_threshold=float(very_late_raw),
         handle_seat_rockover_pct=float(rockover_pct),
+        handle_seat_rockover_fraction=float(rockover_fraction),
         handle_seat_compression_max_pct=float(compression_max_pct),
     )
     hsd_comp = HandleSeatDistanceComponent(profile=preview_profile_hsd)
@@ -459,6 +474,7 @@ final_profile = CoachingProfile(
     separation_very_late_threshold=float(very_late_raw),
     rhythm_drive_pct_offset=float(rhythm_offset),
     handle_seat_rockover_pct=float(rockover_pct),
+    handle_seat_rockover_fraction=float(rockover_fraction),
     handle_seat_compression_max_pct=float(compression_max_pct),
 )
 

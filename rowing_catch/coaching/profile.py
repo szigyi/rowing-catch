@@ -118,6 +118,13 @@ class CoachingProfile:
     of the drive.
     """
 
+    handle_seat_rockover_fraction: float = 0.5
+    """Fraction (0–1) of the recovery handle-seat distance considered ideal for rock-over.
+
+    Default 0.5 means the rower should reach 50% of the max recovery handle-seat distance
+    by the configured rock-over timing (handle_seat_rockover_pct).
+    """
+
     # ------------------------------------------------------------------ #
     # Rhythm consistency — ideal curve offset
     # ------------------------------------------------------------------ #

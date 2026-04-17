@@ -138,14 +138,17 @@ computed_data_3 = handle_seat_distance_component.compute(
     finish_idx=finish_idx,
     results={**results, 'scenario_name': selected_scenario},
 )
+_hsd_color_overrides: dict[str, str] = { '[Z2]': COLOR_CATCH, '[Z3]': COLOR_CATCH }
 active_hsd_annotations = render_annotation_toggles(
     annotations=computed_data_3.get('annotations', []),
+    color_overrides=_hsd_color_overrides,
     expander_label='Annotations — Handle-Seat Distance',
     key_prefix='ann_hsd',
 )
 fig4 = render_handle_seat_distance(
     computed_data_3,
     active_annotations=active_hsd_annotations,
+    color_overrides=_hsd_color_overrides,
     return_fig=True,
 )
 if fig4:

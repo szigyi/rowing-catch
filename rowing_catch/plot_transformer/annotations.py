@@ -155,10 +155,12 @@ class PhaseAnnotation:
     """Annotates a vertical phase region (e.g. Drive Phase) on the plot.
 
     Attributes:
-        label: Short reference shown on the plot, e.g. '[Ph1]'
+        label: Short reference shown on the plot, e.g. '[Z1]'
         description: Full explanation shown in the legend table
         x_start: Left edge of the phase region (data units)
         x_end: Right edge of the phase region (data units)
+        display_name: Optional short text rendered inside the band on the plot itself.
+                      E.g. 'Ideal Catch Range'. None → no in-plot label.
         color: Hex color. None → auto-assigned
         axis_id: Target axes identifier
         coach_tip: Short coaching cue for the legend table. Empty → blank cell.
@@ -168,6 +170,9 @@ class PhaseAnnotation:
     description: str
     x_start: float
     x_end: float
+    display_name: str | None = None
+    y_pos: float | None = None
+    y_rel: float | None = None
     color: str | None = None
     axis_id: str = 'main'
     coach_tip: str = ''

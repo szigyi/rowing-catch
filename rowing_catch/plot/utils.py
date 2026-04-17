@@ -412,9 +412,9 @@ def _draw_band_annotation(
             alpha=0.5,
             zorder=2,
         )
-    # Optional in-plot display name — placed at 80% across the visible band width
+    # Optional in-plot display name — placed at 50% across the visible band width
     if ann.display_name:
-        x_text = x_start + (x_end - x_start) * 0.80
+        x_text = x_start + (x_end - x_start) * 0.50
         y_mid = (ann.y_low + ann.y_high) / 2
         ax.text(
             x_text,
@@ -447,6 +447,30 @@ def _draw_phase_annotation(
     # Vertical border lines
     for x_val in (ann.x_start, ann.x_end):
         ax.axvline(x_val, color=color, linewidth=0.8, linestyle=':', alpha=0.5, zorder=2)
+
+    # Optional in-plot display name — placed at 80% across the visible band width
+    if ann.display_name:
+        x_text = ann.x_start + (ann.x_end - ann.x_start) * 0.8
+        y_min, y_max = ax.get_ylim()
+        y_label: float
+        if ann.y_pos is not None:
+            y_label = ann.y_pos
+        elif ann.y_rel is not None:
+            y_label = y_min + ann.y_rel * (y_max - y_min)
+        else:
+            y_label = (y_min + y_max) / 2
+        ax.text(
+            x_text,
+            y_label,
+            ann.display_name,
+            color=color,
+            fontsize=8,
+            fontweight='medium',
+            ha='center',
+            va='center',
+            bbox=dict(facecolor='#FFFFFF', edgecolor='none', alpha=0.75, pad=1.2),
+            zorder=3,
+        )
 
 
 __all__ = [

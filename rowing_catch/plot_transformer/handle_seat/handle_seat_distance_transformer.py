@@ -28,6 +28,7 @@ import pandas as pd
 from rowing_catch.coaching.profile import CoachingProfile
 from rowing_catch.plot_transformer.annotations import (
     AnnotationEntry,
+    BandAnnotation,
     PhaseAnnotation,
     PointAnnotation,
     SegmentAnnotation,
@@ -188,21 +189,10 @@ class HandleSeatDistanceComponent(PlotComponent):
 
         annotations: list[AnnotationEntry] = []
 
-        # [Ph1] Drive Phase region
+        # [Z1] Intra-Stroke Compression region (no coaching tip)
         annotations.append(
             PhaseAnnotation(
-                label='[Ph1]',
-                description='Drive Phase — legs pushing, handle held out, then upper body engages',
-                x_start=float(x[catch_idx]),
-                x_end=float(x[first_min_idx]),
-                coach_tip='',
-            )
-        )
-
-        # [Ph2] Intra-Stroke Compression region (no coaching tip)
-        annotations.append(
-            PhaseAnnotation(
-                label='[Ph2]',
+                label='[Z1]',
                 description='Intra-Stroke Compression — hands-away bump at the finish',
                 x_start=float(x[first_min_idx]),
                 x_end=float(x[second_min_idx]),
@@ -210,13 +200,49 @@ class HandleSeatDistanceComponent(PlotComponent):
             )
         )
 
-        # [Ph3] Recovery region
+        # [Z2] Ideal upper body engagement zone (BandAnnotation)
+        drive_start = float(x[catch_idx])
+        drive_end = float(x[finish_idx])
+        ideal_pct = self.profile.trunk_opening_ideal_pct / 100.0
+        ideal_end_x = drive_start + (drive_end - drive_start) * ideal_pct
+        ideal_end_idx = catch_idx + int((finish_idx - catch_idx) * ideal_pct)
+        ideal_end_idx = min(max(catch_idx, ideal_end_idx), finish_idx)
+        z2_y_segment = distance[catch_idx:ideal_end_idx+1] if ideal_end_idx >= catch_idx else distance[catch_idx:finish_idx+1]
+        z2_y_max = float(np.max(z2_y_segment)) if z2_y_segment.size > 0 else float(distance[catch_idx])
         annotations.append(
-            PhaseAnnotation(
-                label='[Ph3]',
-                description='Recovery — rower rocks forward, handle and seat separate',
+            BandAnnotation(
+                label='[Z2]',
+                description=f'Ideal upper body engagement zone: first {self.profile.trunk_opening_ideal_pct:.0f}% of drive',
+                x_start=drive_start,
+                x_end=ideal_end_x,
+                y_low=0.0,
+                y_high=z2_y_max,
+                display_name='Ideal\nLeg Only\nEngagement\nZone',
+                coach_tip='',
+            )
+        )
+
+        # [Z3] Ideal rock-over zone in recovery
+        rockover_zone_pct = self.profile.handle_seat_rockover_pct
+        rockover_zone_length = int(recovery_length * (rockover_zone_pct / 100.0))
+        rockover_zone_end_idx = second_min_idx + rockover_zone_length
+        rockover_zone_end_idx = min(rockover_zone_end_idx, end_idx)
+        z3_y_segment = (
+            distance[second_min_idx:rockover_zone_end_idx+1]
+            if rockover_zone_end_idx >= second_min_idx
+            else distance[second_min_idx:end_idx+1]
+        )
+        z3_y_min = float(np.min(z3_y_segment)) if z3_y_segment.size > 0 else float(distance[second_min_idx])
+        z3_y_max = float(min_recovery + self.profile.handle_seat_rockover_fraction * (max_recovery - min_recovery))
+        annotations.append(
+            BandAnnotation(
+                label='[Z3]',
+                description=f'Ideal rock-over zone: first {rockover_zone_pct:.0f}% of recovery',
                 x_start=float(x[second_min_idx]),
-                x_end=float(x[end_idx]),
+                x_end=float(x[rockover_zone_end_idx]),
+                y_low=z3_y_min,
+                y_high=z3_y_max,
+                display_name='Ideal\nRock-Over\nZone',
                 coach_tip='',
             )
         )
